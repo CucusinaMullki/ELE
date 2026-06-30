@@ -8,6 +8,9 @@ void Renderer::init(GLFWwindow* window)
     m_pipeline.initialize(m_context.getDevice(), m_swapchain.getExtent(), m_renderPass.getRenderPass());
     m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass());
 
+    std::cout << "Swapchain images: " << m_swapchain.getImageViews().size() << std::endl;
+    std::cout << "Framebuffers: " << m_framebuffers.getFramebuffers().size() << std::endl;
+
     auto indices = m_context.GetQueueFamilyIndices();
     m_commandManager.intialize(m_context.getDevice(), indices.graphicFamily.value(), MAX_FRAMES_IN_FLIGHT);
 
@@ -16,6 +19,7 @@ void Renderer::init(GLFWwindow* window)
     m_imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
     m_renderFinishedSemaphores.resize(imageCount);
     m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+    m_imagesInFlight.resize(imageCount, VK_NULL_HANDLE);
 
     vk::SemaphoreCreateInfo semaphoreInfo{};
     vk::FenceCreateInfo fenceInfo{};
@@ -38,7 +42,7 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
     vk::CommandBufferBeginInfo beginInfo{};
     commandBuffer.begin(beginInfo);
 
-    vk::ClearValue clearColor{ vk::ClearColorValue{ std::array<float,4>{ 0.0f, 0.0f, 0.0f, 1.0f } } };
+    vk::ClearValue clearColor{ vk::ClearColorValue{ std::array<float,4>{ 0.0f, 0.0f, 1.0f, 1.0f } } };
 
     vk::RenderPassBeginInfo renderPassInfo{};
     renderPassInfo.setRenderPass(m_renderPass.getRenderPass());
@@ -60,14 +64,31 @@ void Renderer::drawFrame()
     auto fence  = m_inFlightFences[m_currentFrame].get();
 
     device.waitForFences(fence, true, UINT64_MAX);
-    device.resetFences(fence);
 
-    auto [result, imageIndex] = device.acquireNextImageKHR(
-        m_swapchain.getSwapChain(),
-        UINT64_MAX,
-        m_imageAvailableSemaphores[m_currentFrame].get(),
-        nullptr
-    );
+    uint32_t imageIndex;
+    try
+    {
+        auto acquireResult = device.acquireNextImageKHR(
+            m_swapchain.getSwapChain(),
+            UINT64_MAX,
+            m_imageAvailableSemaphores[m_currentFrame].get(),
+            nullptr
+        );
+        imageIndex = acquireResult.value;
+    }
+    catch (const vk::OutOfDateKHRError&)
+    {
+        recreateSwapchain();
+        return;
+    }
+
+    if (m_imagesInFlight[imageIndex] != VK_NULL_HANDLE)
+    {
+        device.waitForFences(m_imagesInFlight[imageIndex], true, UINT64_MAX);
+    }
+    m_imagesInFlight[imageIndex] = fence;
+
+    device.resetFences(fence);
 
     auto cmd = m_commandManager.getCommandBuffer(m_currentFrame);
     cmd.reset();
@@ -79,7 +100,7 @@ void Renderer::drawFrame()
     submitInfo.setWaitSemaphores(m_imageAvailableSemaphores[m_currentFrame].get());
     submitInfo.setWaitDstStageMask(waitStage);
     submitInfo.setCommandBuffers(cmd);
-    submitInfo.setSignalSemaphores(m_renderFinishedSemaphores[imageIndex].get()); 
+    submitInfo.setSignalSemaphores(m_renderFinishedSemaphores[imageIndex].get());
 
     m_context.getGraphicQueue().submit(submitInfo, fence);
 
@@ -90,13 +111,25 @@ void Renderer::drawFrame()
     presentInfo.setSwapchains(swapchain);
     presentInfo.setImageIndices(imageIndex);
 
-    m_context.getPresentQueue().presentKHR(presentInfo);
+    try
+    {
+        auto presentResult = m_context.getPresentQueue().presentKHR(presentInfo);
+        if (presentResult == vk::Result::eSuboptimalKHR)
+        {
+            recreateSwapchain();
+        }
+    }
+    catch (const vk::OutOfDateKHRError&)
+    {
+        recreateSwapchain();
+    }
 
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void Renderer::run(GLFWwindow* window)
 {
+    m_window = window;
     init(window);
 
     while (!glfwWindowShouldClose(window))
@@ -124,4 +157,25 @@ void Renderer::cleanup()
 Renderer::~Renderer()
 {
     cleanup();
+}
+
+void Renderer::recreateSwapchain()
+{
+    m_context.getDevice().waitIdle();
+
+    m_framebuffers.cleanup();
+    m_swapchain.recreate(m_context, m_window);
+    m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass());
+
+    size_t imageCount = m_swapchain.getImageViews().size();
+    if (m_renderFinishedSemaphores.size() != imageCount)
+    {
+        vk::SemaphoreCreateInfo semaphoreInfo{};
+        m_renderFinishedSemaphores.resize(imageCount);
+        for (size_t i = 0; i < imageCount; i++)
+        {
+            m_renderFinishedSemaphores[i] = m_context.getDevice().createSemaphoreUnique(semaphoreInfo);
+        }
+        m_imagesInFlight.assign(imageCount, VK_NULL_HANDLE);
+    }
 }

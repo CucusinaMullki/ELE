@@ -6,7 +6,7 @@ void RenderPass::initialize(vk::Device device, vk::Format swapChainFormat)
     colorAttachment.setFormat(swapChainFormat);
     colorAttachment.setSamples(vk::SampleCountFlagBits::e1);
     colorAttachment.setLoadOp(vk::AttachmentLoadOp::eClear);
-    colorAttachment.setStoreOp(vk::AttachmentStoreOp::eDontCare);
+    colorAttachment.setStoreOp(vk::AttachmentStoreOp::eStore);
     colorAttachment.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
     colorAttachment.setInitialLayout(vk::ImageLayout::eUndefined);
     colorAttachment.setFinalLayout(vk::ImageLayout::ePresentSrcKHR);
