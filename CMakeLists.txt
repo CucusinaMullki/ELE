@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(ELE LANGUAGE CXX)
+project(ELE LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,10 +10,18 @@ find_package(glfw3 REQUIRED)
 
 add_executable(${PROJECT_NAME}
     src/main.cpp
+    src/Engine/Vulkan/CommandManager.cpp
+    src/Engine/Vulkan/FrameBuffers.cpp
+    src/Engine/Vulkan/Pipeline.cpp
+    src/Engine/Vulkan/Renderer.cpp
+    src/Engine/Vulkan/RenderPass.cpp
+    src/Engine/Vulkan/SwapChain.cpp
+    src/Engine/Vulkan/VulkanContext.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${Vulkan_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/include
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
