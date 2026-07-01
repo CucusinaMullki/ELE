@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
 project(ELE LANGUAGES CXX)
-
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -8,23 +7,22 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
 
-add_executable(${PROJECT_NAME}
-    src/main.cpp
-    src/Engine/Vulkan/CommandManager.cpp
-    src/Engine/Vulkan/FrameBuffers.cpp
-    src/Engine/Vulkan/Pipeline.cpp
-    src/Engine/Vulkan/Renderer.cpp
-    src/Engine/Vulkan/RenderPass.cpp
-    src/Engine/Vulkan/SwapChain.cpp
-    src/Engine/Vulkan/VulkanContext.cpp
+add_library(ELEEngine STATIC
+    Engine/src/Vulkan/CommandManager.cpp
+    Engine/src/Vulkan/FrameBuffers.cpp
+    Engine/src/Vulkan/Pipeline.cpp
+    Engine/src/Vulkan/Renderer.cpp
+    Engine/src/Vulkan/RenderPass.cpp
+    Engine/src/Vulkan/SwapChain.cpp
+    Engine/src/Vulkan/VulkanContext.cpp
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE
+target_include_directories(ELEEngine PUBLIC
     ${Vulkan_INCLUDE_DIRS}
-    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/Engine/include
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE
+target_link_libraries(ELEEngine PUBLIC
     Vulkan::Vulkan
     glfw
 )
@@ -32,17 +30,11 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 find_program(GLSLC glslc REQUIRED)
 
 file(GLOB_RECURSE GLSL_FILES
-    "${CMAKE_SOURCE_DIR}/shaders/*.vert"
-    "${CMAKE_SOURCE_DIR}/shaders/*.frag"
-    "${CMAKE_SOURCE_DIR}/shaders/*.comp"
+    "${CMAKE_SOURCE_DIR}/Engine/shaders/*.vert"
+    "${CMAKE_SOURCE_DIR}/Engine/shaders/*.frag"
+    "${CMAKE_SOURCE_DIR}/Engine/shaders/*.comp"
 )
 
-file(GLOB_RECURSE GLSL_FILES
-    "${CMAKE_SOURCE_DIR}/shaders/*.vert"
-    "${CMAKE_SOURCE_DIR}/shaders/*.frag"
-    "${CMAKE_SOURCE_DIR}/shaders/*.comp"
-)
- 
 foreach(GLSL ${GLSL_FILES})
     get_filename_component(FILE_NAME ${GLSL} NAME)
     set(SPIRV "${CMAKE_BINARY_DIR}/shaders/${FILE_NAME}.spv")
@@ -56,5 +48,11 @@ foreach(GLSL ${GLSL_FILES})
     list(APPEND SPIRV_FILES ${SPIRV})
 endforeach()
 
-add_custom_target(shaders ALL DEPENDS ${SPIRV_FILES})
-add_dependencies(${PROJECT_NAME} shaders)
+add_custom_target(Shaders ALL DEPENDS ${SPIRV_FILES})
+
+add_executable(game
+    game/src/main.cpp
+)
+
+target_link_libraries(game PRIVATE ELEEngine)
+add_dependencies(game Shaders)

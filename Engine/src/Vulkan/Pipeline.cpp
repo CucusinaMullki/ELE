@@ -1,4 +1,4 @@
-#include "Engine/Vulkan/Pipeline.h"
+#include "Vulkan/Pipeline.h"
 
 void Pipeline::initialize(vk::Device device, vk::Extent2D swapchainExtent, vk::RenderPass renderPass)
 {
@@ -26,21 +26,6 @@ void Pipeline::initialize(vk::Device device, vk::Extent2D swapchainExtent, vk::R
     inputAssembly.setTopology(vk::PrimitiveTopology::eTriangleList);
     inputAssembly.setPrimitiveRestartEnable(false);
 
-    vk::Viewport viewport{};
-    viewport.setX(0.0f);
-    viewport.setY(0.0f);
-    viewport.setWidth(static_cast<float>(swapchainExtent.width));
-    viewport.setHeight(static_cast<float>(swapchainExtent.height));
-    viewport.setMinDepth(0.0f);
-    viewport.setMaxDepth(1.0f);
-
-    vk::Rect2D scissor{};
-    scissor.setOffset({0, 0});
-    scissor.setExtent(swapchainExtent);
-
-    vk::PipelineViewportStateCreateInfo viewportState{};
-    viewportState.setViewports(viewport);
-    viewportState.setScissors(scissor);
 
     vk::PipelineRasterizationStateCreateInfo rasterizer{};
     rasterizer.setDepthClampEnable(false);
@@ -65,6 +50,18 @@ void Pipeline::initialize(vk::Device device, vk::Extent2D swapchainExtent, vk::R
     colorBlending.setLogicOpEnable(false);
     colorBlending.setAttachments(colorBlendAttachment);
 
+    std::array<vk::DynamicState, 2> dynamicStates = {
+        vk::DynamicState::eViewport,
+        vk::DynamicState::eScissor
+    };
+
+    vk::PipelineDynamicStateCreateInfo dynamicState{};
+    dynamicState.setDynamicStates(dynamicStates);
+
+    vk::PipelineViewportStateCreateInfo viewportState{};
+    viewportState.setViewportCount(1);
+    viewportState.setScissorCount(1);
+
     vk::PipelineLayoutCreateInfo layoutInfo{};
     m_pipelineLayout = device.createPipelineLayoutUnique(layoutInfo);
 
@@ -72,6 +69,7 @@ void Pipeline::initialize(vk::Device device, vk::Extent2D swapchainExtent, vk::R
     pipelineInfo.setStages(shaderStages);
     pipelineInfo.setPVertexInputState(&vertexInput);
     pipelineInfo.setPInputAssemblyState(&inputAssembly);
+    pipelineInfo.setPDynamicState(&dynamicState);
     pipelineInfo.setPViewportState(&viewportState);
     pipelineInfo.setPRasterizationState(&rasterizer);
     pipelineInfo.setPMultisampleState(&multisampling);

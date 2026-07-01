@@ -1,4 +1,4 @@
-#include "Engine/Vulkan/RenderPass.h"
+#include "Vulkan/RenderPass.h"
 
 void RenderPass::initialize(vk::Device device, vk::Format swapChainFormat)
 {

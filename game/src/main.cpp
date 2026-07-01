@@ -1,6 +1,4 @@
-#define VULKAN_HPP_DEFAULT_DISPATCHER_STORAGE
-#define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
-#include "Engine/Vulkan/Renderer.h"
+#include "Vulkan/Renderer.h"
 
 int main()
 {
@@ -9,7 +7,7 @@ int main()
 
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(800, 600, "ELE Engine", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(800, 600, "game", nullptr, nullptr);
 
     Renderer renderer;
     renderer.run(window);

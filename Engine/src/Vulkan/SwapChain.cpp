@@ -1,4 +1,4 @@
-#include "Engine/Vulkan/SwapChain.h"
+#include "Vulkan/SwapChain.h"
 
 void SwapChain::initialize(const VulkanContext& context, GLFWwindow* window)
 {

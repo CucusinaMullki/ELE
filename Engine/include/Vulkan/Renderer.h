@@ -1,11 +1,11 @@
 #pragma once
 
-#include "Engine/Vulkan/VulkanContext.h"
-#include "Engine/Vulkan/SwapChain.h"
-#include "Engine/Vulkan/RenderPass.h"
-#include "Engine/Vulkan/Pipeline.h"
-#include "Engine/Vulkan/FrameBuffers.h"
-#include "Engine/Vulkan/CommandManager.h"
+#include "Vulkan/VulkanContext.h"
+#include "Vulkan/SwapChain.h"
+#include "Vulkan/RenderPass.h"
+#include "Vulkan/Pipeline.h"
+#include "Vulkan/FrameBuffers.h"
+#include "Vulkan/CommandManager.h"
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.hpp>
 #include <vector>

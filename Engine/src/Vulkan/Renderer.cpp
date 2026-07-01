@@ -1,4 +1,4 @@
-#include "Engine/Vulkan/Renderer.h"
+#include "Vulkan/Renderer.h"
 
 void Renderer::init(GLFWwindow* window)
 {
@@ -52,9 +52,23 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
 
     commandBuffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.getPipeline());
+
+    vk::Viewport viewport{};
+    viewport.setX(0.0f);
+    viewport.setY(0.0f);
+    viewport.setWidth(static_cast<float>(m_swapchain.getExtent().width));
+    viewport.setHeight(static_cast<float>(m_swapchain.getExtent().height));
+    viewport.setMinDepth(0.0f);
+    viewport.setMaxDepth(1.0f);
+    commandBuffer.setViewport(0, viewport);
+
+    vk::Rect2D scissor{};
+    scissor.setOffset({0, 0});
+    scissor.setExtent(m_swapchain.getExtent());
+    commandBuffer.setScissor(0, scissor);
+
     commandBuffer.draw(3, 1, 0, 0);
     commandBuffer.endRenderPass();
-
     commandBuffer.end();
 }
 
@@ -143,6 +157,9 @@ void Renderer::run(GLFWwindow* window)
 
 void Renderer::cleanup()
 {
+    m_context.getDevice().waitIdle();
+    
+    m_imagesInFlight.clear();
     m_inFlightFences.clear();
     m_renderFinishedSemaphores.clear();
     m_imageAvailableSemaphores.clear();
