@@ -1,31 +1,57 @@
 #include "Vulkan/Pipeline.h"
+#include "Vulkan/Shader.h"
+#include "Vulkan/Vertex.h"
 
-void Pipeline::initialize(vk::Device device, vk::Extent2D swapchainExtent, vk::RenderPass renderPass)
+void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const std::string& shaderName, uint32_t frameCount)
 {
-    auto vertCode = readFile("shaders/shader.vert.spv");
-    auto fragCode = readFile("shaders/shader.frag.spv");
+    vk::DescriptorSetLayoutBinding uboBinding{};
+    uboBinding.setBinding(0);
+    uboBinding.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+    uboBinding.setDescriptorCount(1);
+    uboBinding.setStageFlags(vk::ShaderStageFlagBits::eVertex);
 
-    auto vertModule = createModule(device, vertCode);
-    auto fragModule = createModule(device, fragCode);
+    vk::DescriptorSetLayoutCreateInfo layoutCreateInfo{};
+    layoutCreateInfo.setBindings(uboBinding);
+    m_descriptorSetLayout = device.createDescriptorSetLayoutUnique(layoutCreateInfo);
 
-    vk::PipelineShaderStageCreateInfo vertStage{};
-    vertStage.setStage(vk::ShaderStageFlagBits::eVertex);
-    vertStage.setModule(vertModule.get());
-    vertStage.setPName("main");
+    vk::DescriptorPoolSize poolSize{};
+    poolSize.setType(vk::DescriptorType::eUniformBuffer);
+    poolSize.setDescriptorCount(frameCount);
 
-    vk::PipelineShaderStageCreateInfo fragStage{};
-    fragStage.setStage(vk::ShaderStageFlagBits::eFragment);
-    fragStage.setModule(fragModule.get());
-    fragStage.setPName("main");
+    vk::DescriptorPoolCreateInfo poolInfo{};
+    poolInfo.setPoolSizes(poolSize);
+    poolInfo.setMaxSets(frameCount);
+    m_descriptorPool = device.createDescriptorPoolUnique(poolInfo);
 
-    std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages = { vertStage, fragStage };
+    std::vector<vk::DescriptorSetLayout> layouts(frameCount, m_descriptorSetLayout.get());
+    vk::DescriptorSetAllocateInfo allocInfo{};
+    allocInfo.setDescriptorPool(m_descriptorPool.get());
+    allocInfo.setSetLayouts(layouts);
+    m_descriptorSets = device.allocateDescriptorSets(allocInfo);
+
+    vk::PipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.setSetLayouts(m_descriptorSetLayout.get());
+    m_pipelineLayout = device.createPipelineLayoutUnique(pipelineLayoutInfo);
+
+    Shader vertShader, fragShader;
+    vertShader.load(device, shaderName, vk::ShaderStageFlagBits::eVertex);
+    fragShader.load(device, shaderName, vk::ShaderStageFlagBits::eFragment);
+
+    std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages = {
+        vertShader.getStageInfo(),
+        fragShader.getStageInfo()
+    };
+
+    auto bindingDescription = Vertex::getBindingDescriptor();
+    auto attributeDescription = Vertex::getAttributeDescriptions();
 
     vk::PipelineVertexInputStateCreateInfo vertexInput{};
-
+    vertexInput.setVertexBindingDescriptions(bindingDescription);
+    vertexInput.setVertexAttributeDescriptions(attributeDescription);
+    
     vk::PipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.setTopology(vk::PrimitiveTopology::eTriangleList);
     inputAssembly.setPrimitiveRestartEnable(false);
-
 
     vk::PipelineRasterizationStateCreateInfo rasterizer{};
     rasterizer.setDepthClampEnable(false);
@@ -33,7 +59,7 @@ void Pipeline::initialize(vk::Device device, vk::Extent2D swapchainExtent, vk::R
     rasterizer.setPolygonMode(vk::PolygonMode::eFill);
     rasterizer.setLineWidth(1.0f);
     rasterizer.setCullMode(vk::CullModeFlagBits::eBack);
-    rasterizer.setFrontFace(vk::FrontFace::eClockwise);
+    rasterizer.setFrontFace(vk::FrontFace::eCounterClockwise);
     rasterizer.setDepthBiasEnable(false);
 
     vk::PipelineMultisampleStateCreateInfo multisampling{};
@@ -62,9 +88,6 @@ void Pipeline::initialize(vk::Device device, vk::Extent2D swapchainExtent, vk::R
     viewportState.setViewportCount(1);
     viewportState.setScissorCount(1);
 
-    vk::PipelineLayoutCreateInfo layoutInfo{};
-    m_pipelineLayout = device.createPipelineLayoutUnique(layoutInfo);
-
     vk::GraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.setStages(shaderStages);
     pipelineInfo.setPVertexInputState(&vertexInput);
@@ -78,44 +101,34 @@ void Pipeline::initialize(vk::Device device, vk::Extent2D swapchainExtent, vk::R
     pipelineInfo.setRenderPass(renderPass);
     pipelineInfo.setSubpass(0);
 
-
     auto result = device.createGraphicsPipelineUnique(nullptr, pipelineInfo);
     if (result.result != vk::Result::eSuccess)
-    {
         throw std::runtime_error("failed to create graphics pipeline!");
-    }
+
     m_graphicPipeline = std::move(result.value);
-}
-
-std::vector<char> Pipeline::readFile(const std::string& filename)
-{
-    std::ifstream file(filename, std::ios::ate | std::ios::binary);
-
-    if (!file.is_open())
-    {
-        throw std::runtime_error("failed to open file: " + filename);
-    }
-
-    size_t fileSize = static_cast<size_t>(file.tellg());
-    std::vector<char> buffer(fileSize);
-
-    file.seekg(0);
-    file.read(buffer.data(), fileSize);
-
-    return buffer;
-}
-
-vk::UniqueShaderModule Pipeline::createModule(vk::Device device, const std::vector<char>& code)
-{
-    vk::ShaderModuleCreateInfo createInfo{};
-    createInfo.setCodeSize(code.size());
-    createInfo.setPCode(reinterpret_cast<const uint32_t*>(code.data()));
-
-    return device.createShaderModuleUnique(createInfo);
 }
 
 void Pipeline::cleanup()
 {
+    m_descriptorSets.clear();
+    m_descriptorPool.reset();
+    m_descriptorSetLayout.reset();
     m_graphicPipeline.reset();
     m_pipelineLayout.reset();
+}
+
+void Pipeline::updateDescriptorSets(vk::Device device, const std::vector<vk::DescriptorBufferInfo>& bufferInfos)
+{
+    for (size_t i = 0; i < bufferInfos.size(); i++)
+    {
+        vk::WriteDescriptorSet write{};
+        write.setDstSet(m_descriptorSets[i]);
+        write.setDstBinding(0);
+        write.setDstArrayElement(0);
+        write.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+        write.setDescriptorCount(1);
+        write.setBufferInfo(bufferInfos[i]);
+
+        device.updateDescriptorSets(write, nullptr);
+    }
 }

@@ -3,7 +3,6 @@
 int main()
 {
     //Wayland support in progress
-    glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
 
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -11,6 +10,7 @@ int main()
 
     Renderer renderer;
     renderer.run(window);
+    renderer.cleanup();
 
     glfwDestroyWindow(window);
     glfwTerminate();

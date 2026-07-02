@@ -1,12 +1,26 @@
 #include "Vulkan/Renderer.h"
+#include <glm/gtc/matrix_transform.hpp>
 
 void Renderer::init(GLFWwindow* window)
 {
     m_context.initialize(window);
     m_swapchain.initialize(m_context, window);
     m_renderPass.initialize(m_context.getDevice(), m_swapchain.getImageFormat());
-    m_pipeline.initialize(m_context.getDevice(), m_swapchain.getExtent(), m_renderPass.getRenderPass());
+    m_pipeline.initialize(m_context.getDevice(), m_renderPass.getRenderPass(), "shader", MAX_FRAMES_IN_FLIGHT);
+    m_uniformBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), MAX_FRAMES_IN_FLIGHT);
+    std::vector<vk::DescriptorBufferInfo> bufferInfos;
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        bufferInfos.push_back(m_uniformBuffer.getDescriptorInfo(i));
+    
+    m_pipeline.updateDescriptorSets(m_context.getDevice(), bufferInfos);
     m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass());
+
+    std::vector<Vertex> vertices = {
+        {{ 0.0f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},  
+        {{ 0.5f,  0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},  
+        {{-0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}} 
+    };
+    m_vertexBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), vertices);
 
     std::cout << "Swapchain images: " << m_swapchain.getImageViews().size() << std::endl;
     std::cout << "Framebuffers: " << m_framebuffers.getFramebuffers().size() << std::endl;
@@ -53,6 +67,14 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
     commandBuffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.getPipeline());
 
+    commandBuffer.bindDescriptorSets(
+       vk::PipelineBindPoint::eGraphics,
+        m_pipeline.getLayout(),
+        0,
+        m_pipeline.getDescriptorSet(m_currentFrame),
+        nullptr
+    );
+
     vk::Viewport viewport{};
     viewport.setX(0.0f);
     viewport.setY(0.0f);
@@ -67,7 +89,11 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
     scissor.setExtent(m_swapchain.getExtent());
     commandBuffer.setScissor(0, scissor);
 
-    commandBuffer.draw(3, 1, 0, 0);
+    vk::Buffer vertexBuffers[] = { m_vertexBuffer.getBuffer() };
+    vk::DeviceSize offsets[] = { 0 };
+    commandBuffer.bindVertexBuffers(0, vertexBuffers, offsets);
+
+    commandBuffer.draw(m_vertexBuffer.getVertexCount(), 1, 0, 0);
     commandBuffer.endRenderPass();
     commandBuffer.end();
 }
@@ -106,6 +132,14 @@ void Renderer::drawFrame()
 
     auto cmd = m_commandManager.getCommandBuffer(m_currentFrame);
     cmd.reset();
+
+    MVP mvp{};
+    mvp.model = glm::mat4(1.0f);
+    mvp.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    mvp.proj = glm::perspective(glm::radians(45.0f), (float)m_swapchain.getExtent().width / m_swapchain.getExtent().height, 0.1f, 100.0f);
+    mvp.proj[1][1] *= -1;
+    m_uniformBuffer.update(m_currentFrame, mvp);
+
     recordCommandBuffer(cmd, imageIndex);
 
     vk::PipelineStageFlags waitStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
@@ -157,8 +191,13 @@ void Renderer::run(GLFWwindow* window)
 
 void Renderer::cleanup()
 {
+    if (m_cleaned) return; 
+    m_cleaned = true;
+
     m_context.getDevice().waitIdle();
     
+    m_vertexBuffer.cleanup();
+    m_uniformBuffer.cleanup();
     m_imagesInFlight.clear();
     m_inFlightFences.clear();
     m_renderFinishedSemaphores.clear();

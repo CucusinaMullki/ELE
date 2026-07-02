@@ -15,11 +15,16 @@ add_library(ELEEngine STATIC
     Engine/src/Vulkan/RenderPass.cpp
     Engine/src/Vulkan/SwapChain.cpp
     Engine/src/Vulkan/VulkanContext.cpp
+    Engine/src/Vulkan/Shader.cpp
+    Engine/src/Vulkan/UniformBuffer.cpp
+    Engine/src/Core/Path.cpp
+    Engine/src/Vulkan/VertexBuffer.cpp
 )
 
 target_include_directories(ELEEngine PUBLIC
     ${Vulkan_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/Engine/include
+    ${CMAKE_SOURCE_DIR}/Engine/include/glm 
 )
 
 target_link_libraries(ELEEngine PUBLIC
@@ -28,6 +33,8 @@ target_link_libraries(ELEEngine PUBLIC
 )
 
 find_program(GLSLC glslc REQUIRED)
+
+add_compile_definitions(GLM_FORCE_RADIANS GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
 file(GLOB_RECURSE GLSL_FILES
     "${CMAKE_SOURCE_DIR}/Engine/shaders/*.vert"
@@ -43,7 +50,7 @@ foreach(GLSL ${GLSL_FILES})
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/shaders"
         COMMAND ${GLSLC} ${GLSL} -o ${SPIRV}
         DEPENDS ${GLSL}
-        COMMENT "Компиляция шейдера ${FILE_NAME}"
+        COMMENT "Shader compiling ${FILE_NAME}"
     )
     list(APPEND SPIRV_FILES ${SPIRV})
 endforeach()
