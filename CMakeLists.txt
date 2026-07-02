@@ -7,6 +7,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
 
+add_subdirectory(external/glm)
+
 add_library(ELEEngine STATIC
     Engine/src/Vulkan/CommandManager.cpp
     Engine/src/Vulkan/FrameBuffers.cpp
@@ -24,12 +26,12 @@ add_library(ELEEngine STATIC
 target_include_directories(ELEEngine PUBLIC
     ${Vulkan_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/Engine/include
-    ${CMAKE_SOURCE_DIR}/Engine/include/glm 
 )
 
 target_link_libraries(ELEEngine PUBLIC
     Vulkan::Vulkan
     glfw
+    glm::glm 
 )
 
 find_program(GLSLC glslc REQUIRED)
