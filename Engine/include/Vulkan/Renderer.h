@@ -10,6 +10,8 @@
 #include "Vulkan/VertexBuffer.h"
 #include "Vulkan/IndexBuffer.h"
 #include "Vulkan/DepthBuffer.h"
+#include "Core/Input.h"
+#include "Core/Camera.h"
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.hpp>
 #include <vector>
@@ -43,6 +45,10 @@ private:
     VertexBuffer m_vertexBuffer;
     IndexBuffer m_indexBuffer;
     DepthBuffer m_depthBuffer;
+    Input m_input;
+    Camera m_camera;
+    float m_lastFrameTime = 0.0f;
+
 
     std::vector<vk::UniqueSemaphore> m_imageAvailableSemaphores;
     std::vector<vk::UniqueSemaphore> m_renderFinishedSemaphores;

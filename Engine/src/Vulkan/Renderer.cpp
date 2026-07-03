@@ -53,6 +53,9 @@ void Renderer::init(GLFWwindow* window)
     LOG("Swapchain images: " << m_swapchain.getImageViews().size());
     LOG("FrameBuffers: " << m_framebuffers.getFramebuffers().size());
 
+    m_input.initialize(window);
+    m_camera.initialize(glm::vec3(0.0f, 0.0f, 30.0f));
+
     size_t imageCount = m_swapchain.getImageViews().size();
 
     m_imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
@@ -167,8 +170,8 @@ void Renderer::drawFrame()
     float time = std::chrono::duration<float>(currentTime - startTime).count();
 
     MVP mvp{};
-    mvp.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 1.0f));
-    mvp.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    mvp.model = glm::mat4(1.0f);
+    mvp.view = m_camera.getViewMatrix();
     mvp.proj = glm::perspective(glm::radians(45.0f), (float)m_swapchain.getExtent().width / m_swapchain.getExtent().height, 0.1f, 100.0f);
     mvp.proj[1][1] *= -1;
     m_uniformBuffer.update(m_currentFrame, mvp);
@@ -191,6 +194,23 @@ void Renderer::drawFrame()
     presentInfo.setWaitSemaphores(m_renderFinishedSemaphores[imageIndex].get());
     presentInfo.setSwapchains(swapchain);
     presentInfo.setImageIndices(imageIndex);
+
+    float currentFrameTime = static_cast<float>(glfwGetTime());
+    float deltaTime = currentFrameTime - m_lastFrameTime;
+    m_lastFrameTime = currentFrameTime;
+
+    m_input.update();
+
+    glm::vec3 moveDir(0.0f);
+    if (m_input.isKeyPressed(Key::W)) moveDir += m_camera.getFront();
+    if (m_input.isKeyPressed(Key::S)) moveDir -= m_camera.getFront();
+    if (m_input.isKeyPressed(Key::A)) moveDir -= m_camera.getRight();
+    if (m_input.isKeyPressed(Key::D)) moveDir += m_camera.getRight();
+
+    if (glm::length(moveDir) > 0.0f)
+        m_camera.processKeyboard(glm::normalize(moveDir), deltaTime);
+
+    m_camera.processMouse(m_input.getMouseDeltaX(), m_input.getMouseDeltaY());
 
     try
     {

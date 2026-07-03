@@ -23,6 +23,8 @@ add_library(ELE STATIC
     Engine/src/Vulkan/VertexBuffer.cpp
     Engine/src/Vulkan/IndexBuffer.cpp
     Engine/src/Vulkan/DepthBuffer.cpp
+    Engine/src/Core/Input.cpp
+    Engine/src/Core/Camera.cpp
 )
 
 target_include_directories(ELE PUBLIC
