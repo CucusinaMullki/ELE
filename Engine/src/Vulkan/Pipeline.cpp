@@ -58,7 +58,7 @@ void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const st
     rasterizer.setRasterizerDiscardEnable(false);
     rasterizer.setPolygonMode(vk::PolygonMode::eFill);
     rasterizer.setLineWidth(1.0f);
-    rasterizer.setCullMode(vk::CullModeFlagBits::eBack);
+    rasterizer.setCullMode(vk::CullModeFlagBits::eNone);
     rasterizer.setFrontFace(vk::FrontFace::eCounterClockwise);
     rasterizer.setDepthBiasEnable(false);
 

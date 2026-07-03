@@ -1,5 +1,7 @@
 #include "Vulkan/Renderer.h"
 #include <glm/gtc/matrix_transform.hpp>
+#include "Core/Log.h"
+#include <chrono>
 
 void Renderer::init(GLFWwindow* window)
 {
@@ -17,15 +19,29 @@ void Renderer::init(GLFWwindow* window)
     m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass(), m_depthBuffer.getImageView());
 
     std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},  // 0 — левый верх, красный
-        {{ 0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},  // 1 — правый верх, зелёный
-        {{ 0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}},
-        {{-0.5f,  0.5f, 0.0f}, {1.0f, 1.0f, 0.0f}} 
+        {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},  
+        {{ 0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},  
+        {{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}},  
+        {{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}},  
+    
+        {{-0.5f, -0.5f,  0.5f}, {1.0f, 0.0f, 1.0f}},  
+        {{ 0.5f, -0.5f,  0.5f}, {0.0f, 1.0f, 1.0f}},  
+        {{ 0.5f,  0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}},  
+        {{-0.5f,  0.5f,  0.5f}, {0.2f, 0.5f, 0.8f}}   
     };
 
     std::vector<uint32_t> indices = {
-        0, 1, 2,
-        2, 3, 0
+        0, 1, 2,  2, 3, 0,
+    
+        4, 5, 6,  6, 7, 4,
+    
+        4, 0, 3,  3, 7, 4,
+    
+        1, 5, 6,  6, 2, 1,
+    
+        4, 5, 1,  1, 0, 4,
+    
+        3, 2, 6,  6, 7, 3
     };
 
     m_vertexBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), vertices);
@@ -34,8 +50,8 @@ void Renderer::init(GLFWwindow* window)
     auto indices2 = m_context.GetQueueFamilyIndices();
     m_commandManager.intialize(m_context.getDevice(), indices2.graphicFamily.value(), MAX_FRAMES_IN_FLIGHT);
 
-    std::cout << "Swapchain images: " << m_swapchain.getImageViews().size() << std::endl;
-    std::cout << "Framebuffers: " << m_framebuffers.getFramebuffers().size() << std::endl;
+    LOG("Swapchain images: " << m_swapchain.getImageViews().size());
+    LOG("FrameBuffers: " << m_framebuffers.getFramebuffers().size());
 
     size_t imageCount = m_swapchain.getImageViews().size();
 
@@ -146,9 +162,13 @@ void Renderer::drawFrame()
     auto cmd = m_commandManager.getCommandBuffer(m_currentFrame);
     cmd.reset();
 
+    static auto startTime = std::chrono::high_resolution_clock::now();
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    float time = std::chrono::duration<float>(currentTime - startTime).count();
+
     MVP mvp{};
-    mvp.model = glm::mat4(1.0f);
-    mvp.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    mvp.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 1.0f));
+    mvp.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     mvp.proj = glm::perspective(glm::radians(45.0f), (float)m_swapchain.getExtent().width / m_swapchain.getExtent().height, 0.1f, 100.0f);
     mvp.proj[1][1] *= -1;
     m_uniformBuffer.update(m_currentFrame, mvp);
