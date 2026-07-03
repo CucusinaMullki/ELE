@@ -5,7 +5,8 @@ void Renderer::init(GLFWwindow* window)
 {
     m_context.initialize(window);
     m_swapchain.initialize(m_context, window);
-    m_renderPass.initialize(m_context.getDevice(), m_swapchain.getImageFormat());
+    m_depthBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), m_swapchain.getExtent());
+    m_renderPass.initialize(m_context.getDevice(), m_swapchain.getImageFormat(), m_depthBuffer.getFormat());
     m_pipeline.initialize(m_context.getDevice(), m_renderPass.getRenderPass(), "shader", MAX_FRAMES_IN_FLIGHT);
     m_uniformBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), MAX_FRAMES_IN_FLIGHT);
     std::vector<vk::DescriptorBufferInfo> bufferInfos;
@@ -13,20 +14,28 @@ void Renderer::init(GLFWwindow* window)
         bufferInfos.push_back(m_uniformBuffer.getDescriptorInfo(i));
     
     m_pipeline.updateDescriptorSets(m_context.getDevice(), bufferInfos);
-    m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass());
+    m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass(), m_depthBuffer.getImageView());
 
     std::vector<Vertex> vertices = {
-        {{ 0.0f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},  
-        {{ 0.5f,  0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},  
-        {{-0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}} 
+        {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},  // 0 — левый верх, красный
+        {{ 0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},  // 1 — правый верх, зелёный
+        {{ 0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+        {{-0.5f,  0.5f, 0.0f}, {1.0f, 1.0f, 0.0f}} 
     };
+
+    std::vector<uint32_t> indices = {
+        0, 1, 2,
+        2, 3, 0
+    };
+
     m_vertexBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), vertices);
+    m_indexBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), indices);
+
+    auto indices2 = m_context.GetQueueFamilyIndices();
+    m_commandManager.intialize(m_context.getDevice(), indices2.graphicFamily.value(), MAX_FRAMES_IN_FLIGHT);
 
     std::cout << "Swapchain images: " << m_swapchain.getImageViews().size() << std::endl;
     std::cout << "Framebuffers: " << m_framebuffers.getFramebuffers().size() << std::endl;
-
-    auto indices = m_context.GetQueueFamilyIndices();
-    m_commandManager.intialize(m_context.getDevice(), indices.graphicFamily.value(), MAX_FRAMES_IN_FLIGHT);
 
     size_t imageCount = m_swapchain.getImageViews().size();
 
@@ -56,13 +65,15 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
     vk::CommandBufferBeginInfo beginInfo{};
     commandBuffer.begin(beginInfo);
 
-    vk::ClearValue clearColor{ vk::ClearColorValue{ std::array<float,4>{ 0.0f, 0.0f, 1.0f, 1.0f } } };
+    std::array<vk::ClearValue, 2> clearValues{};
+    clearValues[0].setColor(vk::ClearColorValue{ std::array<float,4>{ 0.5f, 0.0f, 0.5f, 1.0f } });
+    clearValues[1].setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
 
     vk::RenderPassBeginInfo renderPassInfo{};
     renderPassInfo.setRenderPass(m_renderPass.getRenderPass());
     renderPassInfo.setFramebuffer(m_framebuffers.getFramebuffers()[imageIndex].get());
     renderPassInfo.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
-    renderPassInfo.setClearValues(clearColor);
+    renderPassInfo.setClearValues(clearValues);
 
     commandBuffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.getPipeline());
@@ -93,7 +104,9 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
     vk::DeviceSize offsets[] = { 0 };
     commandBuffer.bindVertexBuffers(0, vertexBuffers, offsets);
 
-    commandBuffer.draw(m_vertexBuffer.getVertexCount(), 1, 0, 0);
+    commandBuffer.bindIndexBuffer(m_indexBuffer.getBuffer(), 0, vk::IndexType::eUint32);
+
+    commandBuffer.drawIndexed(m_indexBuffer.getIndexCount(), 1, 0, 0, 0);
     commandBuffer.endRenderPass();
     commandBuffer.end();
 }
@@ -197,6 +210,8 @@ void Renderer::cleanup()
     m_context.getDevice().waitIdle();
     
     m_vertexBuffer.cleanup();
+    m_indexBuffer.cleanup();
+    m_depthBuffer.cleanup();
     m_uniformBuffer.cleanup();
     m_imagesInFlight.clear();
     m_inFlightFences.clear();
@@ -220,8 +235,11 @@ void Renderer::recreateSwapchain()
     m_context.getDevice().waitIdle();
 
     m_framebuffers.cleanup();
+    m_depthBuffer.cleanup();
     m_swapchain.recreate(m_context, m_window);
-    m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass());
+    m_depthBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), m_swapchain.getExtent());
+    m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass(), m_depthBuffer.getImageView());
+
 
     size_t imageCount = m_swapchain.getImageViews().size();
     if (m_renderFinishedSemaphores.size() != imageCount)

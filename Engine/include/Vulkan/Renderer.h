@@ -8,6 +8,8 @@
 #include "Vulkan/CommandManager.h"
 #include "Vulkan/UniformBuffer.h"
 #include "Vulkan/VertexBuffer.h"
+#include "Vulkan/IndexBuffer.h"
+#include "Vulkan/DepthBuffer.h"
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.hpp>
 #include <vector>
@@ -39,6 +41,8 @@ private:
     UniformBuffer m_uniformBuffer;
     GLFWwindow* m_window = nullptr;
     VertexBuffer m_vertexBuffer;
+    IndexBuffer m_indexBuffer;
+    DepthBuffer m_depthBuffer;
 
     std::vector<vk::UniqueSemaphore> m_imageAvailableSemaphores;
     std::vector<vk::UniqueSemaphore> m_renderFinishedSemaphores;

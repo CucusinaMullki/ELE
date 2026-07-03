@@ -24,7 +24,7 @@ struct Vertex
         attributes[0].setBinding(0);
         attributes[0].setLocation(0);
         attributes[0].setFormat(vk::Format::eR32G32B32Sfloat);
-        attributes[9].setOffset(offsetof(Vertex, pos));
+        attributes[0].setOffset(offsetof(Vertex, pos));
 
         attributes[1].setBinding(0);
         attributes[1].setLocation(1);

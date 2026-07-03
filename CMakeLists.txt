@@ -9,7 +9,7 @@ find_package(glfw3 REQUIRED)
 
 add_subdirectory(external/glm)
 
-add_library(ELEEngine STATIC
+add_library(ELE STATIC
     Engine/src/Vulkan/CommandManager.cpp
     Engine/src/Vulkan/FrameBuffers.cpp
     Engine/src/Vulkan/Pipeline.cpp
@@ -21,14 +21,16 @@ add_library(ELEEngine STATIC
     Engine/src/Vulkan/UniformBuffer.cpp
     Engine/src/Core/Path.cpp
     Engine/src/Vulkan/VertexBuffer.cpp
+    Engine/src/Vulkan/IndexBuffer.cpp
+    Engine/src/Vulkan/DepthBuffer.cpp
 )
 
-target_include_directories(ELEEngine PUBLIC
+target_include_directories(ELE PUBLIC
     ${Vulkan_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/Engine/include
 )
 
-target_link_libraries(ELEEngine PUBLIC
+target_link_libraries(ELE PUBLIC
     Vulkan::Vulkan
     glfw
     glm::glm 
@@ -63,5 +65,5 @@ add_executable(game
     game/src/main.cpp
 )
 
-target_link_libraries(game PRIVATE ELEEngine)
+target_link_libraries(game PRIVATE ELE)
 add_dependencies(game Shaders)

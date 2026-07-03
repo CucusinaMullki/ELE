@@ -10,7 +10,7 @@ public:
     Framebuffers() = default;
     ~Framebuffers() { cleanup(); }
 
-    void initialize(vk::Device device, const SwapChain& swapChain, vk::RenderPass renderPass);
+    void initialize(vk::Device device, const SwapChain& swapChain, vk::RenderPass renderPass, vk::ImageView depthImageView);
     void cleanup();
 
     const std::vector<vk::UniqueFramebuffer>& getFramebuffers() const { return m_framebuffers; }

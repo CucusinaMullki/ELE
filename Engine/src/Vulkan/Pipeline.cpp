@@ -88,6 +88,13 @@ void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const st
     viewportState.setViewportCount(1);
     viewportState.setScissorCount(1);
 
+    vk::PipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.setDepthTestEnable(true);
+    depthStencil.setDepthWriteEnable(true);
+    depthStencil.setDepthCompareOp(vk::CompareOp::eLess);
+    depthStencil.setDepthBoundsTestEnable(false);
+    depthStencil.setStencilTestEnable(false);
+
     vk::GraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.setStages(shaderStages);
     pipelineInfo.setPVertexInputState(&vertexInput);
@@ -97,6 +104,7 @@ void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const st
     pipelineInfo.setPRasterizationState(&rasterizer);
     pipelineInfo.setPMultisampleState(&multisampling);
     pipelineInfo.setPColorBlendState(&colorBlending);
+    pipelineInfo.setPDepthStencilState(&depthStencil);
     pipelineInfo.setLayout(m_pipelineLayout.get());
     pipelineInfo.setRenderPass(renderPass);
     pipelineInfo.setSubpass(0);
