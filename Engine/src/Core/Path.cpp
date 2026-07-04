@@ -14,6 +14,7 @@ std::filesystem::path Paths::executableDir()
 #ifdef _WIN32
     wchar_t buf[MAX_PATH];
     GetModuleFileNameW(nullptr, buf, MAX_PATH);
+    return std::filesystem::path(buf).parent_path();
 #elif __linux__
     char buf[PATH_MAX];
     ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
