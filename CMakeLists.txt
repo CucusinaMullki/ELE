@@ -5,9 +5,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Vulkan REQUIRED)
-find_package(glfw3 REQUIRED)
 
 add_subdirectory(external/glm)
+
+option(USE_SYSTEM_GLFW "Use system GLFW instead of submodule" OFF)
+
+if(USE_SYSTEM_GLFW)
+    find_package(glfw3 REQUIRED)
+else()
+    set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    add_subdirectory(external/glfw)
+endif()
 
 add_library(ELE STATIC
     Engine/src/Vulkan/CommandManager.cpp
