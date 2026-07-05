@@ -14,6 +14,8 @@ int Input::toGLFWKey(Key key) const
         case Key::A:         return GLFW_KEY_A;
         case Key::S:         return GLFW_KEY_S;
         case Key::D:         return GLFW_KEY_D;
+        case Key::Q:         return GLFW_KEY_Q;
+        case Key::E:         return GLFW_KEY_E;
         case Key::Space:     return GLFW_KEY_SPACE;
         case Key::LeftShift: return GLFW_KEY_LEFT_SHIFT;
         case Key::Escape:    return GLFW_KEY_ESCAPE;

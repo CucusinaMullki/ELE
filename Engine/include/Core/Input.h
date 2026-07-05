@@ -4,7 +4,7 @@
 
 enum class Key
 {
-    W, A, S, D,
+    W, A, S, D, E, Q,
     Space, LeftShift,
     Escape,
     Unknown

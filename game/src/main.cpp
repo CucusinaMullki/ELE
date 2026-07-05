@@ -29,8 +29,13 @@ int main()
     std::cout << "Window created OK" << std::endl;
 
     Renderer renderer;
+    glfwSetWindowUserPointer(window, &renderer);
+    glfwSetFramebufferSizeCallback(window, [](GLFWwindow* win, int, int) {
+        auto* r = static_cast<Renderer*>(glfwGetWindowUserPointer(win));
+        r->onFramebufferResize();
+    });
+
     renderer.run(window);
-    renderer.cleanup();
 
     glfwDestroyWindow(window);
     glfwTerminate();

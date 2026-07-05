@@ -8,7 +8,7 @@ class Pipeline
 public:
     void initialize(vk::Device device, vk::RenderPass renderPass, const std::string& shaderName, uint32_t frameCount);
     void cleanup();
-    void updateDescriptorSets(vk::Device device, const std::vector<vk::DescriptorBufferInfo>& bufferInfos);
+    void updateDescriptorSets(vk::Device device, const std::vector<vk::DescriptorBufferInfo>& bufferInfos, vk::ImageView textureImageView, vk::Sampler textureSampler);
 
     vk::Pipeline getPipeline() const { return m_graphicPipeline.get(); } 
     vk::PipelineLayout getLayout() const { return m_pipelineLayout.get(); }

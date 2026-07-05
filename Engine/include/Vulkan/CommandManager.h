@@ -13,6 +13,7 @@ public:
     void cleanup();
 
     vk::CommandBuffer getCommandBuffer(uint32_t index) const { return m_commandBuffers[index].get(); }
+    vk::CommandPool getCommandPool() const { return m_commandPool.get(); }
 
 private:
     vk::UniqueCommandPool m_commandPool;

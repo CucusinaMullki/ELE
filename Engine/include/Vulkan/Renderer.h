@@ -12,6 +12,7 @@
 #include "Vulkan/DepthBuffer.h"
 #include "Core/Input.h"
 #include "Core/Camera.h"
+#include "Vulkan/Texture.h"
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.hpp>
 #include <vector>
@@ -24,6 +25,8 @@ public:
 
     void run(GLFWwindow* window);
     void cleanup();
+
+    void onFramebufferResize() { m_framebufferResized = true; }
 
 private:
     void init(GLFWwindow* window);
@@ -45,9 +48,11 @@ private:
     VertexBuffer m_vertexBuffer;
     IndexBuffer m_indexBuffer;
     DepthBuffer m_depthBuffer;
+    Texture m_texture;
     Input m_input;
     Camera m_camera;
     float m_lastFrameTime = 0.0f;
+    bool m_framebufferResized = false;
 
 
     std::vector<vk::UniqueSemaphore> m_imageAvailableSemaphores;

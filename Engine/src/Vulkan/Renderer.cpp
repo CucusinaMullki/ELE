@@ -10,54 +10,85 @@ void Renderer::init(GLFWwindow* window)
     m_depthBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), m_swapchain.getExtent());
     m_renderPass.initialize(m_context.getDevice(), m_swapchain.getImageFormat(), m_depthBuffer.getFormat());
     m_pipeline.initialize(m_context.getDevice(), m_renderPass.getRenderPass(), "shader", MAX_FRAMES_IN_FLIGHT);
+
+    // Command manager ДО текстуры (текстуре нужен command pool)
+    auto indices2 = m_context.GetQueueFamilyIndices();
+    m_commandManager.intialize(m_context.getDevice(), indices2.graphicFamily.value(), MAX_FRAMES_IN_FLIGHT);
+
     m_uniformBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), MAX_FRAMES_IN_FLIGHT);
+
+    // Текстура (после command manager)
+    m_texture.initialize(
+        m_context.getDevice(),
+        m_context.getPhysicalDevice(),
+        m_commandManager.getCommandPool(),
+        m_context.getGraphicQueue(),
+        "assets/textures/test.jpg"
+    );
+
+    // Descriptor sets — один раз, после uniform buffer и текстуры
     std::vector<vk::DescriptorBufferInfo> bufferInfos;
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
         bufferInfos.push_back(m_uniformBuffer.getDescriptorInfo(i));
-    
-    m_pipeline.updateDescriptorSets(m_context.getDevice(), bufferInfos);
+
+    m_pipeline.updateDescriptorSets(m_context.getDevice(), bufferInfos,
+        m_texture.getImageView(), m_texture.getSampler());
+
     m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass(), m_depthBuffer.getImageView());
 
     std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},  
-        {{ 0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},  
-        {{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}},  
-        {{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}},  
-    
-        {{-0.5f, -0.5f,  0.5f}, {1.0f, 0.0f, 1.0f}},  
-        {{ 0.5f, -0.5f,  0.5f}, {0.0f, 1.0f, 1.0f}},  
-        {{ 0.5f,  0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}},  
-        {{-0.5f,  0.5f,  0.5f}, {0.2f, 0.5f, 0.8f}}   
+        {{-0.5f, -0.5f,  0.5f}, {1,1,1}, {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f,  0.5f}, {1,1,1}, {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, {1,1,1}, {1.0f, 1.0f}},
+        {{-0.5f,  0.5f,  0.5f}, {1,1,1}, {0.0f, 1.0f}},
+
+        {{ 0.5f, -0.5f, -0.5f}, {1,1,1}, {0.0f, 0.0f}},
+        {{-0.5f, -0.5f, -0.5f}, {1,1,1}, {1.0f, 0.0f}},
+        {{-0.5f,  0.5f, -0.5f}, {1,1,1}, {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {1,1,1}, {0.0f, 1.0f}},
+
+        {{-0.5f, -0.5f, -0.5f}, {1,1,1}, {0.0f, 0.0f}},
+        {{-0.5f, -0.5f,  0.5f}, {1,1,1}, {1.0f, 0.0f}},
+        {{-0.5f,  0.5f,  0.5f}, {1,1,1}, {1.0f, 1.0f}},
+        {{-0.5f,  0.5f, -0.5f}, {1,1,1}, {0.0f, 1.0f}},
+
+        {{ 0.5f, -0.5f,  0.5f}, {1,1,1}, {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f, -0.5f}, {1,1,1}, {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {1,1,1}, {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, {1,1,1}, {0.0f, 1.0f}},
+
+        {{-0.5f,  0.5f,  0.5f}, {1,1,1}, {0.0f, 0.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, {1,1,1}, {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {1,1,1}, {1.0f, 1.0f}},
+        {{-0.5f,  0.5f, -0.5f}, {1,1,1}, {0.0f, 1.0f}},
+
+        {{-0.5f, -0.5f, -0.5f}, {1,1,1}, {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f, -0.5f}, {1,1,1}, {1.0f, 0.0f}},
+        {{ 0.5f, -0.5f,  0.5f}, {1,1,1}, {1.0f, 1.0f}},
+        {{-0.5f, -0.5f,  0.5f}, {1,1,1}, {0.0f, 1.0f}}
     };
 
     std::vector<uint32_t> indices = {
-        0, 1, 2,  2, 3, 0,
-    
-        4, 5, 6,  6, 7, 4,
-    
-        4, 0, 3,  3, 7, 4,
-    
-        1, 5, 6,  6, 2, 1,
-    
-        4, 5, 1,  1, 0, 4,
-    
-        3, 2, 6,  6, 7, 3
+        0,  1,  2,   2,  3,  0,    
+        4,  5,  6,   6,  7,  4,    
+        8,  9,  10,  10, 11, 8,    
+        12, 13, 14,  14, 15, 12,   
+        16, 17, 18,  18, 19, 16,   
+        20, 21, 22,  22, 23, 20    
     };
 
     m_vertexBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), vertices);
     m_indexBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), indices);
 
-    auto indices2 = m_context.GetQueueFamilyIndices();
-    m_commandManager.intialize(m_context.getDevice(), indices2.graphicFamily.value(), MAX_FRAMES_IN_FLIGHT);
-
     LOG("Swapchain images: " << m_swapchain.getImageViews().size());
     LOG("FrameBuffers: " << m_framebuffers.getFramebuffers().size());
 
     m_input.initialize(window);
-    m_camera.initialize(glm::vec3(0.0f, 0.0f, 30.0f));
+    m_camera.initialize(glm::vec3(0.0f, 0.0f, 3.0f));
+    m_camera.setAspect((float)m_swapchain.getExtent().width / m_swapchain.getExtent().height);
 
+    // Sync objects
     size_t imageCount = m_swapchain.getImageViews().size();
-
     m_imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
     m_renderFinishedSemaphores.resize(imageCount);
     m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
@@ -72,7 +103,6 @@ void Renderer::init(GLFWwindow* window)
         m_imageAvailableSemaphores[i] = m_context.getDevice().createSemaphoreUnique(semaphoreInfo);
         m_inFlightFences[i] = m_context.getDevice().createFenceUnique(fenceInfo);
     }
-
     for (size_t i = 0; i < imageCount; i++)
     {
         m_renderFinishedSemaphores[i] = m_context.getDevice().createSemaphoreUnique(semaphoreInfo);
@@ -172,8 +202,7 @@ void Renderer::drawFrame()
     MVP mvp{};
     mvp.model = glm::mat4(1.0f);
     mvp.view = m_camera.getViewMatrix();
-    mvp.proj = glm::perspective(glm::radians(45.0f), (float)m_swapchain.getExtent().width / m_swapchain.getExtent().height, 0.1f, 100.0f);
-    mvp.proj[1][1] *= -1;
+    mvp.proj = m_camera.getProjectionMatrix();
     m_uniformBuffer.update(m_currentFrame, mvp);
 
     recordCommandBuffer(cmd, imageIndex);
@@ -206,6 +235,8 @@ void Renderer::drawFrame()
     if (m_input.isKeyPressed(Key::S)) moveDir -= m_camera.getFront();
     if (m_input.isKeyPressed(Key::A)) moveDir -= m_camera.getRight();
     if (m_input.isKeyPressed(Key::D)) moveDir += m_camera.getRight();
+    if (m_input.isKeyPressed(Key::E)) moveDir += m_camera.getUp();
+    if (m_input.isKeyPressed(Key::Q)) moveDir -= m_camera.getUp();
 
     if (glm::length(moveDir) > 0.0f)
         m_camera.processKeyboard(glm::normalize(moveDir), deltaTime);
@@ -215,13 +246,15 @@ void Renderer::drawFrame()
     try
     {
         auto presentResult = m_context.getPresentQueue().presentKHR(presentInfo);
-        if (presentResult == vk::Result::eSuboptimalKHR)
+        if (presentResult == vk::Result::eSuboptimalKHR || m_framebufferResized)
         {
+            m_framebufferResized = false;
             recreateSwapchain();
         }
     }
     catch (const vk::OutOfDateKHRError&)
     {
+        m_framebufferResized = false;
         recreateSwapchain();
     }
 
@@ -249,6 +282,7 @@ void Renderer::cleanup()
 
     m_context.getDevice().waitIdle();
     
+    m_texture.cleanup();
     m_vertexBuffer.cleanup();
     m_indexBuffer.cleanup();
     m_depthBuffer.cleanup();
@@ -280,6 +314,9 @@ void Renderer::recreateSwapchain()
     m_depthBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), m_swapchain.getExtent());
     m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass(), m_depthBuffer.getImageView());
 
+    m_camera.setAspect(
+        (float)m_swapchain.getExtent().width / m_swapchain.getExtent().height
+    );
 
     size_t imageCount = m_swapchain.getImageViews().size();
     if (m_renderFinishedSemaphores.size() != imageCount)

@@ -40,3 +40,15 @@ void Camera::updateVectors()
     m_right = glm::normalize(glm::cross(m_front, m_worldUp));
     m_up    = glm::normalize(glm::cross(m_right, m_front));    
 }
+
+glm::mat4 Camera::getProjectionMatrix() const
+{
+    glm::mat4 proj = glm::perspective(
+        glm::radians(m_fov),
+        m_aspect,
+        m_nearPlane,
+        m_farPlane
+    );
+    proj[1][1] *= -1; 
+    return proj;
+}

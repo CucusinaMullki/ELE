@@ -10,16 +10,26 @@ void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const st
     uboBinding.setDescriptorCount(1);
     uboBinding.setStageFlags(vk::ShaderStageFlagBits::eVertex);
 
+    vk::DescriptorSetLayoutBinding samplerBinding{};
+    samplerBinding.setBinding(1);
+    samplerBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+    samplerBinding.setDescriptorCount(1);
+    samplerBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+
+    std::array<vk::DescriptorSetLayoutBinding, 2> bindings = { uboBinding, samplerBinding };
+
     vk::DescriptorSetLayoutCreateInfo layoutCreateInfo{};
-    layoutCreateInfo.setBindings(uboBinding);
+    layoutCreateInfo.setBindings(bindings);
     m_descriptorSetLayout = device.createDescriptorSetLayoutUnique(layoutCreateInfo);
 
-    vk::DescriptorPoolSize poolSize{};
-    poolSize.setType(vk::DescriptorType::eUniformBuffer);
-    poolSize.setDescriptorCount(frameCount);
+    std::array<vk::DescriptorPoolSize, 2> poolSizes{};
+    poolSizes[0].setType(vk::DescriptorType::eUniformBuffer);
+    poolSizes[0].setDescriptorCount(frameCount);
+    poolSizes[1].setType(vk::DescriptorType::eCombinedImageSampler);
+    poolSizes[1].setDescriptorCount(frameCount);
 
     vk::DescriptorPoolCreateInfo poolInfo{};
-    poolInfo.setPoolSizes(poolSize);
+    poolInfo.setPoolSizes(poolSizes);
     poolInfo.setMaxSets(frameCount);
     m_descriptorPool = device.createDescriptorPoolUnique(poolInfo);
 
@@ -125,18 +135,31 @@ void Pipeline::cleanup()
     m_pipelineLayout.reset();
 }
 
-void Pipeline::updateDescriptorSets(vk::Device device, const std::vector<vk::DescriptorBufferInfo>& bufferInfos)
+void Pipeline::updateDescriptorSets(vk::Device device, const std::vector<vk::DescriptorBufferInfo>& bufferInfos, vk::ImageView textureImageView, vk::Sampler textureSampler)
 {
     for (size_t i = 0; i < bufferInfos.size(); i++)
     {
-        vk::WriteDescriptorSet write{};
-        write.setDstSet(m_descriptorSets[i]);
-        write.setDstBinding(0);
-        write.setDstArrayElement(0);
-        write.setDescriptorType(vk::DescriptorType::eUniformBuffer);
-        write.setDescriptorCount(1);
-        write.setBufferInfo(bufferInfos[i]);
+        vk::DescriptorImageInfo imageInfo{};
+        imageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+        imageInfo.setImageView(textureImageView);
+        imageInfo.setSampler(textureSampler);
 
-        device.updateDescriptorSets(write, nullptr);
+        std::array<vk::WriteDescriptorSet, 2> writes{};
+
+        writes[0].setDstSet(m_descriptorSets[i]);
+        writes[0].setDstBinding(0);
+        writes[0].setDstArrayElement(0);
+        writes[0].setDescriptorType(vk::DescriptorType::eUniformBuffer);
+        writes[0].setDescriptorCount(1);
+        writes[0].setBufferInfo(bufferInfos[i]);
+
+        writes[1].setDstSet(m_descriptorSets[i]);
+        writes[1].setDstBinding(1);
+        writes[1].setDstArrayElement(0);
+        writes[1].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        writes[1].setDescriptorCount(1);
+        writes[1].setImageInfo(imageInfo);
+
+        device.updateDescriptorSets(writes, nullptr);
     }
 }

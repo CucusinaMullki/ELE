@@ -35,11 +35,14 @@ add_library(ELE STATIC
     Engine/src/Vulkan/DepthBuffer.cpp
     Engine/src/Core/Input.cpp
     Engine/src/Core/Camera.cpp
+    Engine/src/Vulkan/Texture.cpp
+    Engine/src/Core/stb_impl.cpp
 )
 
 target_include_directories(ELE PUBLIC
     ${Vulkan_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/Engine/include
+    ${CMAKE_SOURCE_DIR}/external/stb
 )
 
 target_link_libraries(ELE PUBLIC
@@ -76,6 +79,12 @@ add_custom_target(Shaders ALL DEPENDS ${SPIRV_FILES})
 add_executable(game
     game/src/main.cpp
 )
-
 target_link_libraries(game PRIVATE ELE)
 add_dependencies(game Shaders)
+
+# Копируем assets ПОСЛЕ создания target game
+add_custom_command(TARGET game POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/Engine/assets
+        $<TARGET_FILE_DIR:game>/assets
+)
