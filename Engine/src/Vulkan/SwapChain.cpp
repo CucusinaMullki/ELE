@@ -134,13 +134,6 @@ vk::SurfaceFormatKHR SwapChain::chooseSurfaceFormat(const std::vector<vk::Surfac
 
 vk::PresentModeKHR SwapChain::choosePresentMode(const std::vector<vk::PresentModeKHR>& availablePresentModes)
 {
-    for (const auto& availablePresentMode : availablePresentModes)
-    {
-        if (availablePresentMode == vk::PresentModeKHR::eMailbox)
-        {
-            return availablePresentMode;
-        }
-    }
     return vk::PresentModeKHR::eFifo;
 }
 

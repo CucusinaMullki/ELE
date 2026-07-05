@@ -12,28 +12,29 @@ void Renderer::init(GLFWwindow* window)
     m_renderPass.initialize(m_context.getDevice(), m_swapchain.getImageFormat(), m_depthBuffer.getFormat());
     m_pipeline.initialize(m_context.getDevice(), m_renderPass.getRenderPass(), "shader", MAX_FRAMES_IN_FLIGHT);
 
-    // Command manager ДО текстуры (текстуре нужен command pool)
     auto indices2 = m_context.GetQueueFamilyIndices();
     m_commandManager.intialize(m_context.getDevice(), indices2.graphicFamily.value(), MAX_FRAMES_IN_FLIGHT);
 
     m_uniformBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), MAX_FRAMES_IN_FLIGHT);
 
-    // Текстура (после command manager)
-    m_texture.initialize(
-        m_context.getDevice(),
-        m_context.getPhysicalDevice(),
-        m_commandManager.getCommandPool(),
-        m_context.getGraphicQueue(),
-        "assets/textures/test.jpg"
-    );
+    m_albedo.initialize(m_context.getDevice(), m_context.getPhysicalDevice(),
+        m_commandManager.getCommandPool(), m_context.getGraphicQueue(), "assets/textures/albedo.jpg");
+    m_normal.initialize(m_context.getDevice(), m_context.getPhysicalDevice(),
+        m_commandManager.getCommandPool(), m_context.getGraphicQueue(), "assets/textures/normal.jpg");
+    m_metallic.initialize(m_context.getDevice(), m_context.getPhysicalDevice(),
+        m_commandManager.getCommandPool(), m_context.getGraphicQueue(), "assets/textures/metallic.jpg");
+    m_roughness.initialize(m_context.getDevice(), m_context.getPhysicalDevice(),
+        m_commandManager.getCommandPool(), m_context.getGraphicQueue(), "assets/textures/roughness.jpg");
 
-    // Descriptor sets — один раз, после uniform buffer и текстуры
     std::vector<vk::DescriptorBufferInfo> bufferInfos;
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
         bufferInfos.push_back(m_uniformBuffer.getDescriptorInfo(i));
 
     m_pipeline.updateDescriptorSets(m_context.getDevice(), bufferInfos,
-        m_texture.getImageView(), m_texture.getSampler());
+        m_albedo.getImageView(), m_albedo.getSampler(),
+        m_normal.getImageView(), m_normal.getSampler(),
+        m_metallic.getImageView(), m_metallic.getSampler(),
+        m_roughness.getImageView(), m_roughness.getSampler());
 
     m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass(), m_depthBuffer.getImageView());
 
@@ -50,7 +51,6 @@ void Renderer::init(GLFWwindow* window)
     m_camera.initialize(glm::vec3(0.0f, 0.0f, 3.0f));
     m_camera.setAspect((float)m_swapchain.getExtent().width / m_swapchain.getExtent().height);
 
-    // Sync objects
     size_t imageCount = m_swapchain.getImageViews().size();
     m_imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
     m_renderFinishedSemaphores.resize(imageCount);
@@ -164,8 +164,12 @@ void Renderer::drawFrame()
 
     MVP mvp{};
     mvp.model = glm::mat4(1.0f);
+    mvp.normalMatrix = glm::transpose(glm::inverse(mvp.model));
     mvp.view = m_camera.getViewMatrix();
     mvp.proj = m_camera.getProjectionMatrix();
+    mvp.camPos = glm::vec4(m_camera.getPosition(), 1.0f);
+    mvp.lightPos = glm::vec4(0.0f, -1.0f, 0.0f, 0.0f);
+    mvp.lightColor = glm::vec4(1.0f, 0.95f, 0.8f, 1.0f) * 3.0f;  
     m_uniformBuffer.update(m_currentFrame, mvp);
 
     recordCommandBuffer(cmd, imageIndex);
@@ -245,7 +249,10 @@ void Renderer::cleanup()
 
     m_context.getDevice().waitIdle();
     
-    m_texture.cleanup();
+    m_albedo.cleanup();
+    m_normal.cleanup();
+    m_metallic.cleanup();
+    m_roughness.cleanup();
     m_vertexBuffer.cleanup();
     m_indexBuffer.cleanup();
     m_depthBuffer.cleanup();

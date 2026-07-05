@@ -48,12 +48,15 @@ private:
     VertexBuffer m_vertexBuffer;
     IndexBuffer m_indexBuffer;
     DepthBuffer m_depthBuffer;
-    Texture m_texture;
     Input m_input;
     Camera m_camera;
     float m_lastFrameTime = 0.0f;
     bool m_framebufferResized = false;
 
+    Texture m_albedo;
+    Texture m_normal;
+    Texture m_metallic;
+    Texture m_roughness;
 
     std::vector<vk::UniqueSemaphore> m_imageAvailableSemaphores;
     std::vector<vk::UniqueSemaphore> m_renderFinishedSemaphores;

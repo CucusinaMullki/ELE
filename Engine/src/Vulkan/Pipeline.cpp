@@ -8,15 +8,24 @@ void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const st
     uboBinding.setBinding(0);
     uboBinding.setDescriptorType(vk::DescriptorType::eUniformBuffer);
     uboBinding.setDescriptorCount(1);
-    uboBinding.setStageFlags(vk::ShaderStageFlagBits::eVertex);
+    uboBinding.setStageFlags(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment);
 
-    vk::DescriptorSetLayoutBinding samplerBinding{};
-    samplerBinding.setBinding(1);
-    samplerBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-    samplerBinding.setDescriptorCount(1);
-    samplerBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+    auto makeSamplerBinding = [](uint32_t bind) {
+        vk::DescriptorSetLayoutBinding b{};
+        b.setBinding(bind);
+        b.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        b.setDescriptorCount(1);
+        b.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+        return b;
+    };
 
-    std::array<vk::DescriptorSetLayoutBinding, 2> bindings = { uboBinding, samplerBinding };
+    std::array<vk::DescriptorSetLayoutBinding, 5> bindings = { 
+        uboBinding, 
+        makeSamplerBinding(1),
+        makeSamplerBinding(2),
+        makeSamplerBinding(3),
+        makeSamplerBinding(4)
+    };
 
     vk::DescriptorSetLayoutCreateInfo layoutCreateInfo{};
     layoutCreateInfo.setBindings(bindings);
@@ -26,7 +35,7 @@ void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const st
     poolSizes[0].setType(vk::DescriptorType::eUniformBuffer);
     poolSizes[0].setDescriptorCount(frameCount);
     poolSizes[1].setType(vk::DescriptorType::eCombinedImageSampler);
-    poolSizes[1].setDescriptorCount(frameCount);
+    poolSizes[1].setDescriptorCount(frameCount * 4);
 
     vk::DescriptorPoolCreateInfo poolInfo{};
     poolInfo.setPoolSizes(poolSizes);
@@ -135,30 +144,50 @@ void Pipeline::cleanup()
     m_pipelineLayout.reset();
 }
 
-void Pipeline::updateDescriptorSets(vk::Device device, const std::vector<vk::DescriptorBufferInfo>& bufferInfos, vk::ImageView textureImageView, vk::Sampler textureSampler)
+void Pipeline::updateDescriptorSets(vk::Device device,
+    const std::vector<vk::DescriptorBufferInfo>& bufferInfos,
+    vk::ImageView albedo, vk::Sampler albedoSampler,
+    vk::ImageView normal, vk::Sampler normalSampler,
+    vk::ImageView metallic, vk::Sampler metallicSampler,
+    vk::ImageView roughness, vk::Sampler roughnessSampler)
 {
     for (size_t i = 0; i < bufferInfos.size(); i++)
     {
-        vk::DescriptorImageInfo imageInfo{};
-        imageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
-        imageInfo.setImageView(textureImageView);
-        imageInfo.setSampler(textureSampler);
+        auto makeImageInfo = [](vk::ImageView view, vk::Sampler sampler) {
+            vk::DescriptorImageInfo info{};
+            info.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+            info.setImageView(view);
+            info.setSampler(sampler);
+            return info;
+        };
 
-        std::array<vk::WriteDescriptorSet, 2> writes{};
+        auto albedoInfo    = makeImageInfo(albedo, albedoSampler);
+        auto normalInfo    = makeImageInfo(normal, normalSampler);
+        auto metallicInfo  = makeImageInfo(metallic, metallicSampler);
+        auto roughnessInfo = makeImageInfo(roughness, roughnessSampler);
+
+        std::array<vk::WriteDescriptorSet, 5> writes{};
 
         writes[0].setDstSet(m_descriptorSets[i]);
         writes[0].setDstBinding(0);
-        writes[0].setDstArrayElement(0);
         writes[0].setDescriptorType(vk::DescriptorType::eUniformBuffer);
         writes[0].setDescriptorCount(1);
         writes[0].setBufferInfo(bufferInfos[i]);
 
-        writes[1].setDstSet(m_descriptorSets[i]);
-        writes[1].setDstBinding(1);
-        writes[1].setDstArrayElement(0);
-        writes[1].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-        writes[1].setDescriptorCount(1);
-        writes[1].setImageInfo(imageInfo);
+        auto makeWrite = [&](uint32_t bind, vk::DescriptorImageInfo& info) {
+            vk::WriteDescriptorSet w{};
+            w.setDstSet(m_descriptorSets[i]);
+            w.setDstBinding(bind);
+            w.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+            w.setDescriptorCount(1);
+            w.setImageInfo(info);
+            return w;
+        };
+
+        writes[1] = makeWrite(1, albedoInfo);
+        writes[2] = makeWrite(2, normalInfo);
+        writes[3] = makeWrite(3, metallicInfo);
+        writes[4] = makeWrite(4, roughnessInfo);
 
         device.updateDescriptorSets(writes, nullptr);
     }
