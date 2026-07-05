@@ -9,6 +9,11 @@ struct Vertex
     glm::vec3 color;
     glm::vec2 texCoord;
 
+    bool operator==(const Vertex& other) const
+    {
+        return pos == other.pos && color == other.color && texCoord == other.texCoord;
+    }
+
     static vk::VertexInputBindingDescription getBindingDescriptor()
     {
         vk::VertexInputBindingDescription binding{};
@@ -18,7 +23,7 @@ struct Vertex
         return binding;
     }
 
-    static std::array<vk::VertexInputAttributeDescription, 3> getAttributeDescriptions()  // теперь 3
+    static std::array<vk::VertexInputAttributeDescription, 3> getAttributeDescriptions()
     {
         std::array<vk::VertexInputAttributeDescription, 3> attributes{};
 
@@ -40,3 +45,16 @@ struct Vertex
         return attributes;
     }
 };
+
+namespace std
+{
+    template<> struct hash<Vertex>
+    {
+        size_t operator()(const Vertex& vertex) const
+        {
+            size_t h1 = hash<float>()(vertex.pos.x) ^ (hash<float>()(vertex.pos.y) << 1) ^ (hash<float>()(vertex.pos.z) << 2);
+            size_t h2 = hash<float>()(vertex.texCoord.x) ^ (hash<float>()(vertex.texCoord.y) << 1);
+            return h1 ^ (h2 << 1);
+        }
+    };
+}

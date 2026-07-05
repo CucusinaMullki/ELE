@@ -1,6 +1,7 @@
 #include "Vulkan/Renderer.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include "Core/Log.h"
+#include "Core/Model.h"
 #include <chrono>
 
 void Renderer::init(GLFWwindow* window)
@@ -36,49 +37,11 @@ void Renderer::init(GLFWwindow* window)
 
     m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass(), m_depthBuffer.getImageView());
 
-    std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f,  0.5f}, {1,1,1}, {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f,  0.5f}, {1,1,1}, {1.0f, 0.0f}},
-        {{ 0.5f,  0.5f,  0.5f}, {1,1,1}, {1.0f, 1.0f}},
-        {{-0.5f,  0.5f,  0.5f}, {1,1,1}, {0.0f, 1.0f}},
+    Model model;
+    model.load("assets/models/cube.obj");
 
-        {{ 0.5f, -0.5f, -0.5f}, {1,1,1}, {0.0f, 0.0f}},
-        {{-0.5f, -0.5f, -0.5f}, {1,1,1}, {1.0f, 0.0f}},
-        {{-0.5f,  0.5f, -0.5f}, {1,1,1}, {1.0f, 1.0f}},
-        {{ 0.5f,  0.5f, -0.5f}, {1,1,1}, {0.0f, 1.0f}},
-
-        {{-0.5f, -0.5f, -0.5f}, {1,1,1}, {0.0f, 0.0f}},
-        {{-0.5f, -0.5f,  0.5f}, {1,1,1}, {1.0f, 0.0f}},
-        {{-0.5f,  0.5f,  0.5f}, {1,1,1}, {1.0f, 1.0f}},
-        {{-0.5f,  0.5f, -0.5f}, {1,1,1}, {0.0f, 1.0f}},
-
-        {{ 0.5f, -0.5f,  0.5f}, {1,1,1}, {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f, -0.5f}, {1,1,1}, {1.0f, 0.0f}},
-        {{ 0.5f,  0.5f, -0.5f}, {1,1,1}, {1.0f, 1.0f}},
-        {{ 0.5f,  0.5f,  0.5f}, {1,1,1}, {0.0f, 1.0f}},
-
-        {{-0.5f,  0.5f,  0.5f}, {1,1,1}, {0.0f, 0.0f}},
-        {{ 0.5f,  0.5f,  0.5f}, {1,1,1}, {1.0f, 0.0f}},
-        {{ 0.5f,  0.5f, -0.5f}, {1,1,1}, {1.0f, 1.0f}},
-        {{-0.5f,  0.5f, -0.5f}, {1,1,1}, {0.0f, 1.0f}},
-
-        {{-0.5f, -0.5f, -0.5f}, {1,1,1}, {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f, -0.5f}, {1,1,1}, {1.0f, 0.0f}},
-        {{ 0.5f, -0.5f,  0.5f}, {1,1,1}, {1.0f, 1.0f}},
-        {{-0.5f, -0.5f,  0.5f}, {1,1,1}, {0.0f, 1.0f}}
-    };
-
-    std::vector<uint32_t> indices = {
-        0,  1,  2,   2,  3,  0,    
-        4,  5,  6,   6,  7,  4,    
-        8,  9,  10,  10, 11, 8,    
-        12, 13, 14,  14, 15, 12,   
-        16, 17, 18,  18, 19, 16,   
-        20, 21, 22,  22, 23, 20    
-    };
-
-    m_vertexBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), vertices);
-    m_indexBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), indices);
+    m_vertexBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), model.getVertices());
+    m_indexBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), model.getIndices());
 
     LOG("Swapchain images: " << m_swapchain.getImageViews().size());
     LOG("FrameBuffers: " << m_framebuffers.getFramebuffers().size());
