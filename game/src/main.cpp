@@ -1,43 +1,48 @@
-#include "Vulkan/Renderer.h"
-#include <iostream>
+#include "Core/Engine.h"
 
 int main()
 {
-    glfwInitVulkanLoader(vkGetInstanceProcAddr); 
-    glfwInit();
+    Engine engine;
+    engine.initialize(800, 600, "ELE Game");
 
-    if (!glfwVulkanSupported())
-    {
-        std::cerr << "Vulkan NOT supported by GLFW!" << std::endl;
-        return -1;
-    }
+    auto cube = engine.loadMesh("assets/models/cube.obj");
+    auto material = engine.loadMaterial(
+        "assets/textures/albedo.jpg",
+        "assets/textures/normal.jpg",
+        "assets/textures/metallic.jpg",
+        "assets/textures/roughness.jpg");
 
-    uint32_t count;
-    const char** ext = glfwGetRequiredInstanceExtensions(&count);
-    std::cout << "GLFW requires " << count << " extensions:" << std::endl;
-    for (uint32_t i = 0; i < count; i++)
-        std::cout << "  " << ext[i] << std::endl;
+    auto material2 = engine.loadMaterial(
+        "assets/textures/albedo2.jpg",
+        "assets/textures/normal2.jpg",
+        "assets/textures/metallic2.jpg",
+        "assets/textures/roughness2.jpg");
 
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(800, 600, "ELE Engine", nullptr, nullptr);
+    auto& obj1 = engine.getScene().addObject();
+    obj1.mesh = cube;
+    obj1.material = material;
+    obj1.transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
 
-    if (!window)
-    {
-        std::cerr << "Failed to create window!" << std::endl;
-        return -1;
-    }
-    std::cout << "Window created OK" << std::endl;
+    auto& obj2 = engine.getScene().addObject();
+    obj2.mesh = cube;
+    obj2.material = material;
+    obj2.transform.position = glm::vec3(3.0f, 0.0f, 0.0f);
 
-    Renderer renderer;
-    glfwSetWindowUserPointer(window, &renderer);
-    glfwSetFramebufferSizeCallback(window, [](GLFWwindow* win, int, int) {
-        auto* r = static_cast<Renderer*>(glfwGetWindowUserPointer(win));
-        r->onFramebufferResize();
-    });
+    auto& obj3 = engine.getScene().addObject();
+    obj3.mesh = cube;
+    obj3.material = material;
+    obj3.transform.position = glm::vec3(-3.0f, 0.0f, 0.0f);
+    obj3.transform.scale = glm::vec3(0.5f);
 
-    renderer.run(window);
+    auto sphere = engine.loadMesh("assets/models/sphere.obj");
+    auto& obj4 = engine.getScene().addObject();
+    obj4.mesh = sphere;
+    obj4.material = material2;
+    obj4.transform.position = glm::vec3(5.0f, 0.0f, 0.0f);
+    obj4.transform.rotation = glm::vec3(90.0f, 90.f, 0.0f);
 
-    glfwDestroyWindow(window);
-    glfwTerminate();
+    engine.run();
+
+    engine.shutdown();
     return 0;
 }

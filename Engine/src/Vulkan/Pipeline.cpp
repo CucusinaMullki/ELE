@@ -32,6 +32,8 @@ void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const st
     layoutCreateInfo.setBindings(bindings);
     m_descriptorSetLayout = device.createDescriptorSetLayoutUnique(layoutCreateInfo);
 
+    const uint32_t MAX_MATERIALS = 100;
+
     std::array<vk::DescriptorPoolSize, 2> poolSizes{};
     poolSizes[0].setType(vk::DescriptorType::eUniformBuffer);
     poolSizes[0].setDescriptorCount(frameCount);
@@ -40,7 +42,7 @@ void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const st
 
     vk::DescriptorPoolCreateInfo poolInfo{};
     poolInfo.setPoolSizes(poolSizes);
-    poolInfo.setMaxSets(frameCount);
+    poolInfo.setMaxSets(MAX_MATERIALS * frameCount);
     m_descriptorPool = device.createDescriptorPoolUnique(poolInfo);
 
     std::vector<vk::DescriptorSetLayout> layouts(frameCount, m_descriptorSetLayout.get());
@@ -149,53 +151,4 @@ void Pipeline::cleanup()
     m_descriptorSetLayout.reset();
     m_graphicPipeline.reset();
     m_pipelineLayout.reset();
-}
-
-void Pipeline::updateDescriptorSets(vk::Device device,
-    const std::vector<vk::DescriptorBufferInfo>& bufferInfos,
-    vk::ImageView albedo, vk::Sampler albedoSampler,
-    vk::ImageView normal, vk::Sampler normalSampler,
-    vk::ImageView metallic, vk::Sampler metallicSampler,
-    vk::ImageView roughness, vk::Sampler roughnessSampler)
-{
-    for (size_t i = 0; i < bufferInfos.size(); i++)
-    {
-        auto makeImageInfo = [](vk::ImageView view, vk::Sampler sampler) {
-            vk::DescriptorImageInfo info{};
-            info.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
-            info.setImageView(view);
-            info.setSampler(sampler);
-            return info;
-        };
-
-        auto albedoInfo    = makeImageInfo(albedo, albedoSampler);
-        auto normalInfo    = makeImageInfo(normal, normalSampler);
-        auto metallicInfo  = makeImageInfo(metallic, metallicSampler);
-        auto roughnessInfo = makeImageInfo(roughness, roughnessSampler);
-
-        std::array<vk::WriteDescriptorSet, 5> writes{};
-
-        writes[0].setDstSet(m_descriptorSets[i]);
-        writes[0].setDstBinding(0);
-        writes[0].setDescriptorType(vk::DescriptorType::eUniformBuffer);
-        writes[0].setDescriptorCount(1);
-        writes[0].setBufferInfo(bufferInfos[i]);
-
-        auto makeWrite = [&](uint32_t bind, vk::DescriptorImageInfo& info) {
-            vk::WriteDescriptorSet w{};
-            w.setDstSet(m_descriptorSets[i]);
-            w.setDstBinding(bind);
-            w.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-            w.setDescriptorCount(1);
-            w.setImageInfo(info);
-            return w;
-        };
-
-        writes[1] = makeWrite(1, albedoInfo);
-        writes[2] = makeWrite(2, normalInfo);
-        writes[3] = makeWrite(3, metallicInfo);
-        writes[4] = makeWrite(4, roughnessInfo);
-
-        device.updateDescriptorSets(writes, nullptr);
-    }
 }

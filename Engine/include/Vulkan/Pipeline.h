@@ -8,16 +8,11 @@ class Pipeline
 public:
     void initialize(vk::Device device, vk::RenderPass renderPass, const std::string& shaderName, uint32_t frameCount);
     void cleanup();
-    void updateDescriptorSets(vk::Device device, const std::vector<vk::DescriptorBufferInfo>& bufferInfos, 
-        vk::ImageView albedo, vk::Sampler albedoSampler, 
-        vk::ImageView normal, vk::Sampler normalSampler, 
-        vk::ImageView metallic, vk::Sampler metallicSampler,
-        vk::ImageView roughness, vk::Sampler roughnessSampler);
 
-    vk::Pipeline getPipeline() const { return m_graphicPipeline.get(); } 
+    vk::DescriptorSetLayout getDescriptorSetLayout() const { return m_descriptorSetLayout.get(); }
+    vk::DescriptorPool getDescriptorPool() const { return m_descriptorPool.get(); }
     vk::PipelineLayout getLayout() const { return m_pipelineLayout.get(); }
-    vk::DescriptorSet getDescriptorSet(uint32_t frameIndex) const { return m_descriptorSets[frameIndex]; }
-
+    vk::Pipeline getPipeline() const { return m_graphicPipeline.get(); }
 
 private:
     vk::UniquePipelineLayout m_pipelineLayout;

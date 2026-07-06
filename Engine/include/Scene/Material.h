@@ -11,20 +11,21 @@ public:
         const std::string& normalPath,
         const std::string& metallicPath,
         const std::string& roughnessPath);
-    void cleanup();
 
-    vk::ImageView getAlbedoView() const { return m_albedo.getImageView(); }
-    vk::Sampler getAlbedoSampler() const { return m_albedo.getSampler(); }
-    vk::ImageView getNormalView() const { return m_normal.getImageView(); }
-    vk::Sampler getNormalSampler() const { return m_normal.getSampler(); }
-    vk::ImageView getRoughnessView() const { return m_roughness.getImageView(); }
-    vk::Sampler getRoughnessSampler() const { return m_roughness.getSampler(); }
-    vk::ImageView getMetallicView() const { return m_metallic.getImageView(); }
-    vk::Sampler getMetallicSampler() const { return m_metallic.getSampler(); }
+    void createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
+        vk::DescriptorSetLayout layout,
+        const std::vector<vk::DescriptorBufferInfo>& uboInfos,
+        uint32_t frameCount);
+    
+    vk::DescriptorSet getDescriptorSet(uint32_t frame) const { return m_descriptorSets[frame]; }
+
+    void cleanup();
     
 private:
     Texture m_albedo;
     Texture m_normal;
     Texture m_metallic;
     Texture m_roughness;
+
+    std::vector<vk::DescriptorSet> m_descriptorSets; 
 };

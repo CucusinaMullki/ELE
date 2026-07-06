@@ -23,7 +23,7 @@ add_library(ELE STATIC
     Engine/src/Vulkan/CommandManager.cpp
     Engine/src/Vulkan/FrameBuffers.cpp
     Engine/src/Vulkan/Pipeline.cpp
-    Engine/src/Vulkan/Renderer.cpp
+    Engine/src/Core/Engine.cpp
     Engine/src/Vulkan/RenderPass.cpp
     Engine/src/Vulkan/SwapChain.cpp
     Engine/src/Vulkan/VulkanContext.cpp
@@ -42,6 +42,7 @@ add_library(ELE STATIC
     Engine/src/Core/tinyobj_impl.cpp
     Engine/src/Scene/Material.cpp
     Engine/src/Scene/Mesh.cpp
+    Engine/src/Core/ResourceManager.cpp
 )
 
 target_include_directories(ELE PUBLIC
