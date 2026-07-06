@@ -1,14 +1,17 @@
 #version 450
 
 layout(binding = 0) uniform MVP {
-    mat4 model;
     mat4 view;
     mat4 proj;
-    mat4 normalMatrix;
     vec4 camPos;
     vec4 lightPos;
     vec4 lightColor;
 } ubo;
+
+layout(push_constant) uniform Push {
+    mat4 model;
+    mat4 normalMatrix;
+} push;
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inColor;
@@ -22,17 +25,16 @@ layout(location = 2) out mat3 fragTBN;
 
 void main()
 {
-    vec4 worldPos = ubo.model * vec4(inPosition, 1.0);
+    vec4 worldPos = push.model * vec4(inPosition, 1.0);
     gl_Position = ubo.proj * ubo.view * worldPos;
 
     fragWorldPos = worldPos.xyz;
     fragTexCoord = inTexCoord;
 
-    mat3 normalMatrix = mat3(ubo.normalMatrix);
-    vec3 N = normalize(normalMatrix * inNormal);
-    vec3 T = normalize(normalMatrix * inTangent);
+    mat3 nm = mat3(push.normalMatrix);
+    vec3 N = normalize(nm * inNormal);
+    vec3 T = normalize(nm * inTangent);
     T = normalize(T - dot(T, N) * N);
     vec3 B = cross(N, T);
-
     fragTBN = mat3(T, B, N);
 }

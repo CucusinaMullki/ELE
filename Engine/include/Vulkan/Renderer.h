@@ -9,10 +9,10 @@
 #include "Vulkan/UniformBuffer.h"
 #include "Vulkan/VertexBuffer.h"
 #include "Vulkan/IndexBuffer.h"
+#include "Scene/Scene.h"
 #include "Vulkan/DepthBuffer.h"
 #include "Core/Input.h"
 #include "Core/Camera.h"
-#include "Vulkan/Texture.h"
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.hpp>
 #include <vector>
@@ -53,10 +53,9 @@ private:
     float m_lastFrameTime = 0.0f;
     bool m_framebufferResized = false;
 
-    Texture m_albedo;
-    Texture m_normal;
-    Texture m_metallic;
-    Texture m_roughness;
+    Scene m_scene;
+    std::shared_ptr<Mesh> m_cubeMesh;
+    std::shared_ptr<Material> m_defaultMaterial;
 
     std::vector<vk::UniqueSemaphore> m_imageAvailableSemaphores;
     std::vector<vk::UniqueSemaphore> m_renderFinishedSemaphores;

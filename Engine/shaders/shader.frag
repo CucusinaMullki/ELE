@@ -1,15 +1,12 @@
 #version 450
 
 layout(binding = 0) uniform MVP {
-    mat4 model;
     mat4 view;
     mat4 proj;
-    mat4 normalMatrix;
     vec4 camPos;
     vec4 lightPos;
     vec4 lightColor;
 } ubo;
-
 layout(binding = 1) uniform sampler2D albedoMap;
 layout(binding = 2) uniform sampler2D normalMap;
 layout(binding = 3) uniform sampler2D metallicMap;

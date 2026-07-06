@@ -1,6 +1,7 @@
 #include "Vulkan/Pipeline.h"
 #include "Vulkan/Shader.h"
 #include "Vulkan/Vertex.h"
+#include <glm/glm.hpp>
 
 void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const std::string& shaderName, uint32_t frameCount)
 {
@@ -48,8 +49,14 @@ void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const st
     allocInfo.setSetLayouts(layouts);
     m_descriptorSets = device.allocateDescriptorSets(allocInfo);
 
+    vk::PushConstantRange pushRange{};
+    pushRange.setStageFlags(vk::ShaderStageFlagBits::eVertex);
+    pushRange.setOffset(0);
+    pushRange.setSize(sizeof(glm::mat4) * 2);
+
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.setSetLayouts(m_descriptorSetLayout.get());
+    pipelineLayoutInfo.setPushConstantRanges(pushRange);
     m_pipelineLayout = device.createPipelineLayoutUnique(pipelineLayoutInfo);
 
     Shader vertShader, fragShader;

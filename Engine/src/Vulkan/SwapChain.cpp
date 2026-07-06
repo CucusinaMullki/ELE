@@ -134,7 +134,7 @@ vk::SurfaceFormatKHR SwapChain::chooseSurfaceFormat(const std::vector<vk::Surfac
 
 vk::PresentModeKHR SwapChain::choosePresentMode(const std::vector<vk::PresentModeKHR>& availablePresentModes)
 {
-    return vk::PresentModeKHR::eFifo;
+    return vk::PresentModeKHR::eFifo;  // vsync — ограничивает FPS частотой монитора
 }
 
 vk::Extent2D SwapChain::chooseExtent(const vk::SurfaceCapabilitiesKHR& capabilities, GLFWwindow* window)

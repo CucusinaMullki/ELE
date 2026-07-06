@@ -1,5 +1,6 @@
 #include "Vulkan/Renderer.h"
 #include <glm/gtc/matrix_transform.hpp>
+#include "Vulkan/PushConstant.h"
 #include "Core/Log.h"
 #include "Core/Model.h"
 #include <chrono>
@@ -17,32 +18,39 @@ void Renderer::init(GLFWwindow* window)
 
     m_uniformBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), MAX_FRAMES_IN_FLIGHT);
 
-    m_albedo.initialize(m_context.getDevice(), m_context.getPhysicalDevice(),
-        m_commandManager.getCommandPool(), m_context.getGraphicQueue(), "assets/textures/albedo.jpg");
-    m_normal.initialize(m_context.getDevice(), m_context.getPhysicalDevice(),
-        m_commandManager.getCommandPool(), m_context.getGraphicQueue(), "assets/textures/normal.jpg");
-    m_metallic.initialize(m_context.getDevice(), m_context.getPhysicalDevice(),
-        m_commandManager.getCommandPool(), m_context.getGraphicQueue(), "assets/textures/metallic.jpg");
-    m_roughness.initialize(m_context.getDevice(), m_context.getPhysicalDevice(),
-        m_commandManager.getCommandPool(), m_context.getGraphicQueue(), "assets/textures/roughness.jpg");
-
     std::vector<vk::DescriptorBufferInfo> bufferInfos;
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
         bufferInfos.push_back(m_uniformBuffer.getDescriptorInfo(i));
 
-    m_pipeline.updateDescriptorSets(m_context.getDevice(), bufferInfos,
-        m_albedo.getImageView(), m_albedo.getSampler(),
-        m_normal.getImageView(), m_normal.getSampler(),
-        m_metallic.getImageView(), m_metallic.getSampler(),
-        m_roughness.getImageView(), m_roughness.getSampler());
-
     m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass(), m_depthBuffer.getImageView());
 
-    Model model;
-    model.load("assets/models/cube.obj");
+    m_cubeMesh = std::make_shared<Mesh>();
+    m_cubeMesh->load(m_context.getDevice(), m_context.getPhysicalDevice(), "assets/models/cube.obj");
 
-    m_vertexBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), model.getVertices());
-    m_indexBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), model.getIndices());
+    m_defaultMaterial = std::make_shared<Material>();
+    m_defaultMaterial->load(m_context.getDevice(), m_context.getPhysicalDevice(),
+        m_commandManager.getCommandPool(), m_context.getGraphicQueue(),
+        "assets/textures/albedo.jpg", "assets/textures/normal.jpg",
+        "assets/textures/metallic.jpg", "assets/textures/roughness.jpg");
+
+    m_pipeline.updateDescriptorSets(m_context.getDevice(), bufferInfos,
+        m_defaultMaterial->getAlbedoView(), m_defaultMaterial->getAlbedoSampler(),
+        m_defaultMaterial->getNormalView(), m_defaultMaterial->getNormalSampler(),
+        m_defaultMaterial->getMetallicView(), m_defaultMaterial->getMetallicSampler(),
+        m_defaultMaterial->getRoughnessView(), m_defaultMaterial->getRoughnessSampler());
+
+    auto& obj1 = m_scene.addObject();
+    obj1.mesh = m_cubeMesh;
+    obj1.transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
+
+    auto& obj2 = m_scene.addObject();
+    obj2.mesh = m_cubeMesh;
+    obj2.transform.position = glm::vec3(3.0f, 0.0f, 0.0f);
+
+    auto& obj3 = m_scene.addObject();
+    obj3.mesh = m_cubeMesh;
+    obj3.transform.position = glm::vec3(-3.0f, 0.0f, 0.0f);
+    obj3.transform.scale = glm::vec3(0.5f);
 
     LOG("Swapchain images: " << m_swapchain.getImageViews().size());
     LOG("FrameBuffers: " << m_framebuffers.getFramebuffers().size());
@@ -78,7 +86,7 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
     commandBuffer.begin(beginInfo);
 
     std::array<vk::ClearValue, 2> clearValues{};
-    clearValues[0].setColor(vk::ClearColorValue{ std::array<float,4>{ 0.5f, 0.0f, 0.5f, 1.0f } });
+    clearValues[0].setColor(vk::ClearColorValue{ std::array<float,4>{ 0.02f, 0.02f, 0.03f, 1.0f } });
     clearValues[1].setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
 
     vk::RenderPassBeginInfo renderPassInfo{};
@@ -91,7 +99,7 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.getPipeline());
 
     commandBuffer.bindDescriptorSets(
-       vk::PipelineBindPoint::eGraphics,
+        vk::PipelineBindPoint::eGraphics,
         m_pipeline.getLayout(),
         0,
         m_pipeline.getDescriptorSet(m_currentFrame),
@@ -112,13 +120,20 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
     scissor.setExtent(m_swapchain.getExtent());
     commandBuffer.setScissor(0, scissor);
 
-    vk::Buffer vertexBuffers[] = { m_vertexBuffer.getBuffer() };
-    vk::DeviceSize offsets[] = { 0 };
-    commandBuffer.bindVertexBuffers(0, vertexBuffers, offsets);
+    // Цикл по объектам сцены
+    for (const auto& obj : m_scene.getObjects())
+    {
+        PushConstant pc{};
+        pc.model = obj->transform.getMatrix();
+        pc.normalMatrix = obj->transform.getNormalMatrix();
 
-    commandBuffer.bindIndexBuffer(m_indexBuffer.getBuffer(), 0, vk::IndexType::eUint32);
+        commandBuffer.pushConstants(m_pipeline.getLayout(),
+            vk::ShaderStageFlagBits::eVertex, 0, sizeof(PushConstant), &pc);
 
-    commandBuffer.drawIndexed(m_indexBuffer.getIndexCount(), 1, 0, 0, 0);
+        obj->mesh->bind(commandBuffer);
+        obj->mesh->draw(commandBuffer);
+    }
+
     commandBuffer.endRenderPass();
     commandBuffer.end();
 }
@@ -163,13 +178,11 @@ void Renderer::drawFrame()
     float time = std::chrono::duration<float>(currentTime - startTime).count();
 
     MVP mvp{};
-    mvp.model = glm::mat4(1.0f);
-    mvp.normalMatrix = glm::transpose(glm::inverse(mvp.model));
     mvp.view = m_camera.getViewMatrix();
     mvp.proj = m_camera.getProjectionMatrix();
     mvp.camPos = glm::vec4(m_camera.getPosition(), 1.0f);
     mvp.lightPos = glm::vec4(0.0f, -1.0f, 0.0f, 0.0f);
-    mvp.lightColor = glm::vec4(1.0f, 0.95f, 0.8f, 1.0f) * 3.0f;  
+    mvp.lightColor = glm::vec4(1.0f, 0.95f, 0.8f, 1.0f) * 3.0f;
     m_uniformBuffer.update(m_currentFrame, mvp);
 
     recordCommandBuffer(cmd, imageIndex);
@@ -249,10 +262,6 @@ void Renderer::cleanup()
 
     m_context.getDevice().waitIdle();
     
-    m_albedo.cleanup();
-    m_normal.cleanup();
-    m_metallic.cleanup();
-    m_roughness.cleanup();
     m_vertexBuffer.cleanup();
     m_indexBuffer.cleanup();
     m_depthBuffer.cleanup();

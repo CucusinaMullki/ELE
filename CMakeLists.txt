@@ -40,6 +40,8 @@ add_library(ELE STATIC
     Engine/src/Core/tinyobj_impl.cpp
     Engine/src/Core/Model.cpp
     Engine/src/Core/tinyobj_impl.cpp
+    Engine/src/Scene/Material.cpp
+    Engine/src/Scene/Mesh.cpp
 )
 
 target_include_directories(ELE PUBLIC
