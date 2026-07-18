@@ -70,6 +70,7 @@ private:
     bool checkDeviceExtensionSupport(vk::PhysicalDevice device);
     QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device);
     bool checkValidationLayerSupport();
+    bool m_validationEnabled = false;
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
         vk::DebugUtilsMessageSeverityFlagBitsEXT messageSeverity,

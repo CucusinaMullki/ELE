@@ -37,9 +37,6 @@ add_library(ELE STATIC
     Engine/src/Core/Camera.cpp
     Engine/src/Vulkan/Texture.cpp
     Engine/src/Core/stb_impl.cpp
-    Engine/src/Core/tinyobj_impl.cpp
-    Engine/src/Core/Model.cpp
-    Engine/src/Core/tinyobj_impl.cpp
     Engine/src/Scene/Material.cpp
     Engine/src/Scene/Mesh.cpp
     Engine/src/Core/ResourceManager.cpp
@@ -52,7 +49,6 @@ target_include_directories(ELE PUBLIC
     ${Vulkan_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/Engine/include
     ${CMAKE_SOURCE_DIR}/external/stb
-    ${CMAKE_SOURCE_DIR}/external/tinyobjloader
     ${CMAKE_SOURCE_DIR}/external/tinygltf
 )
 

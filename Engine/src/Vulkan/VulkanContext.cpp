@@ -58,6 +58,7 @@ void VulkanContext::createInstance()
 
     const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
     bool layersAvailable = enableValidationLayers && checkValidationLayerSupport();
+    m_validationEnabled = layersAvailable;
 
     if (layersAvailable)
     {
@@ -159,7 +160,7 @@ bool VulkanContext::isDeviceSuitable(vk::PhysicalDevice device)
 
 void VulkanContext::setupDebugMessenger()
 {
-    if (!enableValidationLayers) return;
+    if (!m_validationEnabled) return;
 
     vk::DebugUtilsMessengerCreateInfoEXT createInfo{};
     createInfo.messageSeverity = 
@@ -178,7 +179,8 @@ void VulkanContext::setupDebugMessenger()
         
     if (!createFunc)
     {
-        throw std::runtime_error("failed to load vkCreateDebugUtilsMessengerEXT!");
+        std::cerr << "Debug messenger not available - skipping\n";
+        return;
     }
 
     VkDebugUtilsMessengerCreateInfoEXT rawCreateInfo = static_cast<VkDebugUtilsMessengerCreateInfoEXT>(createInfo);

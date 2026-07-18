@@ -4,25 +4,11 @@
 
 void Mesh::load(vk::Device device, vk::PhysicalDevice physicalDevice, const std::string& path)
 {
-    bool isGltf = path.size() > 5 &&
-                  (path.substr(path.size() - 5) == ".gltf" || path.substr(path.size() - 4) == ".glb");
-
-    if (isGltf)
-    {
-        GltfModel model;
-        model.load(path);
-        m_vertexBuffer.initialize(device, physicalDevice, model.getVertices());
-        m_indexBuffer.initialize(device, physicalDevice, model.getIndices());
-        m_submeshes = model.getSubmesh();
-    }
-    else
-    {
-        Model model;
-        model.load(path);
-        m_vertexBuffer.initialize(device, physicalDevice, model.getVertices());
-        m_indexBuffer.initialize(device, physicalDevice, model.getIndices());
-        m_submeshes = model.getSubmesh();
-    }
+    GltfModel model;
+    model.load(path);
+    m_vertexBuffer.initialize(device, physicalDevice, model.getVertices());
+    m_indexBuffer.initialize(device, physicalDevice, model.getIndices());
+    m_submeshes = model.getSubmesh();
 }
 
 void Mesh::cleanup()
