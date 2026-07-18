@@ -3,12 +3,22 @@
 #include "Scene/Mesh.h"
 #include "Scene/Material.h"
 #include <memory>
+#include <vector>
 
 class GameObject
 {
 public:
-    Transforn transform;
-
+    Transform transform;
     std::shared_ptr<Mesh> mesh;
-    std::shared_ptr<Material> material;
+
+    std::vector<std::shared_ptr<Material>> materials;
+
+    void setMaterial(std::shared_ptr<Material> mat) { materials = { mat }; }
+
+    std::shared_ptr<Material> getMaterial(int index) const
+    {
+        if (materials.empty()) return nullptr;
+        if (index < 0 || index >= (int)materials.size()) return materials[0];
+        return materials[index];
+    }
 };

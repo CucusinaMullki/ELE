@@ -8,12 +8,15 @@
 void Model::load(const std::string& path)
 {
     std::string fullPath = (Paths::assetDir() / path).string();
+    std::string baseDir  = (Paths::assetDir() / path).parent_path().string();
+
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
     std::string warn, err;
 
-    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, fullPath.c_str(), nullptr, true))
+    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+        fullPath.c_str(), baseDir.c_str(), true))
     {
         throw std::runtime_error("failed to load model: " + fullPath + " " + warn + err);
     }
@@ -68,7 +71,6 @@ void Model::load(const std::string& path)
         }
     }
 
-    // ── Вычисление tangent ──
     for (auto& v : m_vertices)
         v.tangent = glm::vec3(0.0f);
 

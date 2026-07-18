@@ -7,36 +7,45 @@
 #include "Vulkan/FrameBuffers.h"
 #include "Vulkan/CommandManager.h"
 #include "Vulkan/UniformBuffer.h"
-#include "Vulkan/VertexBuffer.h"
-#include "Vulkan/IndexBuffer.h"
-#include "Scene/Scene.h"
 #include "Vulkan/DepthBuffer.h"
-#include "Core/Input.h"
+#include "Scene/Scene.h"
 #include "Core/Camera.h"
 #include <GLFW/glfw3.h>
-#include <vulkan/vulkan.hpp>
-#include <vector>
 
 class Renderer
 {
 public:
-    Renderer() = default;
-    ~Renderer();
-
-    void run(GLFWwindow* window);
+    void initialize(GLFWwindow* window);
+    void drawScene(const Scene& scene, const Camera& camera);
     void cleanup();
 
-    void onFramebufferResize() { m_framebufferResized = true; }
+    void onResize() { m_framebufferResized = true; }
+
+    vk::Device getDevice() const { return m_context.getDevice(); }
+    vk::PhysicalDevice getPhysicalDevice() const { return m_context.getPhysicalDevice(); }
+    vk::CommandPool getCommandPool() const { return m_commandManager.getCommandPool(); }
+    vk::Queue getGraphicsQueue() const { return m_context.getGraphicQueue(); }
+    vk::DescriptorPool getDescriptorPool() const { return m_pipeline.getDescriptorPool(); }
+    vk::DescriptorSetLayout getDescriptorSetLayout() const { return m_pipeline.getDescriptorSetLayout(); }
+
+    uint32_t getFramesInFlight() const { return MAX_FRAMES_IN_FLIGHT; }
+    float getAspect() const;
+
+    std::vector<vk::DescriptorBufferInfo> getUboInfos() const;
 
 private:
-    void init(GLFWwindow* window);
-    void drawFrame();
-    void recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t imageIndex);
+    void recordCommandBuffer(vk::CommandBuffer cmd, uint32_t imageIndex,
+        const Scene& scene, const Camera& camera);
+    
     void recreateSwapchain();
 
-    const int MAX_FRAMES_IN_FLIGHT = 2;
-    bool m_cleaned = false;
+    static const uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 
+    GLFWwindow* m_window = nullptr;
+    bool m_cleaned = false;
+    bool m_framebufferResized = false;
+    size_t m_currentFrame = 0;
+    
     VulkanContext m_context;
     SwapChain m_swapchain;
     RenderPass m_renderPass;
@@ -44,23 +53,10 @@ private:
     Framebuffers m_framebuffers;
     CommandManager m_commandManager;
     UniformBuffer m_uniformBuffer;
-    GLFWwindow* m_window = nullptr;
-    VertexBuffer m_vertexBuffer;
-    IndexBuffer m_indexBuffer;
     DepthBuffer m_depthBuffer;
-    Input m_input;
-    Camera m_camera;
-    float m_lastFrameTime = 0.0f;
-    bool m_framebufferResized = false;
 
-    Scene m_scene;
-    std::shared_ptr<Mesh> m_cubeMesh;
-    std::shared_ptr<Material> m_defaultMaterial;
-
-    std::vector<vk::UniqueSemaphore> m_imageAvailableSemaphores;
-    std::vector<vk::UniqueSemaphore> m_renderFinishedSemaphores;
+    std::vector<vk::UniqueSemaphore> m_imageAvailableSemaphore;
+    std::vector<vk::UniqueSemaphore> m_renderFinishedSemaphore;
     std::vector<vk::UniqueFence> m_inFlightFences;
     std::vector<vk::Fence> m_imagesInFlight;
-
-    size_t m_currentFrame = 0;
 };

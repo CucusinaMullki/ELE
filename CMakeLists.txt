@@ -43,6 +43,9 @@ add_library(ELE STATIC
     Engine/src/Scene/Material.cpp
     Engine/src/Scene/Mesh.cpp
     Engine/src/Core/ResourceManager.cpp
+    Engine/src/Vulkan/Renderer.cpp
+    Engine/src/Core/tinygltf_impl.cpp
+    Engine/src/Core/GltfModel.cpp
 )
 
 target_include_directories(ELE PUBLIC
@@ -50,6 +53,7 @@ target_include_directories(ELE PUBLIC
     ${CMAKE_SOURCE_DIR}/Engine/include
     ${CMAKE_SOURCE_DIR}/external/stb
     ${CMAKE_SOURCE_DIR}/external/tinyobjloader
+    ${CMAKE_SOURCE_DIR}/external/tinygltf
 )
 
 target_link_libraries(ELE PUBLIC
@@ -89,7 +93,10 @@ add_executable(game
 target_link_libraries(game PRIVATE ELE)
 add_dependencies(game Shaders)
 
-# Копируем assets ПОСЛЕ создания target game
+target_compile_definitions(ELE PUBLIC
+    TINYGLTF_NO_STB_IMAGE_WRITE
+)
+
 add_custom_command(TARGET game POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/Engine/assets

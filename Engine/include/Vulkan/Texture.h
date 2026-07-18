@@ -5,7 +5,8 @@
 class Texture
 {
 public:
-    void initialize(vk::Device device, vk::PhysicalDevice physicalDevice, vk::CommandPool commandPool, vk::Queue graphicsQueue, const std::string& path);
+    void initialize(vk::Device device, vk::PhysicalDevice physicalDevice, vk::CommandPool commandPool, vk::Queue graphicsQueue, const std::string& path, bool srgb = true);
+    void initializeFromMemory(vk::Device device, vk::PhysicalDevice physicalDevice, vk::CommandPool commandPool, vk::Queue graphicsQueue, const unsigned char* pixels, int width, int height, bool srgb = true);
     void cleanup();
 
     vk::ImageView getImageView() const { return m_imageView.get(); }
@@ -15,6 +16,8 @@ private:
     uint32_t findMemoryType(vk::PhysicalDevice physicalDevice, uint32_t typeFilter, vk::MemoryPropertyFlags properties);
     void transitionImageLayout(vk::Device device, vk::CommandPool pool, vk::Queue queue, vk::Image image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout);
     void copyBufferToImage(vk::Device device, vk::CommandPool pool, vk::Queue queue, vk::Buffer buffer, vk::Image image, uint32_t width, uint32_t height);
+    void createFromPixels(vk::Device device, vk::PhysicalDevice physicalDevice, vk::CommandPool commandPool, vk::Queue graphicsQueue, const unsigned char* pixels, int width, int height, bool srgb);
+
 
     vk::UniqueImage        m_image;
     vk::UniqueDeviceMemory m_memory;

@@ -4,18 +4,31 @@
 #include <stdexcept>
 #include <cstring>
 
-void Texture::initialize(vk::Device device, vk::PhysicalDevice physicalDevice, vk::CommandPool commandPool, vk::Queue graphicsQueue, const std::string& path)
+void Texture::initialize(vk::Device device, vk::PhysicalDevice physicalDevice, vk::CommandPool commandPool, vk::Queue graphicsQueue, const std::string& path, bool srgb)
 {
     std::string fullPath = (Paths::assetDir() / path).string();
 
     int texWidth, texHeight, texChannels;
-    stbi_set_flip_vertically_on_load(true);
     stbi_uc* pixels = stbi_load(fullPath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
     if (!pixels)
         throw std::runtime_error("failed to load texture: " + fullPath);
+    
+    createFromPixels(device, physicalDevice, commandPool, graphicsQueue, pixels, texWidth, texHeight, srgb);
 
-    vk::DeviceSize imageSize = texWidth * texHeight * 4;
+    stbi_image_free(pixels);
+}
 
+void Texture::initializeFromMemory(vk::Device device, vk::PhysicalDevice physicalDevice, vk::CommandPool commandPool, vk::Queue graphicsQueue, const unsigned char* pixels, int width, int height, bool srgb)
+{
+    createFromPixels(device, physicalDevice, commandPool, graphicsQueue, pixels, width, height, srgb);
+}
+
+void Texture::createFromPixels(vk::Device device, vk::PhysicalDevice physicalDevice, vk::CommandPool commandPool, vk::Queue graphicsQueue, const unsigned char* pixels, int width, int height, bool srgb)
+{
+    vk::DeviceSize imageSize = (vk::DeviceSize)width * height * 4;
+    vk::Format format = srgb ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm;
+
+    //Staging buffer
     vk::BufferCreateInfo stagingInfo{};
     stagingInfo.setSize(imageSize);
     stagingInfo.setUsage(vk::BufferUsageFlagBits::eTransferSrc);
@@ -29,18 +42,18 @@ void Texture::initialize(vk::Device device, vk::PhysicalDevice physicalDevice, v
         vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent));
     auto stagingMemory = device.allocateMemoryUnique(stagingAlloc);
     device.bindBufferMemory(stagingBuffer.get(), stagingMemory.get(), 0);
+
     void* data = device.mapMemory(stagingMemory.get(), 0, imageSize);
     memcpy(data, pixels, static_cast<size_t>(imageSize));
     device.unmapMemory(stagingMemory.get());
 
-    stbi_image_free(pixels);
-
+    //Texture image
     vk::ImageCreateInfo imageInfo{};
     imageInfo.setImageType(vk::ImageType::e2D);
-    imageInfo.setExtent(vk::Extent3D{ (uint32_t)texWidth, (uint32_t)texHeight, 1 });
+    imageInfo.setExtent(vk::Extent3D{ (uint32_t)width, (uint32_t)height, 1 });
     imageInfo.setMipLevels(1);
     imageInfo.setArrayLayers(1);
-    imageInfo.setFormat(vk::Format::eR8G8B8A8Srgb);
+    imageInfo.setFormat(format);
     imageInfo.setTiling(vk::ImageTiling::eOptimal);
     imageInfo.setInitialLayout(vk::ImageLayout::eUndefined);
     imageInfo.setUsage(vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled);
@@ -55,20 +68,15 @@ void Texture::initialize(vk::Device device, vk::PhysicalDevice physicalDevice, v
     m_memory = device.allocateMemoryUnique(imgAlloc);
     device.bindImageMemory(m_image.get(), m_memory.get(), 0);
 
-    transitionImageLayout(device, commandPool, graphicsQueue, m_image.get(),
-        vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
-
-    copyBufferToImage(device, commandPool, graphicsQueue, stagingBuffer.get(), m_image.get(), (uint32_t)texWidth, (uint32_t)texHeight);
-
-    transitionImageLayout(device, commandPool, graphicsQueue, m_image.get(),
-        vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
+    transitionImageLayout(device, commandPool, graphicsQueue, m_image.get(), vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+    copyBufferToImage(device, commandPool, graphicsQueue, stagingBuffer.get(), m_image.get(), (uint32_t)width, (uint32_t)height);
+    transitionImageLayout(device, commandPool, graphicsQueue, m_image.get(), vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
 
     vk::ImageViewCreateInfo viewInfo{};
     viewInfo.setImage(m_image.get());
     viewInfo.setViewType(vk::ImageViewType::e2D);
-    viewInfo.setFormat(vk::Format::eR8G8B8A8Srgb);
-    viewInfo.setSubresourceRange(vk::ImageSubresourceRange{
-        vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
+    viewInfo.setFormat(format);
+    viewInfo.setSubresourceRange(vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
     m_imageView = device.createImageViewUnique(viewInfo);
 
     vk::SamplerCreateInfo samplerInfo{};
@@ -83,6 +91,7 @@ void Texture::initialize(vk::Device device, vk::PhysicalDevice physicalDevice, v
     samplerInfo.setCompareEnable(false);
     samplerInfo.setMipmapMode(vk::SamplerMipmapMode::eLinear);
     m_sampler = device.createSamplerUnique(samplerInfo);
+
 }
 
 void Texture::cleanup()

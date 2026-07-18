@@ -15,6 +15,9 @@ public:
     std::shared_ptr<Material> loadMaterial(const std::string& albedo, const std::string& normal,
         const std::string& metallic, const std::string& roughness);
 
+    void registerMesh(std::shared_ptr<Mesh> m) { m_meshes.push_back(m); }
+    void registerMaterial(std::shared_ptr<Material> m) { m_materials.push_back(m); }
+
     void cleanup();
 
 private:

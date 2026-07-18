@@ -7,10 +7,11 @@ layout(binding = 0) uniform MVP {
     vec4 lightPos;
     vec4 lightColor;
 } ubo;
+
 layout(binding = 1) uniform sampler2D albedoMap;
 layout(binding = 2) uniform sampler2D normalMap;
-layout(binding = 3) uniform sampler2D metallicMap;
-layout(binding = 4) uniform sampler2D roughnessMap;
+layout(binding = 3) uniform sampler2D metallicRoughnessMap;
+layout(binding = 4) uniform sampler2D aoMap;
 
 layout(location = 0) in vec3 fragWorldPos;
 layout(location = 1) in vec2 fragTexCoord;
@@ -53,9 +54,10 @@ vec3 FresnelSchlick(float cosTheta, vec3 F0)
 void main()
 {
     vec3 albedo = pow(texture(albedoMap, fragTexCoord).rgb, vec3(2.2));
-    float metallic = texture(metallicMap, fragTexCoord).r;
-    float roughness = texture(roughnessMap, fragTexCoord).r;
-    float ao = 1.0;
+    vec3 mr = texture(metallicRoughnessMap, fragTexCoord).rgb;
+    float roughness = mr.g;
+    float metallic = mr.b;
+    float ao = texture(aoMap, fragTexCoord).r;
 
     vec3 N = texture(normalMap, fragTexCoord).rgb;
     N = N * 2.0 - 1.0;

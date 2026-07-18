@@ -1,18 +1,35 @@
 #include "Scene/Mesh.h"
+#include "Core/Model.h"
+#include "Core/GltfModel.h"
 
-void Mesh::load(vk::Device device, vk::PhysicalDevice physicalDevice, const std::string& modelPath)
+void Mesh::load(vk::Device device, vk::PhysicalDevice physicalDevice, const std::string& path)
 {
-    Model model;
-    model.load(modelPath);
+    bool isGltf = path.size() > 5 &&
+                  (path.substr(path.size() - 5) == ".gltf" || path.substr(path.size() - 4) == ".glb");
 
-    m_vertexBuffer.initialize(device, physicalDevice, model.getVertices());
-    m_indexBuffer.initialize(device, physicalDevice, model.getIndices());
+    if (isGltf)
+    {
+        GltfModel model;
+        model.load(path);
+        m_vertexBuffer.initialize(device, physicalDevice, model.getVertices());
+        m_indexBuffer.initialize(device, physicalDevice, model.getIndices());
+        m_submeshes = model.getSubmesh();
+    }
+    else
+    {
+        Model model;
+        model.load(path);
+        m_vertexBuffer.initialize(device, physicalDevice, model.getVertices());
+        m_indexBuffer.initialize(device, physicalDevice, model.getIndices());
+        m_submeshes = model.getSubmesh();
+    }
 }
 
 void Mesh::cleanup()
 {
     m_vertexBuffer.cleanup();
     m_indexBuffer.cleanup();
+    m_submeshes.clear();
 }
 
 void Mesh::bind(vk::CommandBuffer cmd) const
@@ -23,7 +40,17 @@ void Mesh::bind(vk::CommandBuffer cmd) const
     cmd.bindIndexBuffer(m_indexBuffer.getBuffer(), 0, vk::IndexType::eUint32);
 }
 
-void Mesh::draw(vk::CommandBuffer cmd) const
+void Mesh::drawSubmesh(vk::CommandBuffer cmd, const Submesh& sm) const
 {
-    cmd.drawIndexed(m_indexBuffer.getIndexCount(), 1, 0, 0, 0);
+    cmd.drawIndexed(sm.indexCount, 1, sm.firstIndex, 0, 0);
+}
+
+void Mesh::loadFromData(vk::Device device, vk::PhysicalDevice physicalDevice,
+        const std::vector<Vertex>& vertices,
+        const std::vector<uint32_t>& indices,
+        const std::vector<Submesh>& submeshes)
+{
+    m_vertexBuffer.initialize(device, physicalDevice, vertices);
+    m_indexBuffer.initialize(device, physicalDevice, indices);
+    m_submeshes = submeshes;
 }
