@@ -10,7 +10,8 @@ void Renderer::initialize(GLFWwindow* window)
     m_swapchain.initialize(m_context, m_window);
     m_depthBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), m_swapchain.getExtent());
     m_renderPass.initialize(m_context.getDevice(), m_swapchain.getImageFormat(), m_depthBuffer.getFormat());
-    m_pipeline.initialize(m_context.getDevice(), m_renderPass.getRenderPass(), "pbr", MAX_FRAMES_IN_FLIGHT);
+    m_pipelineCache.initialize(m_context.getDevice());
+    m_pipeline.initialize(m_context.getDevice(), m_renderPass.getRenderPass(), "pbr", MAX_FRAMES_IN_FLIGHT, m_pipelineCache.get());
     m_lightBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), MAX_FRAMES_IN_FLIGHT);
 
     auto indices = m_context.GetQueueFamilyIndices();
@@ -223,6 +224,9 @@ void Renderer::cleanup()
     m_cleaned = true;
 
     m_context.getDevice().waitIdle();
+
+    m_pipelineCache.save();
+    m_pipelineCache.cleanup();
 
     m_lightBuffer.cleanup();
     m_uniformBuffer.cleanup();

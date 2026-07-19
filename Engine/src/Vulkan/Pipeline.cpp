@@ -3,7 +3,7 @@
 #include "Vulkan/Vertex.h"
 #include <glm/glm.hpp>
 
-void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const std::string& shaderName, uint32_t frameCount)
+void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const std::string& shaderName, uint32_t frameCount, vk::PipelineCache cache)
 {
     vk::DescriptorSetLayoutBinding uboBinding{};
     uboBinding.setBinding(0);
@@ -43,7 +43,7 @@ void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const st
 
     std::array<vk::DescriptorPoolSize, 2> poolSizes{};
     poolSizes[0].setType(vk::DescriptorType::eUniformBuffer);
-    poolSizes[0].setDescriptorCount(frameCount);
+    poolSizes[0].setDescriptorCount(frameCount * MAX_MATERIALS);
     poolSizes[1].setType(vk::DescriptorType::eCombinedImageSampler);
     poolSizes[1].setDescriptorCount(frameCount * 4 * MAX_MATERIALS);
 
@@ -144,7 +144,7 @@ void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const st
     pipelineInfo.setRenderPass(renderPass);
     pipelineInfo.setSubpass(0);
 
-    auto result = device.createGraphicsPipelineUnique(nullptr, pipelineInfo);
+    auto result = device.createGraphicsPipelineUnique(cache, pipelineInfo);
     if (result.result != vk::Result::eSuccess)
         throw std::runtime_error("failed to create graphics pipeline!");
 

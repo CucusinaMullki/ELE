@@ -6,7 +6,7 @@
 class Pipeline
 {
 public:
-    void initialize(vk::Device device, vk::RenderPass renderPass, const std::string& shaderName, uint32_t frameCount);
+    void initialize(vk::Device device, vk::RenderPass renderPass, const std::string& shaderName, uint32_t frameCount, vk::PipelineCache cache = nullptr);
     void cleanup();
 
     vk::DescriptorSetLayout getDescriptorSetLayout() const { return m_descriptorSetLayout.get(); }

@@ -8,6 +8,7 @@
 #include "Vulkan/CommandManager.h"
 #include "Vulkan/UniformBuffer.h"
 #include "Vulkan/LightBuffer.h"
+#include "Vulkan/PipelineCache.h"
 #include "Vulkan/DepthBuffer.h"
 #include "Scene/Scene.h"
 #include "Core/Camera.h"
@@ -58,6 +59,8 @@ private:
     CommandManager m_commandManager;
     UniformBuffer m_uniformBuffer;
     DepthBuffer m_depthBuffer;
+
+    PipelineCache m_pipelineCache;
 
     LightBuffer m_lightBuffer;
     LightData m_lightData{};

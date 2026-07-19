@@ -44,6 +44,7 @@ add_library(ELE STATIC
     Engine/src/Core/tinygltf_impl.cpp
     Engine/src/Core/GltfModel.cpp
     Engine/src/Vulkan/LightBuffer.cpp
+    Engine/src/Vulkan/PipelineCache.cpp
 )
 
 target_include_directories(ELE PUBLIC
