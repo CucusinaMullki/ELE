@@ -1,6 +1,8 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
 
-layout(binding = 0) uniform MVP {
+layout(binding = 0) uniform MVP
+{
     mat4 view;
     mat4 proj;
     vec4 camPos;
@@ -8,7 +10,8 @@ layout(binding = 0) uniform MVP {
     vec4 lightColor;
 } ubo;
 
-layout(push_constant) uniform Push {
+layout(push_constant) uniform Push
+{
     mat4 model;
     mat4 normalMatrix;
 } push;

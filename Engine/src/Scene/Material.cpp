@@ -24,6 +24,7 @@ void Material::cleanup()
 void Material::createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
     vk::DescriptorSetLayout layout,
     const std::vector<vk::DescriptorBufferInfo>& uboInfos,
+    const std::vector<vk::DescriptorBufferInfo>& lightInfos,   // ← новый
     uint32_t frameCount)
 {
     std::vector<vk::DescriptorSetLayout> layouts(frameCount, layout);
@@ -42,12 +43,12 @@ void Material::createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
             return info;
         };
 
-        auto albedoInfo    = makeImageInfo(m_albedo.getImageView(), m_albedo.getSampler());
-        auto normalInfo    = makeImageInfo(m_normal.getImageView(), m_normal.getSampler());
-        auto mrInfo  = makeImageInfo(m_metallicRoughness.getImageView(), m_metallicRoughness.getSampler());
-        auto aoInfo = makeImageInfo(m_ao.getImageView(), m_ao.getSampler());
+        auto albedoInfo = makeImageInfo(m_albedo.getImageView(), m_albedo.getSampler());
+        auto normalInfo = makeImageInfo(m_normal.getImageView(), m_normal.getSampler());
+        auto mrInfo     = makeImageInfo(m_metallicRoughness.getImageView(), m_metallicRoughness.getSampler());
+        auto aoInfo     = makeImageInfo(m_ao.getImageView(), m_ao.getSampler());
 
-        std::array<vk::WriteDescriptorSet, 5> writes{};
+        std::array<vk::WriteDescriptorSet, 6> writes{};
 
         writes[0].setDstSet(m_descriptorSets[i]);
         writes[0].setDstBinding(0);
@@ -55,7 +56,7 @@ void Material::createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
         writes[0].setDescriptorCount(1);
         writes[0].setBufferInfo(uboInfos[i]);
 
-        auto makeWrite = [&](uint32_t bind, vk::DescriptorImageInfo& info) {
+        auto makeImgWrite = [&](uint32_t bind, vk::DescriptorImageInfo& info) {
             vk::WriteDescriptorSet w{};
             w.setDstSet(m_descriptorSets[i]);
             w.setDstBinding(bind);
@@ -65,10 +66,16 @@ void Material::createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
             return w;
         };
 
-        writes[1] = makeWrite(1, albedoInfo);
-        writes[2] = makeWrite(2, normalInfo);
-        writes[3] = makeWrite(3, mrInfo);
-        writes[4] = makeWrite(4, aoInfo);
+        writes[1] = makeImgWrite(1, albedoInfo);
+        writes[2] = makeImgWrite(2, normalInfo);
+        writes[3] = makeImgWrite(3, mrInfo);
+        writes[4] = makeImgWrite(4, aoInfo);
+
+        writes[5].setDstSet(m_descriptorSets[i]);
+        writes[5].setDstBinding(5);
+        writes[5].setDescriptorType(vk::DescriptorType::eUniformBuffer);
+        writes[5].setDescriptorCount(1);
+        writes[5].setBufferInfo(lightInfos[i]);
 
         device.updateDescriptorSets(writes, nullptr);
     }

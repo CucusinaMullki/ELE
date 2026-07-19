@@ -24,6 +24,10 @@ int main()
         "assets/textures/roughness2.jpg");
     ///////////////////////////////
 
+    //Add lights(directional and point light)
+    engine.addPointLight(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.03f, 1.91f, 2.55f), 15.0f);
+    engine.addDirectionalLight(glm::vec3(0.0f, -1.0f, -0.3f), glm::vec3(1.0f, 0.95f, 0.8f), 3.0f);
+
     //Making objects with mesh and material
     auto& obj1 = engine.getScene().addObject();
     obj1.mesh = cube;

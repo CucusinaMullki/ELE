@@ -2,14 +2,11 @@
 #include <vulkan/vulkan.hpp>
 #include <glm/glm.hpp>
 
-//Main datas for geometry
 struct MVP 
 {
     glm::mat4 view;
     glm::mat4 proj;
     glm::vec4 camPos;
-    glm::vec4 lightPos;
-    glm::vec4 lightColor;
 };
 
 class UniformBuffer

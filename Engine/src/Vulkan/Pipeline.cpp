@@ -20,12 +20,19 @@ void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const st
         return b;
     };
 
-    std::array<vk::DescriptorSetLayoutBinding, 5> bindings = { 
+    vk::DescriptorSetLayoutBinding lightBinding{};
+    lightBinding.setBinding(5);
+    lightBinding.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+    lightBinding.setDescriptorCount(1);
+    lightBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+
+    std::array<vk::DescriptorSetLayoutBinding, 6> bindings = { 
         uboBinding, 
         makeSamplerBinding(1),
         makeSamplerBinding(2),
         makeSamplerBinding(3),
-        makeSamplerBinding(4)
+        makeSamplerBinding(4),
+        lightBinding
     };
 
     vk::DescriptorSetLayoutCreateInfo layoutCreateInfo{};
@@ -38,7 +45,7 @@ void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const st
     poolSizes[0].setType(vk::DescriptorType::eUniformBuffer);
     poolSizes[0].setDescriptorCount(frameCount);
     poolSizes[1].setType(vk::DescriptorType::eCombinedImageSampler);
-    poolSizes[1].setDescriptorCount(frameCount * 4);
+    poolSizes[1].setDescriptorCount(frameCount * 4 * MAX_MATERIALS);
 
     vk::DescriptorPoolCreateInfo poolInfo{};
     poolInfo.setPoolSizes(poolSizes);

@@ -91,7 +91,6 @@ void Texture::createFromPixels(vk::Device device, vk::PhysicalDevice physicalDev
     samplerInfo.setCompareEnable(false);
     samplerInfo.setMipmapMode(vk::SamplerMipmapMode::eLinear);
     m_sampler = device.createSamplerUnique(samplerInfo);
-
 }
 
 void Texture::cleanup()

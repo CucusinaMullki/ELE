@@ -31,6 +31,7 @@ public:
     void createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
         vk::DescriptorSetLayout layout,
         const std::vector<vk::DescriptorBufferInfo>& uboInfos,
+        const std::vector<vk::DescriptorBufferInfo>& lightInfo,
         uint32_t frameCount);
     
     vk::DescriptorSet getDescriptorSet(uint32_t frame) const { return m_descriptorSets[frame]; }

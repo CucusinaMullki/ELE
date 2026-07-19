@@ -16,6 +16,9 @@ public:
     void run();
     void shutdown();
 
+    void addDirectionalLight(glm::vec3 direction, glm::vec3 color, float intensity);
+    void addPointLight(glm::vec3 position, glm::vec3 color, float intensity);
+
     std::shared_ptr<Mesh> loadMesh(const std::string& path);
     std::shared_ptr<Material> loadMaterial(const std::string& albedo, const std::string& normal,
                                            const std::string& metallic, const std::string& roughness);
@@ -39,4 +42,5 @@ private:
     Input           m_input;
     Camera          m_camera;
     Scene           m_scene;
+    LightData m_lights{};
 };

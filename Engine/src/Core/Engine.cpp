@@ -39,9 +39,8 @@ std::shared_ptr<Material> Engine::loadMaterial(const std::string& albedo, const 
     auto material = m_resources.loadMaterial(albedo, normal, metallic, roughness);
 
     material->createDescriptorSet(m_renderer.getDevice(),
-        m_renderer.getDescriptorPool(),
-        m_renderer.getDescriptorSetLayout(),
-        m_renderer.getUboInfos(),
+        m_renderer.getDescriptorPool(), m_renderer.getDescriptorSetLayout(),
+        m_renderer.getUboInfos(), m_renderer.getLightInfos(),
         m_renderer.getFramesInFlight());
 
     return material;
@@ -76,6 +75,8 @@ void Engine::run()
         m_lastFrameTime = now;
 
         updateInput(deltaTime);
+        m_renderer.setLights(m_lights);
+        m_renderer.drawScene(m_scene, m_camera);
         m_renderer.drawScene(m_scene, m_camera);
     }
 
@@ -143,7 +144,8 @@ GameObject& Engine::loadGltfObject(const std::string& path)
 
         mat->createDescriptorSet(m_renderer.getDevice(),
             m_renderer.getDescriptorPool(), m_renderer.getDescriptorSetLayout(),
-            m_renderer.getUboInfos(), m_renderer.getFramesInFlight());
+            m_renderer.getUboInfos(), m_renderer.getLightInfos(),
+            m_renderer.getFramesInFlight());
 
         m_resources.registerMaterial(mat);
         materials.push_back(mat);
@@ -157,7 +159,8 @@ GameObject& Engine::loadGltfObject(const std::string& path)
             white, 1, 1, normalPx, 1, 1, white, 1, 1, white, 1, 1);
         mat->createDescriptorSet(m_renderer.getDevice(),
             m_renderer.getDescriptorPool(), m_renderer.getDescriptorSetLayout(),
-            m_renderer.getUboInfos(), m_renderer.getFramesInFlight());
+            m_renderer.getUboInfos(), m_renderer.getLightInfos(),
+            m_renderer.getFramesInFlight());
         m_resources.registerMaterial(mat);
         materials.push_back(mat);
     }
@@ -166,4 +169,22 @@ GameObject& Engine::loadGltfObject(const std::string& path)
     obj.mesh = mesh;
     obj.materials = materials;
     return obj;
+}
+
+void Engine::addDirectionalLight(glm::vec3 direction, glm::vec3 color, float intensity)
+{
+    int i = m_lights.count.x;
+    if (i >= MAX_LIGHTS) return;
+    m_lights.lights[i].position = glm::vec4(direction, 0.0f);
+    m_lights.lights[i].color = glm::vec4(color, intensity);
+    m_lights.count.x++;
+}
+
+void Engine::addPointLight(glm::vec3 position, glm::vec3 color, float intensity)
+{
+    int i = m_lights.count.x;
+    if (i >= MAX_LIGHTS) return;
+    m_lights.lights[i].position = glm::vec4(position, 1.0f);
+    m_lights.lights[i].color = glm::vec4(color, intensity);
+    m_lights.count.x++;
 }

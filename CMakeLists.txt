@@ -43,6 +43,7 @@ add_library(ELE STATIC
     Engine/src/Vulkan/Renderer.cpp
     Engine/src/Core/tinygltf_impl.cpp
     Engine/src/Core/GltfModel.cpp
+    Engine/src/Vulkan/LightBuffer.cpp
 )
 
 target_include_directories(ELE PUBLIC
@@ -72,9 +73,9 @@ foreach(GLSL ${GLSL_FILES})
     get_filename_component(FILE_NAME ${GLSL} NAME)
     set(SPIRV "${CMAKE_BINARY_DIR}/shaders/${FILE_NAME}.spv")
     add_custom_command(
-        OUTPUT  ${SPIRV}
+        OUTPUT ${SPIRV}
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/shaders"
-        COMMAND ${GLSLC} ${GLSL} -o ${SPIRV}
+        COMMAND ${GLSLC} -I "${CMAKE_SOURCE_DIR}/Engine/shaders/common" ${GLSL} -o ${SPIRV}
         DEPENDS ${GLSL}
         COMMENT "Shader compiling ${FILE_NAME}"
     )

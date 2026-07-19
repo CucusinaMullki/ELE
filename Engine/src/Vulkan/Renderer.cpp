@@ -10,7 +10,8 @@ void Renderer::initialize(GLFWwindow* window)
     m_swapchain.initialize(m_context, m_window);
     m_depthBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), m_swapchain.getExtent());
     m_renderPass.initialize(m_context.getDevice(), m_swapchain.getImageFormat(), m_depthBuffer.getFormat());
-    m_pipeline.initialize(m_context.getDevice(), m_renderPass.getRenderPass(), "shader", MAX_FRAMES_IN_FLIGHT);
+    m_pipeline.initialize(m_context.getDevice(), m_renderPass.getRenderPass(), "pbr", MAX_FRAMES_IN_FLIGHT);
+    m_lightBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), MAX_FRAMES_IN_FLIGHT);
 
     auto indices = m_context.GetQueueFamilyIndices();
     m_commandManager.intialize(m_context.getDevice(), indices.graphicFamily.value(), MAX_FRAMES_IN_FLIGHT);
@@ -38,6 +39,14 @@ void Renderer::initialize(GLFWwindow* window)
     }
     for (size_t i = 0; i < imageCount; i++)
         m_renderFinishedSemaphore[i] = m_context.getDevice().createSemaphoreUnique(semaphoreInfo);
+}
+
+std::vector<vk::DescriptorBufferInfo> Renderer::getLightInfos() const
+{
+    std::vector<vk::DescriptorBufferInfo> infos;
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        infos.push_back(m_lightBuffer.getDescriptorInfo(i));
+    return infos;
 }
 
 float Renderer::getAspect() const
@@ -90,9 +99,8 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
     mvp.view = camera.getViewMatrix();
     mvp.proj = camera.getProjectionMatrix();
     mvp.camPos = glm::vec4(camera.getPosition(), 1.0f);
-    mvp.lightPos = glm::vec4(0.0f, -1.0f, 0.0f, 0.0f);
-    mvp.lightColor = glm::vec4(1.0f, 0.95f, 0.8f, 1.0f) * 3.0f;
     m_uniformBuffer.update(m_currentFrame, mvp);
+    m_lightBuffer.update(m_currentFrame, m_pendingLights);
 
     recordCommandBuffer(cmd, imageIndex, scene, camera);
 
@@ -216,6 +224,7 @@ void Renderer::cleanup()
 
     m_context.getDevice().waitIdle();
 
+    m_lightBuffer.cleanup();
     m_uniformBuffer.cleanup();
     m_imagesInFlight.clear();
     m_inFlightFences.clear();
