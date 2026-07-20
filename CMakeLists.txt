@@ -45,6 +45,8 @@ add_library(ELE STATIC
     Engine/src/Core/GltfModel.cpp
     Engine/src/Vulkan/LightBuffer.cpp
     Engine/src/Vulkan/PipelineCache.cpp
+    Engine/src/Vulkan/ShadowMap.cpp
+    Engine/src/Vulkan/ShadowRenderPass.cpp
 )
 
 target_include_directories(ELE PUBLIC

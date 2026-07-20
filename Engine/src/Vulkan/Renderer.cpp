@@ -11,7 +11,18 @@ void Renderer::initialize(GLFWwindow* window)
     m_depthBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), m_swapchain.getExtent());
     m_renderPass.initialize(m_context.getDevice(), m_swapchain.getImageFormat(), m_depthBuffer.getFormat());
     m_pipelineCache.initialize(m_context.getDevice());
-    m_pipeline.initialize(m_context.getDevice(), m_renderPass.getRenderPass(), "pbr", MAX_FRAMES_IN_FLIGHT, m_pipelineCache.get());
+
+    PipelineConfig pbrConfig{};
+    pbrConfig.vertexShader = "pbr";
+    pbrConfig.fragmentShader = "pbr";
+    pbrConfig.renderPass = m_renderPass.getRenderPass();
+    pbrConfig.cache = m_pipelineCache.get();
+    pbrConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
+    pbrConfig.useDescriptors = true;
+    pbrConfig.colorAttachmentCount = 1;
+    pbrConfig.cullMode = vk::CullModeFlagBits::eBack;
+    m_pipeline.initialize(m_context.getDevice(), pbrConfig);
+
     m_lightBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), MAX_FRAMES_IN_FLIGHT);
 
     auto indices = m_context.GetQueueFamilyIndices();
@@ -20,8 +31,34 @@ void Renderer::initialize(GLFWwindow* window)
     m_uniformBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), MAX_FRAMES_IN_FLIGHT);
     m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass(), m_depthBuffer.getImageView());
 
-    LOG("Swapchain images: " << m_swapchain.getImageViews().size());
-    LOG("FrameBuffers: " << m_framebuffers.getFramebuffers().size());
+    m_shadowMap.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), 2048);
+    m_shadowRenderPass.initialize(m_context.getDevice(), m_shadowMap.getFormat());
+
+    vk::ImageView shadowAttachment = m_shadowMap.getImageView();
+
+    vk::FramebufferCreateInfo shadowFbInfo{};
+    shadowFbInfo.setRenderPass(m_shadowRenderPass.getRenderPass());
+    shadowFbInfo.setAttachmentCount(1);
+    shadowFbInfo.setPAttachments(&shadowAttachment);
+    shadowFbInfo.setWidth(m_shadowMap.getSize());
+    shadowFbInfo.setHeight(m_shadowMap.getSize());
+    shadowFbInfo.setLayers(1);
+
+    m_shadowFramebuffer = m_context.getDevice().createFramebufferUnique(shadowFbInfo);
+
+    PipelineConfig shadowConfig{};
+    shadowConfig.vertexShader = "shadow";
+    shadowConfig.fragmentShader = "";
+    shadowConfig.renderPass = m_shadowRenderPass.getRenderPass();
+    shadowConfig.cache = m_pipelineCache.get();
+    shadowConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
+    shadowConfig.useDescriptors = false;
+    shadowConfig.colorAttachmentCount = 0;
+    shadowConfig.cullMode = vk::CullModeFlagBits::eFront;
+    shadowConfig.depthBiasEnable = true;
+    shadowConfig.depthBiasConstant = 1.25f;
+    shadowConfig.depthBiasSlope = 1.75f;
+    m_shadowPipeline.initialize(m_context.getDevice(), shadowConfig);
 
     size_t imageCount = m_swapchain.getImageViews().size();
     m_imageAvailableSemaphore.resize(MAX_FRAMES_IN_FLIGHT);
@@ -99,9 +136,18 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
     MVP mvp{};
     mvp.view = camera.getViewMatrix();
     mvp.proj = camera.getProjectionMatrix();
+    mvp.lightSpaceMatrix = m_lightSpaceMatrix;
     mvp.camPos = glm::vec4(camera.getPosition(), 1.0f);
     m_uniformBuffer.update(m_currentFrame, mvp);
     m_lightBuffer.update(m_currentFrame, m_pendingLights);
+
+    glm::vec3 lightDir = glm::normalize(glm::vec3(m_pendingLights.lights[0].position));
+    float orthSize = 20.0f;
+    glm::mat4 lightProj = glm::ortho(-orthSize, orthSize, -orthSize, orthSize, 1.0f, 100.0f);
+    lightProj[1][1] *= -1;
+    glm::vec3 lightPos = -lightDir * 30.0f;
+    glm::mat4 lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    m_lightSpaceMatrix = lightProj * lightView;
 
     recordCommandBuffer(cmd, imageIndex, scene, camera);
 
@@ -143,8 +189,51 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
     vk::CommandBufferBeginInfo beginInfo{};
     commandBuffer.begin(beginInfo);
 
+    {
+        vk::ClearValue shadowClear{};
+        shadowClear.setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
+
+        vk::RenderPassBeginInfo shadowPass{};
+        shadowPass.setRenderPass(m_shadowRenderPass.getRenderPass());
+        shadowPass.setFramebuffer(m_shadowFramebuffer.get());
+        shadowPass.setRenderArea(vk::Rect2D{ {0, 0}, { m_shadowMap.getSize(), m_shadowMap.getSize() } });
+        shadowPass.setClearValues(shadowClear);
+
+        commandBuffer.beginRenderPass(shadowPass, vk::SubpassContents::eInline);
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_shadowPipeline.getPipeline());
+
+        vk::Viewport vp{};
+        vp.setX(0.0f).setY(0.0f)
+            .setWidth((float)m_shadowMap.getSize())
+            .setHeight((float)m_shadowMap.getSize())
+            .setMinDepth(0.0f).setMaxDepth(1.0f);
+        commandBuffer.setViewport(0, vp);
+
+        vk::Rect2D sc{};
+        sc.setOffset({0, 0});
+        sc.setExtent({ m_shadowMap.getSize(), m_shadowMap.getSize() });
+        commandBuffer.setScissor(0, sc);
+
+        for (const auto& obj : scene.getObjects())
+        {
+            if (!obj->mesh) continue;
+
+            obj->mesh->bind(commandBuffer);
+
+            struct ShadowPush { glm::mat4 lightSpace; glm::mat4 model; } spush;
+            spush.lightSpace = m_lightSpaceMatrix;
+            spush.model = obj->transform.getMatrix();
+            commandBuffer.pushConstants(m_shadowPipeline.getLayout(),
+                vk::ShaderStageFlagBits::eVertex, 0, sizeof(ShadowPush), &spush);
+
+            for (const auto& sm : obj->mesh->getSubmeshes())
+                obj->mesh->drawSubmesh(commandBuffer, sm);
+        }
+
+        commandBuffer.endRenderPass();
+    }
+
     std::array<vk::ClearValue, 2> clearValues{};
-    
     clearValues[0].setColor(vk::ClearColorValue{ std::array<float,4>{ 0.02f, 0.02f, 0.03f, 1.0f } });
     clearValues[1].setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
 
@@ -227,6 +316,11 @@ void Renderer::cleanup()
 
     m_pipelineCache.save();
     m_pipelineCache.cleanup();
+
+    m_shadowFramebuffer.reset();
+    m_shadowPipeline.cleanup();
+    m_shadowRenderPass.cleanup();
+    m_shadowMap.cleanup();
 
     m_lightBuffer.cleanup();
     m_uniformBuffer.cleanup();

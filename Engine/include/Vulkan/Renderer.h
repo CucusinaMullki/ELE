@@ -8,8 +8,11 @@
 #include "Vulkan/CommandManager.h"
 #include "Vulkan/UniformBuffer.h"
 #include "Vulkan/LightBuffer.h"
+#include "Vulkan/ShadowMap.h"
+#include "Vulkan/ShadowRenderPass.h"
 #include "Vulkan/PipelineCache.h"
 #include "Vulkan/DepthBuffer.h"
+#include "Vulkan/ShadowMap.h"
 #include "Scene/Scene.h"
 #include "Core/Camera.h"
 #include <GLFW/glfw3.h>
@@ -32,6 +35,8 @@ public:
     vk::DescriptorPool getDescriptorPool() const { return m_pipeline.getDescriptorPool(); }
     vk::DescriptorSetLayout getDescriptorSetLayout() const { return m_pipeline.getDescriptorSetLayout(); }
     std::vector<vk::DescriptorBufferInfo> getLightInfos() const;
+    vk::ImageView getShadowView() const { return m_shadowMap.getImageView(); }
+    vk::Sampler getShadowSampler() const { return m_shadowMap.getSampler(); }
 
     uint32_t getFramesInFlight() const { return MAX_FRAMES_IN_FLIGHT; }
     float getAspect() const;
@@ -61,6 +66,13 @@ private:
     DepthBuffer m_depthBuffer;
 
     PipelineCache m_pipelineCache;
+
+    //Shadows
+    ShadowMap m_shadowMap;
+    ShadowRenderPass m_shadowRenderPass;
+    Pipeline m_shadowPipeline;
+    vk::UniqueFramebuffer m_shadowFramebuffer;
+    glm::mat4 m_lightSpaceMatrix{1.0f};
 
     LightBuffer m_lightBuffer;
     LightData m_lightData{};

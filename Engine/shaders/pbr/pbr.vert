@@ -24,7 +24,15 @@ layout(location = 4) in vec3 inTangent;
 
 layout(location = 0) out vec3 fragWorldPos;
 layout(location = 1) out vec2 fragTexCoord;
-layout(location = 2) out mat3 fragTBN;
+layout(location = 2) out vec4 fragLightSpacePos;
+layout(location = 3) out mat3 fragTBN;
+
+layout(binding = 0) uniform Camera {
+    mat4 view;
+    mat4 proj;
+    mat4 lightSpaceMatrix;
+    vec4 camPos;
+} cam;
 
 void main()
 {
@@ -33,6 +41,7 @@ void main()
 
     fragWorldPos = worldPos.xyz;
     fragTexCoord = inTexCoord;
+    fragLightSpacePos = cam.lightSpaceMatrix * worldPos;
 
     mat3 nm = mat3(push.normalMatrix);
     vec3 N = normalize(nm * inNormal);

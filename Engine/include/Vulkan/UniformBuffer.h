@@ -6,6 +6,7 @@ struct MVP
 {
     glm::mat4 view;
     glm::mat4 proj;
+    glm::mat4 lightSpaceMatrix;
     glm::vec4 camPos;
 };
 

@@ -41,6 +41,7 @@ std::shared_ptr<Material> Engine::loadMaterial(const std::string& albedo, const 
     material->createDescriptorSet(m_renderer.getDevice(),
         m_renderer.getDescriptorPool(), m_renderer.getDescriptorSetLayout(),
         m_renderer.getUboInfos(), m_renderer.getLightInfos(),
+        m_renderer.getShadowView(), m_renderer.getShadowSampler(),
         m_renderer.getFramesInFlight());
 
     return material;
@@ -145,6 +146,7 @@ GameObject& Engine::loadGltfObject(const std::string& path)
         mat->createDescriptorSet(m_renderer.getDevice(),
             m_renderer.getDescriptorPool(), m_renderer.getDescriptorSetLayout(),
             m_renderer.getUboInfos(), m_renderer.getLightInfos(),
+            m_renderer.getShadowView(), m_renderer.getShadowSampler(),
             m_renderer.getFramesInFlight());
 
         m_resources.registerMaterial(mat);
@@ -160,6 +162,7 @@ GameObject& Engine::loadGltfObject(const std::string& path)
         mat->createDescriptorSet(m_renderer.getDevice(),
             m_renderer.getDescriptorPool(), m_renderer.getDescriptorSetLayout(),
             m_renderer.getUboInfos(), m_renderer.getLightInfos(),
+            m_renderer.getShadowView(), m_renderer.getShadowSampler(),
             m_renderer.getFramesInFlight());
         m_resources.registerMaterial(mat);
         materials.push_back(mat);

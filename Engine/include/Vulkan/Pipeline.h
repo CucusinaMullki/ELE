@@ -3,10 +3,32 @@
 #include <string>
 #include <vector>
 
+struct PipelineConfig
+{
+    std::string vertexShader;
+    std::string fragmentShader = "";
+    vk::RenderPass renderPass;
+    vk::PipelineCache cache = nullptr;
+    uint32_t frameCount = 1;
+    uint32_t maxMaterials = 100;
+
+    bool useDescriptors = true;
+    vk::CullModeFlagBits cullMode = vk::CullModeFlagBits::eBack;
+    bool depthClampEnable = false;
+    uint32_t colorAttachmentCount = 1;
+    bool depthWrite = true;
+    bool depthTest = true;
+    bool blendEnable = false;
+
+    bool depthBiasEnable = false;
+    float depthBiasConstant = 0.0f;
+    float depthBiasSlope = 0.0f;
+};
+
 class Pipeline
 {
 public:
-    void initialize(vk::Device device, vk::RenderPass renderPass, const std::string& shaderName, uint32_t frameCount, vk::PipelineCache cache = nullptr);
+    void initialize(vk::Device device, const PipelineConfig& config);
     void cleanup();
 
     vk::DescriptorSetLayout getDescriptorSetLayout() const { return m_descriptorSetLayout.get(); }

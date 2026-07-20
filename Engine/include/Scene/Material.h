@@ -32,6 +32,7 @@ public:
         vk::DescriptorSetLayout layout,
         const std::vector<vk::DescriptorBufferInfo>& uboInfos,
         const std::vector<vk::DescriptorBufferInfo>& lightInfo,
+        vk::ImageView shadowView, vk::Sampler shadowSampler,
         uint32_t frameCount);
     
     vk::DescriptorSet getDescriptorSet(uint32_t frame) const { return m_descriptorSets[frame]; }

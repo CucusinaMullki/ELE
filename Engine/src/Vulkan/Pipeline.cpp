@@ -2,80 +2,96 @@
 #include "Vulkan/Shader.h"
 #include "Vulkan/Vertex.h"
 #include <glm/glm.hpp>
+#include <array>
 
-void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const std::string& shaderName, uint32_t frameCount, vk::PipelineCache cache)
+void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
 {
-    vk::DescriptorSetLayoutBinding uboBinding{};
-    uboBinding.setBinding(0);
-    uboBinding.setDescriptorType(vk::DescriptorType::eUniformBuffer);
-    uboBinding.setDescriptorCount(1);
-    uboBinding.setStageFlags(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment);
+    if (config.useDescriptors)
+    {
+        vk::DescriptorSetLayoutBinding uboBinding{};
+        uboBinding.setBinding(0);
+        uboBinding.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+        uboBinding.setDescriptorCount(1);
+        uboBinding.setStageFlags(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment);
 
-    auto makeSamplerBinding = [](uint32_t bind) {
-        vk::DescriptorSetLayoutBinding b{};
-        b.setBinding(bind);
-        b.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-        b.setDescriptorCount(1);
-        b.setStageFlags(vk::ShaderStageFlagBits::eFragment);
-        return b;
-    };
+        auto makeSamplerBinding = [](uint32_t bind) {
+            vk::DescriptorSetLayoutBinding b{};
+            b.setBinding(bind);
+            b.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+            b.setDescriptorCount(1);
+            b.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+            return b;
+        };
 
-    vk::DescriptorSetLayoutBinding lightBinding{};
-    lightBinding.setBinding(5);
-    lightBinding.setDescriptorType(vk::DescriptorType::eUniformBuffer);
-    lightBinding.setDescriptorCount(1);
-    lightBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+        vk::DescriptorSetLayoutBinding lightBinding{};
+        lightBinding.setBinding(5);
+        lightBinding.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+        lightBinding.setDescriptorCount(1);
+        lightBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
 
-    std::array<vk::DescriptorSetLayoutBinding, 6> bindings = { 
-        uboBinding, 
-        makeSamplerBinding(1),
-        makeSamplerBinding(2),
-        makeSamplerBinding(3),
-        makeSamplerBinding(4),
-        lightBinding
-    };
+        vk::DescriptorSetLayoutBinding shadowBinding{};
+        shadowBinding.setBinding(6);
+        shadowBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        shadowBinding.setDescriptorCount(1);
+        shadowBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
 
-    vk::DescriptorSetLayoutCreateInfo layoutCreateInfo{};
-    layoutCreateInfo.setBindings(bindings);
-    m_descriptorSetLayout = device.createDescriptorSetLayoutUnique(layoutCreateInfo);
+        std::array<vk::DescriptorSetLayoutBinding, 7> bindings = { 
+            uboBinding, 
+            makeSamplerBinding(1),
+            makeSamplerBinding(2),
+            makeSamplerBinding(3),
+            makeSamplerBinding(4),
+            lightBinding,
+            shadowBinding
+        };
 
-    const uint32_t MAX_MATERIALS = 100;
+        vk::DescriptorSetLayoutCreateInfo layoutCreateInfo{};
+        layoutCreateInfo.setBindings(bindings);
+        m_descriptorSetLayout = device.createDescriptorSetLayoutUnique(layoutCreateInfo);
 
-    std::array<vk::DescriptorPoolSize, 2> poolSizes{};
-    poolSizes[0].setType(vk::DescriptorType::eUniformBuffer);
-    poolSizes[0].setDescriptorCount(frameCount * MAX_MATERIALS);
-    poolSizes[1].setType(vk::DescriptorType::eCombinedImageSampler);
-    poolSizes[1].setDescriptorCount(frameCount * 4 * MAX_MATERIALS);
+        std::array<vk::DescriptorPoolSize, 2> poolSizes{};
 
-    vk::DescriptorPoolCreateInfo poolInfo{};
-    poolInfo.setPoolSizes(poolSizes);
-    poolInfo.setMaxSets(MAX_MATERIALS * frameCount);
-    m_descriptorPool = device.createDescriptorPoolUnique(poolInfo);
+        poolSizes[0].setType(vk::DescriptorType::eUniformBuffer);
+        poolSizes[0].setDescriptorCount(config.maxMaterials * config.frameCount * 2);
+        poolSizes[1].setType(vk::DescriptorType::eCombinedImageSampler);
+        poolSizes[1].setDescriptorCount(config.maxMaterials * config.frameCount * 5);
 
-    std::vector<vk::DescriptorSetLayout> layouts(frameCount, m_descriptorSetLayout.get());
-    vk::DescriptorSetAllocateInfo allocInfo{};
-    allocInfo.setDescriptorPool(m_descriptorPool.get());
-    allocInfo.setSetLayouts(layouts);
-    m_descriptorSets = device.allocateDescriptorSets(allocInfo);
+        vk::DescriptorPoolCreateInfo poolInfo{};
+        poolInfo.setPoolSizes(poolSizes);
+        poolInfo.setMaxSets(config.maxMaterials * config.frameCount);
+        m_descriptorPool = device.createDescriptorPoolUnique(poolInfo);
+    } 
+    else 
+    {
+        m_descriptorSetLayout.reset();
+        m_descriptorPool.reset();
+        m_descriptorSets.clear();
+    }
 
     vk::PushConstantRange pushRange{};
     pushRange.setStageFlags(vk::ShaderStageFlagBits::eVertex);
     pushRange.setOffset(0);
     pushRange.setSize(sizeof(glm::mat4) * 2);
 
+    std::vector<vk::DescriptorSetLayout> setLayouts;
+    if (config.useDescriptors) setLayouts.push_back(m_descriptorSetLayout.get());
+
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo{};
-    pipelineLayoutInfo.setSetLayouts(m_descriptorSetLayout.get());
+    pipelineLayoutInfo.setSetLayouts(setLayouts);
     pipelineLayoutInfo.setPushConstantRanges(pushRange);
     m_pipelineLayout = device.createPipelineLayoutUnique(pipelineLayoutInfo);
 
     Shader vertShader, fragShader;
-    vertShader.load(device, shaderName, vk::ShaderStageFlagBits::eVertex);
-    fragShader.load(device, shaderName, vk::ShaderStageFlagBits::eFragment);
+    vertShader.load(device, config.vertexShader, vk::ShaderStageFlagBits::eVertex);
 
-    std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages = {
-        vertShader.getStageInfo(),
-        fragShader.getStageInfo()
-    };
+    std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
+    shaderStages.push_back(vertShader.getStageInfo());
+
+    if (!config.fragmentShader.empty())
+    {
+        fragShader.load(device, config.fragmentShader, vk::ShaderStageFlagBits::eFragment);
+        shaderStages.push_back(fragShader.getStageInfo());
+    }
 
     auto bindingDescription = Vertex::getBindingDescriptor();
     auto attributeDescription = Vertex::getAttributeDescriptions();
@@ -89,27 +105,35 @@ void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const st
     inputAssembly.setPrimitiveRestartEnable(false);
 
     vk::PipelineRasterizationStateCreateInfo rasterizer{};
-    rasterizer.setDepthClampEnable(false);
+    rasterizer.setDepthClampEnable(config.depthClampEnable);
     rasterizer.setRasterizerDiscardEnable(false);
     rasterizer.setPolygonMode(vk::PolygonMode::eFill);
     rasterizer.setLineWidth(1.0f);
-    rasterizer.setCullMode(vk::CullModeFlagBits::eNone);
+    rasterizer.setCullMode(config.cullMode);
     rasterizer.setFrontFace(vk::FrontFace::eCounterClockwise);
-    rasterizer.setDepthBiasEnable(false);
+    rasterizer.setDepthBiasEnable(config.depthBiasEnable);
+    rasterizer.setDepthBiasConstantFactor(config.depthBiasConstant);
+    rasterizer.setDepthBiasSlopeFactor(config.depthBiasSlope);
 
     vk::PipelineMultisampleStateCreateInfo multisampling{};
     multisampling.setSampleShadingEnable(false);
     multisampling.setRasterizationSamples(vk::SampleCountFlagBits::e1);
 
-    vk::PipelineColorBlendAttachmentState colorBlendAttachment{};
-    colorBlendAttachment.setColorWriteMask(
-        vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-        vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
-    colorBlendAttachment.setBlendEnable(false);
-
     vk::PipelineColorBlendStateCreateInfo colorBlending{};
+    vk::PipelineColorBlendAttachmentState colorBlendAttachment{};
     colorBlending.setLogicOpEnable(false);
-    colorBlending.setAttachments(colorBlendAttachment);
+    if (config.colorAttachmentCount > 0)
+    {
+        colorBlendAttachment.setColorWriteMask(
+            vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | 
+            vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
+        colorBlendAttachment.setBlendEnable(config.blendEnable);
+        colorBlending.setAttachments({colorBlendAttachment});
+    }
+    else
+    {
+        colorBlending.setAttachmentCount(0);
+    }
 
     std::array<vk::DynamicState, 2> dynamicStates = {
         vk::DynamicState::eViewport,
@@ -124,8 +148,8 @@ void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const st
     viewportState.setScissorCount(1);
 
     vk::PipelineDepthStencilStateCreateInfo depthStencil{};
-    depthStencil.setDepthTestEnable(true);
-    depthStencil.setDepthWriteEnable(true);
+    depthStencil.setDepthTestEnable(config.depthTest);
+    depthStencil.setDepthWriteEnable(config.depthWrite);
     depthStencil.setDepthCompareOp(vk::CompareOp::eLess);
     depthStencil.setDepthBoundsTestEnable(false);
     depthStencil.setStencilTestEnable(false);
@@ -141,10 +165,10 @@ void Pipeline::initialize(vk::Device device, vk::RenderPass renderPass, const st
     pipelineInfo.setPColorBlendState(&colorBlending);
     pipelineInfo.setPDepthStencilState(&depthStencil);
     pipelineInfo.setLayout(m_pipelineLayout.get());
-    pipelineInfo.setRenderPass(renderPass);
+    pipelineInfo.setRenderPass(config.renderPass);
     pipelineInfo.setSubpass(0);
 
-    auto result = device.createGraphicsPipelineUnique(cache, pipelineInfo);
+    auto result = device.createGraphicsPipelineUnique(config.cache, pipelineInfo);
     if (result.result != vk::Result::eSuccess)
         throw std::runtime_error("failed to create graphics pipeline!");
 

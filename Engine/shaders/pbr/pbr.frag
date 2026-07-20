@@ -7,6 +7,7 @@
 layout(binding = 0) uniform Camera {
     mat4 view;
     mat4 proj;
+    mat4 lightSpaceMatrix;
     vec4 camPos;
 } cam;
 
@@ -25,11 +26,40 @@ layout(binding = 5) uniform LightUBO {
     ivec4 count;
 } lightData;
 
+layout(binding = 6) uniform sampler2DShadow shadowMap;
+
 layout(location = 0) in vec3 fragWorldPos;
 layout(location = 1) in vec2 fragTexCoord;
-layout(location = 2) in mat3 fragTBN;
+layout(location = 2) in vec4 fragLightSpacePos;
+layout(location = 3) in mat3 fragTBN;
 
 layout(location = 0) out vec4 outColor;
+
+float calculateShadow(vec4 lightSpacePos, vec3 N, vec3 L)
+{
+    vec3 proj = lightSpacePos.xyz / lightSpacePos.w;
+    proj.xy = proj.xy * 0.5 + 0.5;
+
+    if (proj.z > 1.0) return 0.0;
+
+    float bias = max(0.005 * (1.0 - dot(N, L)), 0.001);
+
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
+
+    for (int x = -1; x <= 1; x++)
+    {
+        for (int y = -1; y <= 1; y++)
+        {
+            vec2 offset = vec2(x, y) * texelSize;
+            float pcf = texture(shadowMap, vec3(proj.xy + offset, proj.z - bias));
+            shadow += pcf;
+        }
+    }
+    shadow /= 9.0;
+
+    return 1.0 - shadow;
+}
 
 void main()
 {
@@ -88,6 +118,10 @@ void main()
         float NdotL = max(dot(N, L), 0.0);
         Lo += (kD * albedo / PI + specular) * radiance * NdotL;
     }
+
+    vec3 mainL = normalize(-lightData.lights[0].position.xyz);
+    float shadow = calculateShadow(fragLightSpacePos, N, mainL);
+    Lo *= (1.0 - shadow);
 
     vec3 ambient = vec3(0.03) * albedo * ao;
     vec3 color = ambient + Lo;
