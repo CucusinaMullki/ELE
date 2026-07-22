@@ -1,14 +1,12 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
 
-layout(binding = 0) uniform MVP
-{
+layout(binding = 0) uniform Camera {
     mat4 view;
     mat4 proj;
+    mat4 lightSpaceMatrix;
     vec4 camPos;
-    vec4 lightPos;
-    vec4 lightColor;
-} ubo;
+} cam;
 
 layout(push_constant) uniform Push
 {
@@ -27,17 +25,10 @@ layout(location = 1) out vec2 fragTexCoord;
 layout(location = 2) out vec4 fragLightSpacePos;
 layout(location = 3) out mat3 fragTBN;
 
-layout(binding = 0) uniform Camera {
-    mat4 view;
-    mat4 proj;
-    mat4 lightSpaceMatrix;
-    vec4 camPos;
-} cam;
-
 void main()
 {
     vec4 worldPos = push.model * vec4(inPosition, 1.0);
-    gl_Position = ubo.proj * ubo.view * worldPos;
+    gl_Position = cam.proj * cam.view * worldPos;
 
     fragWorldPos = worldPos.xyz;
     fragTexCoord = inTexCoord;

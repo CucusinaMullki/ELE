@@ -78,7 +78,6 @@ void Engine::run()
         updateInput(deltaTime);
         m_renderer.setLights(m_lights);
         m_renderer.drawScene(m_scene, m_camera);
-        m_renderer.drawScene(m_scene, m_camera);
     }
 
     m_renderer.getDevice().waitIdle();
@@ -153,6 +152,23 @@ GameObject& Engine::loadGltfObject(const std::string& path)
         materials.push_back(mat);
     }
 
+    for (const auto& gl : model.getLights())
+    {
+        switch (gl.type)
+        {
+        case 0:
+            addDirectionalLight(gl.direction, gl.color, gl.intensity); // 683.0f);
+            break;
+        
+        case 1:
+            addPointLight(gl.position, gl.color, gl.intensity); // 683.0f);
+            break;
+
+        default:
+            break;
+        }
+    }
+
     if (materials.empty())
     {
         auto mat = std::make_shared<Material>();
@@ -187,7 +203,8 @@ void Engine::addPointLight(glm::vec3 position, glm::vec3 color, float intensity)
 {
     int i = m_lights.count.x;
     if (i >= MAX_LIGHTS) return;
-    m_lights.lights[i].position = glm::vec4(position, 1.0f);
+    m_lights.lights[i].position = glm::vec4(position, 1.0f); 
     m_lights.lights[i].color = glm::vec4(color, intensity);
+    LOG("addPointLight called with y=" << position.y);
     m_lights.count.x++;
 }

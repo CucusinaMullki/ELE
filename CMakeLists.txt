@@ -47,6 +47,10 @@ add_library(ELE STATIC
     Engine/src/Vulkan/PipelineCache.cpp
     Engine/src/Vulkan/ShadowMap.cpp
     Engine/src/Vulkan/ShadowRenderPass.cpp
+    Engine/src/Vulkan/HdrTarget.cpp
+    Engine/src/Vulkan/HdrRenderPass.cpp
+    Engine/src/Vulkan/BloomTarget.cpp
+    Engine/src/Vulkan/PostRenderPass.cpp
 )
 
 target_include_directories(ELE PUBLIC

@@ -12,10 +12,155 @@ void Renderer::initialize(GLFWwindow* window)
     m_renderPass.initialize(m_context.getDevice(), m_swapchain.getImageFormat(), m_depthBuffer.getFormat());
     m_pipelineCache.initialize(m_context.getDevice());
 
+    m_hdrTarget.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), m_swapchain.getExtent());
+    m_hdrRenderPass.initialize(m_context.getDevice(), m_hdrTarget.getColorFormat(),m_depthBuffer.getFormat());
+
+    std::array<vk::ImageView, 2> hdrAttachment = {
+        m_hdrTarget.getColorView(),
+        m_depthBuffer.getImageView()
+    };
+    vk::FramebufferCreateInfo hdrFbInfo{};
+    hdrFbInfo.setRenderPass(m_hdrRenderPass.getRenderPass());
+    hdrFbInfo.setAttachments(hdrAttachment);
+    hdrFbInfo.setWidth(m_swapchain.getExtent().width);
+    hdrFbInfo.setHeight(m_swapchain.getExtent().height);
+    hdrFbInfo.setLayers(1);
+    m_hdrFramebuffer = m_context.getDevice().createFramebufferUnique(hdrFbInfo);
+
+    PipelineConfig postConfig{};
+    postConfig.vertexShader = "fullscreen";
+    postConfig.fragmentShader = "tonemap";
+    postConfig.renderPass = m_renderPass.getRenderPass();
+    postConfig.cache = m_pipelineCache.get();
+    postConfig.useVertexInput = false;
+    postConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
+    postConfig.pushStage = vk::ShaderStageFlagBits::eFragment;
+    postConfig.pushConstantSize = sizeof(float);
+    postConfig.postProcess = true;
+    postConfig.useDescriptors = false;
+    postConfig.colorAttachmentCount = 1;
+    postConfig.depthTest = false;
+    postConfig.depthWrite = false;
+    postConfig.cullMode = vk::CullModeFlagBits::eNone;
+    m_postPipeline.initialize(m_context.getDevice(), postConfig);    
+
+    std::vector<vk::DescriptorSetLayout> postLayouts(MAX_FRAMES_IN_FLIGHT, m_postPipeline.getDescriptorSetLayout());
+    vk::DescriptorSetAllocateInfo postAlloc{};
+    postAlloc.setDescriptorPool(m_postPipeline.getDescriptorPool());
+    postAlloc.setSetLayouts(postLayouts);
+    m_postDescriptorSets = m_context.getDevice().allocateDescriptorSets(postAlloc);
+
+    vk::Extent2D bloomExtent = m_swapchain.getExtent();
+    m_brighTarget.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), bloomExtent);
+    m_blurTargetA.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), bloomExtent);
+    m_blurTargetB.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), bloomExtent);
+
+    m_postRenderPass.initialize(m_context.getDevice(), m_brighTarget.getColorFormat());
+
+    auto makeSimpleFb = [&](vk::ImageView view) {
+        vk::FramebufferCreateInfo fbInfo{};
+        fbInfo.setRenderPass(m_postRenderPass.getRenderPass());
+        fbInfo.setAttachmentCount(1);
+        fbInfo.setPAttachments(&view);
+        fbInfo.setWidth(bloomExtent.width);
+        fbInfo.setHeight(bloomExtent.height);
+        fbInfo.setLayers(1);
+        return m_context.getDevice().createFramebufferUnique(fbInfo);
+    };
+
+    vk::ImageView brightView = m_brighTarget.getColorView();
+    vk::ImageView blurAView = m_blurTargetA.getColorView();
+    vk::ImageView blurBView = m_blurTargetB.getColorView();
+    m_brightFramebuffer = makeSimpleFb(brightView);
+    m_blurFramebufferA = makeSimpleFb(blurAView);
+    m_blurFramebufferB = makeSimpleFb(blurBView);
+
+    PipelineConfig brightConfig{};
+    brightConfig.vertexShader = "fullscreen";
+    brightConfig.fragmentShader = "brightpass";
+    brightConfig.renderPass = m_postRenderPass.getRenderPass();
+    brightConfig.cache = m_pipelineCache.get();
+    brightConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
+    brightConfig.postProcess = true;
+    brightConfig.useDescriptors = false;
+    brightConfig.useVertexInput = false;
+    brightConfig.depthTest = false;
+    brightConfig.depthWrite = false;
+    brightConfig.cullMode = vk::CullModeFlagBits::eNone;
+    brightConfig.pushStage = vk::ShaderStageFlagBits::eFragment;
+    brightConfig.pushConstantSize = sizeof(float);
+    m_brightPipeline.initialize(m_context.getDevice(), brightConfig);
+
+    PipelineConfig blurConfig = brightConfig;
+    blurConfig.fragmentShader = "blur";
+    blurConfig.pushConstantSize = sizeof(glm::vec2);
+    m_blurPipeline.initialize(m_context.getDevice(), blurConfig);
+
+    auto allocDescSets = [&](Pipeline& pipe) {
+        std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, pipe.getDescriptorSetLayout());
+        vk::DescriptorSetAllocateInfo allocInfo{};
+        allocInfo.setDescriptorPool(pipe.getDescriptorPool());
+        allocInfo.setSetLayouts(layouts);
+        return m_context.getDevice().allocateDescriptorSets(allocInfo);
+    };
+
+    auto writeDescSet = [&](vk::DescriptorSet set, vk::ImageView view, vk::Sampler sampler) {
+        vk::DescriptorImageInfo info{};
+        info.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+        info.setImageView(view);
+        info.setSampler(sampler);
+
+        vk::WriteDescriptorSet write{};
+        write.setDstSet(set);
+        write.setDstBinding(0);
+        write.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        write.setDescriptorCount(1);
+        write.setImageInfo(info);
+        m_context.getDevice().updateDescriptorSets(write, nullptr);
+    };
+
+    m_brightDescriptorSets = allocDescSets(m_brightPipeline);
+    m_blurDescriptorSetsA = allocDescSets(m_blurPipeline);
+    m_blurDescriptorSetsB = allocDescSets(m_blurPipeline);
+
+
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+    {
+        writeDescSet(m_brightDescriptorSets[i], m_hdrTarget.getColorView(), m_hdrTarget.getSampler());
+        writeDescSet(m_blurDescriptorSetsA[i], m_brighTarget.getColorView(), m_brighTarget.getSampler());
+        writeDescSet(m_blurDescriptorSetsB[i], m_blurTargetA.getColorView(), m_blurTargetA.getSampler());
+
+        vk::DescriptorImageInfo hdrInfo{};
+        hdrInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+        hdrInfo.setImageView(m_hdrTarget.getColorView());
+        hdrInfo.setSampler(m_hdrTarget.getSampler());
+
+        vk::DescriptorImageInfo bloomInfo{};
+        bloomInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+        bloomInfo.setImageView(m_blurTargetB.getColorView());
+        bloomInfo.setSampler(m_blurTargetB.getSampler());
+
+        std::array<vk::WriteDescriptorSet, 2> writes{};
+
+        writes[0].setDstSet(m_postDescriptorSets[i]);
+        writes[0].setDstBinding(0);
+        writes[0].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        writes[0].setDescriptorCount(1);
+        writes[0].setImageInfo(hdrInfo);
+
+        writes[1].setDstSet(m_postDescriptorSets[i]);
+        writes[1].setDstBinding(1);
+        writes[1].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        writes[1].setDescriptorCount(1);
+        writes[1].setImageInfo(bloomInfo);
+
+        m_context.getDevice().updateDescriptorSets(writes, nullptr);
+    }
+
     PipelineConfig pbrConfig{};
     pbrConfig.vertexShader = "pbr";
     pbrConfig.fragmentShader = "pbr";
-    pbrConfig.renderPass = m_renderPass.getRenderPass();
+    pbrConfig.renderPass = m_hdrRenderPass.getRenderPass();
     pbrConfig.cache = m_pipelineCache.get();
     pbrConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
     pbrConfig.useDescriptors = true;
@@ -189,6 +334,7 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
     vk::CommandBufferBeginInfo beginInfo{};
     commandBuffer.begin(beginInfo);
 
+    //Shadows
     {
         vk::ClearValue shadowClear{};
         shadowClear.setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
@@ -203,21 +349,16 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
         commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_shadowPipeline.getPipeline());
 
         vk::Viewport vp{};
-        vp.setX(0.0f).setY(0.0f)
-            .setWidth((float)m_shadowMap.getSize())
-            .setHeight((float)m_shadowMap.getSize())
-            .setMinDepth(0.0f).setMaxDepth(1.0f);
+        vp.setWidth((float)m_shadowMap.getSize()).setHeight((float)m_shadowMap.getSize())
+          .setMinDepth(0.0f).setMaxDepth(1.0f);
         commandBuffer.setViewport(0, vp);
-
         vk::Rect2D sc{};
-        sc.setOffset({0, 0});
         sc.setExtent({ m_shadowMap.getSize(), m_shadowMap.getSize() });
         commandBuffer.setScissor(0, sc);
 
         for (const auto& obj : scene.getObjects())
         {
             if (!obj->mesh) continue;
-
             obj->mesh->bind(commandBuffer);
 
             struct ShadowPush { glm::mat4 lightSpace; glm::mat4 model; } spush;
@@ -229,61 +370,189 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
             for (const auto& sm : obj->mesh->getSubmeshes())
                 obj->mesh->drawSubmesh(commandBuffer, sm);
         }
+        commandBuffer.endRenderPass();
+    }
+
+    //HDR
+    {
+        std::array<vk::ClearValue, 2> clearValues{};
+        clearValues[0].setColor(vk::ClearColorValue{ std::array<float,4>{ 0.02f, 0.02f, 0.03f, 1.0f } });
+        clearValues[1].setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
+
+        vk::RenderPassBeginInfo hdrPass{};
+        hdrPass.setRenderPass(m_hdrRenderPass.getRenderPass());
+        hdrPass.setFramebuffer(m_hdrFramebuffer.get());
+        hdrPass.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
+        hdrPass.setClearValues(clearValues);
+
+        commandBuffer.beginRenderPass(hdrPass, vk::SubpassContents::eInline);
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.getPipeline());
+
+        vk::Viewport viewport{};
+        viewport.setWidth((float)m_swapchain.getExtent().width)
+                .setHeight((float)m_swapchain.getExtent().height)
+                .setMinDepth(0.0f).setMaxDepth(1.0f);
+        commandBuffer.setViewport(0, viewport);
+        vk::Rect2D scissor{};
+        scissor.setExtent(m_swapchain.getExtent());
+        commandBuffer.setScissor(0, scissor);
+
+        for (const auto& obj : scene.getObjects())
+        {
+            if (!obj->mesh) continue;
+            obj->mesh->bind(commandBuffer);
+
+            PushConstant pc{};
+            pc.model = obj->transform.getMatrix();
+            pc.normalMatrix = obj->transform.getNormalMatrix();
+            commandBuffer.pushConstants(m_pipeline.getLayout(),
+                vk::ShaderStageFlagBits::eVertex, 0, sizeof(PushConstant), &pc);
+
+            for (const auto& sm : obj->mesh->getSubmeshes())
+            {
+                auto mat = obj->getMaterial(sm.materialIndex);
+                if (!mat) continue;
+                commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                    m_pipeline.getLayout(), 0, mat->getDescriptorSet(m_currentFrame), nullptr);
+                obj->mesh->drawSubmesh(commandBuffer, sm);
+            }
+        }
+        commandBuffer.endRenderPass();
+    }
+
+    //MainRender
+    {
+        vk::ClearValue clear{};
+        clear.setColor(vk::ClearColorValue{ std::array<float,4>{ 0.0f, 0.0f, 0.0f, 1.0f } });
+
+        vk::RenderPassBeginInfo pass{};
+        pass.setRenderPass(m_postRenderPass.getRenderPass());
+        pass.setFramebuffer(m_brightFramebuffer.get());
+        pass.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
+        pass.setClearValues(clear);
+
+        commandBuffer.beginRenderPass(pass, vk::SubpassContents::eInline);
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_brightPipeline.getPipeline());
+        
+        vk::Viewport vp{};
+        vp.setWidth((float)m_swapchain.getExtent().width).setHeight((float)m_swapchain.getExtent().height);
+
+        vp.setWidth((float)m_swapchain.getExtent().width).setHeight((float)m_swapchain.getExtent().height)
+            .setMinDepth(0.0f).setMaxDepth(1.0f);
+        commandBuffer.setViewport(0, vp);
+        vk::Rect2D sc{};
+        sc.setExtent(m_swapchain.getExtent());
+        commandBuffer.setScissor(0, sc);
+
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+            m_brightPipeline.getLayout(), 0, m_brightDescriptorSets[m_currentFrame], nullptr);
+
+        commandBuffer.pushConstants(m_brightPipeline.getLayout(),
+            vk::ShaderStageFlagBits::eFragment, 0, sizeof(float), &m_bloomThreshold);
+
+        commandBuffer.draw(3, 1, 0, 0);
+        commandBuffer.endRenderPass();
+    }
+
+    //Bloom
+    {
+        vk::ClearValue clear{};
+        clear.setColor(vk::ClearColorValue{ std::array<float,4>{ 0.0f, 0.0f, 0.0f, 1.0f } });
+
+        vk::RenderPassBeginInfo pass{};
+        pass.setRenderPass(m_postRenderPass.getRenderPass());
+        pass.setFramebuffer(m_blurFramebufferA.get());
+        pass.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
+        pass.setClearValues(clear);
+
+        commandBuffer.beginRenderPass(pass, vk::SubpassContents::eInline);
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_blurPipeline.getPipeline());
+
+        vk::Viewport vp{};
+        vp.setWidth((float)m_swapchain.getExtent().width).setHeight((float)m_swapchain.getExtent().height)
+          .setMinDepth(0.0f).setMaxDepth(1.0f);
+        commandBuffer.setViewport(0, vp);
+        vk::Rect2D sc{};
+        sc.setExtent(m_swapchain.getExtent());
+        commandBuffer.setScissor(0, sc);
+
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+            m_blurPipeline.getLayout(), 0, m_blurDescriptorSetsA[m_currentFrame], nullptr);
+
+        glm::vec2 dirH(1.0f, 0.0f);
+        commandBuffer.pushConstants(m_blurPipeline.getLayout(),
+            vk::ShaderStageFlagBits::eFragment, 0, sizeof(glm::vec2), &dirH);
+
+        commandBuffer.draw(3, 1, 0, 0);
+        commandBuffer.endRenderPass();
+    }
+
+    {
+        vk::ClearValue clear{};
+        clear.setColor(vk::ClearColorValue{ std::array<float,4>{ 0.0f, 0.0f, 0.0f, 1.0f } });
+
+        vk::RenderPassBeginInfo pass{};
+        pass.setRenderPass(m_postRenderPass.getRenderPass());
+        pass.setFramebuffer(m_blurFramebufferB.get());
+        pass.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
+        pass.setClearValues(clear);
+
+        commandBuffer.beginRenderPass(pass, vk::SubpassContents::eInline);
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_blurPipeline.getPipeline());
+
+        vk::Viewport vp{};
+        vp.setWidth((float)m_swapchain.getExtent().width).setHeight((float)m_swapchain.getExtent().height)
+          .setMinDepth(0.0f).setMaxDepth(1.0f);
+        commandBuffer.setViewport(0, vp);
+        vk::Rect2D sc{};
+        sc.setExtent(m_swapchain.getExtent());
+        commandBuffer.setScissor(0, sc);
+
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+            m_blurPipeline.getLayout(), 0, m_blurDescriptorSetsB[m_currentFrame], nullptr);
+
+        glm::vec2 dirV(0.0f, 1.0f);
+        commandBuffer.pushConstants(m_blurPipeline.getLayout(),
+            vk::ShaderStageFlagBits::eFragment, 0, sizeof(glm::vec2), &dirV);
+
+        commandBuffer.draw(3, 1, 0, 0);
+        commandBuffer.endRenderPass();
+    }
+
+    {
+        std::array<vk::ClearValue, 2> clearValues{};
+        clearValues[0].setColor(vk::ClearColorValue{ std::array<float,4>{ 0.0f, 0.0f, 0.0f, 1.0f } });
+        clearValues[1].setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
+
+        vk::RenderPassBeginInfo postPass{};
+        postPass.setRenderPass(m_renderPass.getRenderPass());
+        postPass.setFramebuffer(m_framebuffers.getFramebuffers()[imageIndex].get());
+        postPass.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
+        postPass.setClearValues(clearValues);
+
+        commandBuffer.beginRenderPass(postPass, vk::SubpassContents::eInline);
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_postPipeline.getPipeline());
+
+        vk::Viewport viewport{};
+        viewport.setWidth((float)m_swapchain.getExtent().width)
+                .setHeight((float)m_swapchain.getExtent().height)
+                .setMinDepth(0.0f).setMaxDepth(1.0f);
+        commandBuffer.setViewport(0, viewport);
+        vk::Rect2D scissor{};
+        scissor.setExtent(m_swapchain.getExtent());
+        commandBuffer.setScissor(0, scissor);
+
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+            m_postPipeline.getLayout(), 0, m_postDescriptorSets[m_currentFrame], nullptr);
+
+        commandBuffer.pushConstants(m_postPipeline.getLayout(),
+            vk::ShaderStageFlagBits::eFragment, 0, sizeof(float), &m_exposure);
+
+        commandBuffer.draw(3, 1, 0, 0);
 
         commandBuffer.endRenderPass();
     }
 
-    std::array<vk::ClearValue, 2> clearValues{};
-    clearValues[0].setColor(vk::ClearColorValue{ std::array<float,4>{ 0.02f, 0.02f, 0.03f, 1.0f } });
-    clearValues[1].setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
-
-    vk::RenderPassBeginInfo renderPassInfo{};
-    renderPassInfo.setRenderPass(m_renderPass.getRenderPass());
-    renderPassInfo.setFramebuffer(m_framebuffers.getFramebuffers()[imageIndex].get());
-    renderPassInfo.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
-    renderPassInfo.setClearValues(clearValues);
-
-    commandBuffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
-    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.getPipeline());
-
-    vk::Viewport viewport{};
-    viewport.setX(0.0f).setY(0.0f);
-    viewport.setWidth((float)m_swapchain.getExtent().width);
-    viewport.setHeight((float)m_swapchain.getExtent().height);
-    viewport.setMinDepth(0.0f).setMaxDepth(1.0f);
-    commandBuffer.setViewport(0, viewport);
-
-    vk::Rect2D scissor{};
-    scissor.setOffset({0, 0});
-    scissor.setExtent(m_swapchain.getExtent());
-    commandBuffer.setScissor(0, scissor);
-
-    for (const auto& obj : scene.getObjects())
-    {
-        if (!obj->mesh) continue;
-
-        obj->mesh->bind(commandBuffer);
-
-        PushConstant pc{};
-        pc.model = obj->transform.getMatrix();
-        pc.normalMatrix = obj->transform.getNormalMatrix();
-        commandBuffer.pushConstants(m_pipeline.getLayout(),
-            vk::ShaderStageFlagBits::eVertex, 0, sizeof(PushConstant), &pc);
-
-        for (const auto& sm : obj->mesh->getSubmeshes())
-        {
-            auto mat = obj->getMaterial(sm.materialIndex);
-            if (!mat) continue;
-
-            commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
-                m_pipeline.getLayout(), 0,
-                mat->getDescriptorSet(m_currentFrame), nullptr);
-
-            obj->mesh->drawSubmesh(commandBuffer, sm);
-        }
-    }
-
-    commandBuffer.endRenderPass();
     commandBuffer.end();
 }
 
@@ -317,10 +586,25 @@ void Renderer::cleanup()
     m_pipelineCache.save();
     m_pipelineCache.cleanup();
 
+    m_hdrFramebuffer.reset();
+    m_postPipeline.cleanup();
+    m_hdrRenderPass.cleanup();
+    m_hdrTarget.cleanup();
+
     m_shadowFramebuffer.reset();
     m_shadowPipeline.cleanup();
     m_shadowRenderPass.cleanup();
     m_shadowMap.cleanup();
+
+    m_blurFramebufferB.reset();
+    m_blurFramebufferA.reset();
+    m_brightFramebuffer.reset();
+    m_blurPipeline.cleanup();
+    m_brightPipeline.cleanup();
+    m_postRenderPass.cleanup();
+    m_blurTargetB.cleanup();
+    m_blurTargetA.cleanup();
+    m_brighTarget.cleanup();  
 
     m_lightBuffer.cleanup();
     m_uniformBuffer.cleanup();

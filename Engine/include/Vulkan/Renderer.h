@@ -13,6 +13,10 @@
 #include "Vulkan/PipelineCache.h"
 #include "Vulkan/DepthBuffer.h"
 #include "Vulkan/ShadowMap.h"
+#include "Vulkan/HdrRenderPass.h"
+#include "Vulkan/HdrTarget.h"
+#include "Vulkan/BloomTarget.h"
+#include "Vulkan/PostRenderPass.h"
 #include "Scene/Scene.h"
 #include "Core/Camera.h"
 #include <GLFW/glfw3.h>
@@ -56,6 +60,8 @@ private:
     bool m_framebufferResized = false;
     size_t m_currentFrame = 0;
     
+    float m_exposure = 0.01f;
+
     VulkanContext m_context;
     SwapChain m_swapchain;
     RenderPass m_renderPass;
@@ -78,6 +84,32 @@ private:
     LightData m_lightData{};
     
     LightData m_pendingLights{};
+
+    //Bloom
+    BloomTarget m_brighTarget;
+    BloomTarget m_blurTargetA;
+    BloomTarget m_blurTargetB;
+    PostRenderPass m_postRenderPass;
+
+    vk::UniqueFramebuffer m_brightFramebuffer;
+    vk::UniqueFramebuffer m_blurFramebufferA;
+    vk::UniqueFramebuffer m_blurFramebufferB;
+
+    Pipeline m_brightPipeline;
+    Pipeline m_blurPipeline;
+
+    std::vector<vk::DescriptorSet> m_brightDescriptorSets;
+    std::vector<vk::DescriptorSet> m_blurDescriptorSetsA;
+    std::vector<vk::DescriptorSet> m_blurDescriptorSetsB;
+
+    float m_bloomThreshold = 1.0f;
+
+    //HDR
+    HdrTarget m_hdrTarget;
+    HdrRenderPass m_hdrRenderPass;
+    vk::UniqueFramebuffer m_hdrFramebuffer;
+    Pipeline m_postPipeline;
+    std::vector<vk::DescriptorSet> m_postDescriptorSets;
 
     std::vector<vk::UniqueSemaphore> m_imageAvailableSemaphore;
     std::vector<vk::UniqueSemaphore> m_renderFinishedSemaphore;

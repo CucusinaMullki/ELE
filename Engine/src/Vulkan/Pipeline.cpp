@@ -6,7 +6,36 @@
 
 void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
 {
-    if (config.useDescriptors)
+    if (config.postProcess)
+    {
+        vk::DescriptorSetLayoutBinding samplerBinding{};
+        samplerBinding.setBinding(0);
+        samplerBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        samplerBinding.setDescriptorCount(1);
+        samplerBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+    
+        vk::DescriptorSetLayoutBinding bloomBinding{};
+        bloomBinding.setBinding(1);
+        bloomBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        bloomBinding.setDescriptorCount(1);
+        bloomBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+    
+        std::array<vk::DescriptorSetLayoutBinding, 2> postBindings = { samplerBinding, bloomBinding };
+    
+        vk::DescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.setBindings(postBindings);
+        m_descriptorSetLayout = device.createDescriptorSetLayoutUnique(layoutInfo);
+    
+        vk::DescriptorPoolSize poolSize{};
+        poolSize.setType(vk::DescriptorType::eCombinedImageSampler);
+        poolSize.setDescriptorCount(config.frameCount * 4 * 2);
+    
+        vk::DescriptorPoolCreateInfo poolInfo{};
+        poolInfo.setPoolSizes(poolSize);
+        poolInfo.setMaxSets(config.frameCount * 4);
+        m_descriptorPool = device.createDescriptorPoolUnique(poolInfo);
+    }
+    else if (config.useDescriptors)
     {
         vk::DescriptorSetLayoutBinding uboBinding{};
         uboBinding.setBinding(0);
@@ -69,12 +98,12 @@ void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
     }
 
     vk::PushConstantRange pushRange{};
-    pushRange.setStageFlags(vk::ShaderStageFlagBits::eVertex);
+    pushRange.setStageFlags(config.pushStage);
     pushRange.setOffset(0);
-    pushRange.setSize(sizeof(glm::mat4) * 2);
+    pushRange.setSize(config.pushConstantSize);
 
     std::vector<vk::DescriptorSetLayout> setLayouts;
-    if (config.useDescriptors) setLayouts.push_back(m_descriptorSetLayout.get());
+    if (config.useDescriptors || config.postProcess) setLayouts.push_back(m_descriptorSetLayout.get());
 
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.setSetLayouts(setLayouts);
@@ -97,8 +126,11 @@ void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
     auto attributeDescription = Vertex::getAttributeDescriptions();
 
     vk::PipelineVertexInputStateCreateInfo vertexInput{};
-    vertexInput.setVertexBindingDescriptions(bindingDescription);
-    vertexInput.setVertexAttributeDescriptions(attributeDescription);
+    if (config.useVertexInput)
+    {
+        vertexInput.setVertexBindingDescriptions(bindingDescription);
+        vertexInput.setVertexAttributeDescriptions(attributeDescription);
+    }
     
     vk::PipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.setTopology(vk::PrimitiveTopology::eTriangleList);

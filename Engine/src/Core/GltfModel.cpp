@@ -1,6 +1,9 @@
 #include "Core/GltfModel.h"
 #include "Core/Path.h"
 #include "Core/Log.h"
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <tiny_gltf.h>
 #include <stdexcept>
 #include <cstring>
@@ -188,6 +191,58 @@ void GltfModel::load(const std::string& path)
 
         m_materials.push_back(gm);
     }
+
+    for (const auto& node : model.nodes)
+    {
+        if (node.light < 0) continue;
+        if (node.light >= (int)model.lights.size()) continue;
+
+        const auto& gltfLight = model.lights[node.light];
+
+        GltfLight light{};
+
+        // Тип
+        if (gltfLight.type == "directional") light.type = 0;
+        else if (gltfLight.type == "point")  light.type = 1;
+        else if (gltfLight.type == "spot")   light.type = 2;
+
+        if (gltfLight.color.size() >= 3)
+            light.color = glm::vec3(gltfLight.color[0], gltfLight.color[1], gltfLight.color[2]);
+
+        light.intensity = (float)gltfLight.intensity;
+
+        if (!node.matrix.empty() && node.matrix.size() == 16)
+        {
+            glm::mat4 m = glm::make_mat4(node.matrix.data());
+            light.position = glm::vec3(m[3]);
+            light.direction = glm::normalize(glm::vec3(m * glm::vec4(0.0f, 0.0f, -1.0f, 0.0f)));
+        }
+        else
+        {
+            if (node.translation.size() >= 3)
+                light.position = glm::vec3(node.translation[0], node.translation[1], node.translation[2]);
+
+            if (node.rotation.size() >= 4)
+            {
+                glm::quat q(
+                    (float)node.rotation[3],
+                    (float)node.rotation[0],
+                    (float)node.rotation[1],
+                    (float)node.rotation[2]
+                );
+                light.direction = glm::normalize(q * glm::vec3(0.0f, 0.0f, -1.0f));
+            }
+        }
+
+        LOG("gltf light: type=" << light.type
+            << " intensity=" << light.intensity
+            << " pos=(" << light.position.x << "," << light.position.y << "," << light.position.z << ")"
+            << " dir=(" << light.direction.x << "," << light.direction.y << "," << light.direction.z << ")");
+
+        m_lights.push_back(light);
+    }
+
+    LOG("extracted lights: " << m_lights.size());
 
     if (!m_hasTangents)
         computeTangents();

@@ -4,6 +4,16 @@
 #include <vector>
 #include <string>
 
+struct GltfLight
+{
+    int type = 0;
+    glm::vec3 color{1.0f};
+    float intensity = 1.0f;
+    glm::vec3 position{0.0f};
+    glm::vec3 direction{0.0f, -1.0f, 0.0f};
+};
+
+
 struct GltfImage
 {
     std::vector<unsigned char> pixels;
@@ -29,6 +39,7 @@ public:
     const std::vector<Submesh>& getSubmesh() const { return m_submesh; }
     const std::vector<GltfImage>& getImage() const { return m_images; }
     const std::vector<GltfMaterial>& getMaterials() const { return m_materials; } 
+    const std::vector<GltfLight>& getLights() const { return m_lights; }
 
 private:
     void computeTangents();
@@ -38,5 +49,6 @@ private:
     std::vector<Submesh> m_submesh;
     std::vector<GltfImage> m_images;
     std::vector<GltfMaterial> m_materials;
+    std::vector<GltfLight> m_lights;
     bool m_hasTangents = false;
 };

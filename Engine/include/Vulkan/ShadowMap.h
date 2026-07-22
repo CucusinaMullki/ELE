@@ -11,6 +11,7 @@ public:
     vk::Sampler getSampler() const { return m_sampler.get(); }
     vk::Format getFormat() const { return m_format; }
     uint32_t getSize() const { return m_size; }
+    
 private:
     uint32_t findMemoryType(vk::PhysicalDevice physicalDevice, uint32_t typeFilter, vk::MemoryPropertyFlags properties);
 

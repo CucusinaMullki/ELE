@@ -1,5 +1,6 @@
 #pragma once
 #include "vulkan/vulkan.hpp"
+#include <glm/glm.hpp>
 #include <string>
 #include <vector>
 
@@ -11,6 +12,9 @@ struct PipelineConfig
     vk::PipelineCache cache = nullptr;
     uint32_t frameCount = 1;
     uint32_t maxMaterials = 100;
+    uint32_t pushConstantSize = sizeof(glm::mat4) * 2;
+
+    vk::ShaderStageFlags pushStage = vk::ShaderStageFlagBits::eVertex;
 
     bool useDescriptors = true;
     vk::CullModeFlagBits cullMode = vk::CullModeFlagBits::eBack;
@@ -19,6 +23,10 @@ struct PipelineConfig
     bool depthWrite = true;
     bool depthTest = true;
     bool blendEnable = false;
+
+    bool useVertexInput = true;
+
+    bool postProcess = false;
 
     bool depthBiasEnable = false;
     float depthBiasConstant = 0.0f;
