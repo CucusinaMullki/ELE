@@ -27,6 +27,7 @@ layout(binding = 5) uniform LightUBO {
 } lightData;
 
 layout(binding = 6) uniform sampler2DShadow shadowMap;
+layout(binding = 7) uniform samplerCube pointShadowMap;
 
 layout(location = 0) in vec3 fragWorldPos;
 layout(location = 1) in vec2 fragTexCoord;
@@ -38,6 +39,8 @@ layout(location = 0) out vec4 outColor;
 const vec3 SKY_ZENITH  = vec3(0.20, 0.32, 0.55);
 const vec3 SKY_HORIZON = vec3(0.55, 0.60, 0.65);
 const vec3 GROUND      = vec3(0.05, 0.05, 0.06);
+
+const float POINT_SHADOW_FAR_PLANE = 25.0;
 
 vec3 sampleSky(vec3 dir)
 {
@@ -59,7 +62,8 @@ float calculateShadow(vec4 lightSpacePos, vec3 N, vec3 L, vec2 screenXY)
 
     if (proj.x < 0.0 || proj.x > 1.0 ||
         proj.y < 0.0 || proj.y > 1.0 ||
-        proj.z < 0.0 || proj.z > 1.0) {
+        proj.z < 0.0 || proj.z > 1.0)
+    {
         return 1.0;
     }
 
@@ -71,15 +75,26 @@ float calculateShadow(vec4 lightSpacePos, vec3 N, vec3 L, vec2 screenXY)
     mat2 rot = mat2(c, -s, s, c);
 
     float shadow = 0.0;
-    const int R = 2; // 5x5 kernel, rotated per pixel -> soft penumbra
-    for (int x = -R; x <= R; x++) {
-        for (int y = -R; y <= R; y++) {
+    const int R = 2;
+    for (int x = -R; x <= R; x++)
+    {
+        for (int y = -R; y <= R; y++)
+        {
             vec2 offset = rot * (vec2(x, y) * texelSize);
             shadow += texture(shadowMap, vec3(proj.xy + offset, proj.z - bias));
         }
     }
     float samples = float((2 * R + 1) * (2 * R + 1));
     return shadow / samples;
+}
+
+float calculatePointShadow(vec3 fragPos, vec3 lightPos)
+{
+    vec3 toFrag = fragPos - lightPos;
+    float closestDist = texture(pointShadowMap, toFrag).r * POINT_SHADOW_FAR_PLANE;
+    float currentDist = length(toFrag);
+    float bias = 0.05;
+    return (currentDist - bias > closestDist) ? 1.0 : 0.0;
 }
 
 void main()
@@ -99,20 +114,30 @@ void main()
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
     vec3 Lo = vec3(0.0);
+    bool pointShadowUsed = false;
 
-    for (int i = 0; i < lightData.count.x; i++) {
+    for (int i = 0; i < lightData.count.x; i++)
+    {
         Light light = lightData.lights[i];
         vec3 L, radiance;
 
         if (light.position.w < 0.5) {
             L = normalize(-light.position.xyz);
             radiance = light.color.rgb * light.color.a;
-        } else {
+        }
+        else
+        {
             vec3 toLight = light.position.xyz - fragWorldPos;
-            float dist = length(toLight);
+            float dist2 = max(dot(toLight, toLight), 0.01);
             L = normalize(toLight);
-            float atten = 1.0 / (1.0 + 0.09 * dist + 0.032 * dist * dist);
+            float atten = 1.0 / dist2;
             radiance = light.color.rgb * light.color.a * atten;
+
+            if (!pointShadowUsed) {
+                float pShadow = calculatePointShadow(fragWorldPos, light.position.xyz);
+                radiance *= (1.0 - pShadow);
+                pointShadowUsed = true;
+            }
         }
 
         vec3 H = normalize(V + L);
@@ -121,6 +146,8 @@ void main()
         vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
 
         vec3 specular = (D * G * F) / (4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001);
+        specular = min(specular, vec3(8.0));
+
         vec3 kD = (1.0 - F) * (1.0 - metallic);
         float NdotL = max(dot(N, L), 0.0);
 
@@ -131,6 +158,7 @@ void main()
 
         Lo += (kD * albedo / PI + specular) * radiance * NdotL * visibility;
     }
+
     vec3 kS_ambient = FresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
     vec3 kD_ambient = (1.0 - kS_ambient) * (1.0 - metallic);
 
@@ -140,7 +168,7 @@ void main()
     vec3 prefiltered = mix(sampleSky(R), irradiance, roughness * roughness);
     vec3 specularIBL = prefiltered * kS_ambient;
 
-    vec3 ambient = (diffuseIBL + specularIBL) * ao * 1.8;
+    vec3 ambient = (diffuseIBL + specularIBL) * ao * 1.3;
 
     vec3 color = ambient + Lo;
 

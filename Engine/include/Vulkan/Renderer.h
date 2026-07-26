@@ -17,6 +17,9 @@
 #include "Vulkan/HdrTarget.h"
 #include "Vulkan/BloomTarget.h"
 #include "Vulkan/PostRenderPass.h"
+#include "Vulkan/CubeShadowMap.h"
+#include "Vulkan/PointShadowRenderPass.h"
+#include "Vulkan/PointShadowPush.h"
 #include "Scene/Scene.h"
 #include "Core/Camera.h"
 #include <GLFW/glfw3.h>
@@ -41,6 +44,8 @@ public:
     std::vector<vk::DescriptorBufferInfo> getLightInfos() const;
     vk::ImageView getShadowView() const { return m_shadowMap.getImageView(); }
     vk::Sampler getShadowSampler() const { return m_shadowMap.getSampler(); }
+    vk::ImageView getPointShadowView() const { return m_pointShadowMap.getCubeView(); }
+    vk::Sampler getPointShadowSampler() const { return m_pointShadowMap.getSampler(); }
 
     uint32_t getFramesInFlight() const { return MAX_FRAMES_IN_FLIGHT; }
     float getAspect() const;
@@ -85,6 +90,17 @@ private:
     
     LightData m_pendingLights{};
 
+    //
+    CubeShadowMap m_pointShadowMap;
+    PointShadowRenderPass m_pointShadowRenderPass;
+    std::array<vk::UniqueFramebuffer, 6> m_pointShadowFramebuffers;
+    Pipeline m_pointShadowPipeline;
+    std::array<glm::mat4, 6> m_pointLightViewProj;
+    float m_pointShadowFarPlane = 25.0f;
+    void updatePointLightMatrices(glm::vec3 lightPos);
+    bool m_hasPointLightShadow = false;
+    glm::vec3 m_currentPointLightPos{0.0f};
+
     //Bloom
     BloomTarget m_brighTarget;
     BloomTarget m_blurTargetA;
@@ -103,6 +119,8 @@ private:
     std::vector<vk::DescriptorSet> m_blurDescriptorSetsB;
 
     float m_bloomThreshold = 1.0f;
+
+    float m_contrast = 1.0f;
 
     //HDR
     HdrTarget m_hdrTarget;

@@ -26,6 +26,7 @@ void Material::createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
     const std::vector<vk::DescriptorBufferInfo>& uboInfos,
     const std::vector<vk::DescriptorBufferInfo>& lightInfos,
     vk::ImageView shadowView, vk::Sampler shadowSampler,
+    vk::ImageView pointShadowView, vk::Sampler pointShadowSampler,
     uint32_t frameCount)
 {
     std::vector<vk::DescriptorSetLayout> layouts(frameCount, layout);
@@ -50,7 +51,7 @@ void Material::createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
         auto aoInfo     = makeImageInfo(m_ao.getImageView(), m_ao.getSampler());
         auto shadowInfo = makeImageInfo(shadowView, shadowSampler);
 
-        std::array<vk::WriteDescriptorSet, 7> writes{};
+        std::array<vk::WriteDescriptorSet, 8> writes{};
 
         writes[0].setDstSet(m_descriptorSets[i]);
         writes[0].setDstBinding(0);
@@ -84,6 +85,13 @@ void Material::createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
         writes[6].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
         writes[6].setDescriptorCount(1); 
         writes[6].setImageInfo(shadowInfo);
+
+        auto pointShadowInfo = makeImageInfo(pointShadowView, pointShadowSampler);
+        writes[7].setDstSet(m_descriptorSets[i]);
+        writes[7].setDstBinding(7);
+        writes[7].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        writes[7].setDescriptorCount(1);
+        writes[7].setImageInfo(pointShadowInfo);    
 
         device.updateDescriptorSets(writes, nullptr);
     }

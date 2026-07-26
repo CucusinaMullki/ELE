@@ -35,7 +35,7 @@ void Renderer::initialize(GLFWwindow* window)
     postConfig.useVertexInput = false;
     postConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
     postConfig.pushStage = vk::ShaderStageFlagBits::eFragment;
-    postConfig.pushConstantSize = sizeof(float);
+    postConfig.pushConstantSize = sizeof(float) * 2;
     postConfig.postProcess = true;
     postConfig.useDescriptors = false;
     postConfig.colorAttachmentCount = 1;
@@ -191,6 +191,38 @@ void Renderer::initialize(GLFWwindow* window)
 
     m_shadowFramebuffer = m_context.getDevice().createFramebufferUnique(shadowFbInfo);
 
+    m_pointShadowMap.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), 1024);
+    m_pointShadowRenderPass.initialize(m_context.getDevice(), m_pointShadowMap.getFormat());
+
+    for (uint32_t face = 0; face < 6; face++)
+    {
+        vk::ImageView faceView = m_pointShadowMap.getFaceView(face);
+        vk::FramebufferCreateInfo fbInfo{};
+        fbInfo.setRenderPass(m_pointShadowRenderPass.getRenderPass());
+        fbInfo.setAttachmentCount(1);
+        fbInfo.setPAttachments(&faceView);
+        fbInfo.setWidth(m_pointShadowMap.getSize());
+        fbInfo.setHeight(m_pointShadowMap.getSize());
+        fbInfo.setLayers(1);
+        m_pointShadowFramebuffers[face] = m_context.getDevice().createFramebufferUnique(fbInfo);
+    }
+
+    PipelineConfig pointShadowConfig{};
+    pointShadowConfig.vertexShader = "point_shadow";
+    pointShadowConfig.fragmentShader = "point_shadow";
+    pointShadowConfig.renderPass = m_pointShadowRenderPass.getRenderPass();
+    pointShadowConfig.cache = m_pipelineCache.get();
+    pointShadowConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
+    pointShadowConfig.useDescriptors = false;
+    pointShadowConfig.colorAttachmentCount = 0;
+    pointShadowConfig.cullMode = vk::CullModeFlagBits::eFront;
+    pointShadowConfig.depthBiasEnable = true;
+    pointShadowConfig.depthBiasConstant = 1.25f;
+    pointShadowConfig.depthBiasSlope = 1.75f;
+    pointShadowConfig.pushConstantSize = sizeof(glm::mat4) * 2 + sizeof(glm::vec4);
+    pointShadowConfig.pushStage = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment;
+    m_pointShadowPipeline.initialize(m_context.getDevice(), pointShadowConfig);
+
     PipelineConfig shadowConfig{};
     shadowConfig.vertexShader = "shadow";
     shadowConfig.fragmentShader = "";
@@ -222,6 +254,21 @@ void Renderer::initialize(GLFWwindow* window)
     }
     for (size_t i = 0; i < imageCount; i++)
         m_renderFinishedSemaphore[i] = m_context.getDevice().createSemaphoreUnique(semaphoreInfo);
+}
+
+void Renderer::updatePointLightMatrices(glm::vec3 lightPos)
+{
+    float aspect = 1.0f;
+    float nearPlane = 0.1f;
+    glm::mat4 shadowProj = glm::perspective(glm::radians(90.0f), aspect, nearPlane, m_pointShadowFarPlane);
+    shadowProj[1][1] *= -1;
+
+    m_pointLightViewProj[0] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3( 1, 0, 0), glm::vec3(0,-1, 0));
+    m_pointLightViewProj[1] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(-1, 0, 0), glm::vec3(0,-1, 0));
+    m_pointLightViewProj[2] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3( 0, 1, 0), glm::vec3(0, 0, 1));
+    m_pointLightViewProj[3] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3( 0,-1, 0), glm::vec3(0, 0,-1));
+    m_pointLightViewProj[4] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3( 0, 0, 1), glm::vec3(0,-1, 0));
+    m_pointLightViewProj[5] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3( 0, 0,-1), glm::vec3(0,-1, 0));
 }
 
 std::vector<vk::DescriptorBufferInfo> Renderer::getLightInfos() const
@@ -266,7 +313,6 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
         recreateSwapchain();
         return;
     }
-    
     if (m_imagesInFlight[imageIndex] != VK_NULL_HANDLE)
     {
         auto wr2 = device.waitForFences(m_imagesInFlight[imageIndex], true, UINT64_MAX);
@@ -278,14 +324,6 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
     auto cmd = m_commandManager.getCommandBuffer(m_currentFrame);
     cmd.reset();
 
-    MVP mvp{};
-    mvp.view = camera.getViewMatrix();
-    mvp.proj = camera.getProjectionMatrix();
-    mvp.lightSpaceMatrix = m_lightSpaceMatrix;
-    mvp.camPos = glm::vec4(camera.getPosition(), 1.0f);
-    m_uniformBuffer.update(m_currentFrame, mvp);
-    m_lightBuffer.update(m_currentFrame, m_pendingLights);
-
     glm::vec3 lightDir = glm::normalize(glm::vec3(m_pendingLights.lights[0].position));
     float orthSize = 20.0f;
     glm::mat4 lightProj = glm::ortho(-orthSize, orthSize, -orthSize, orthSize, 1.0f, 100.0f);
@@ -293,6 +331,31 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
     glm::vec3 lightPos = -lightDir * 30.0f;
     glm::mat4 lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     m_lightSpaceMatrix = lightProj * lightView;
+
+    glm::vec3 pointLightPos(0.0f);
+    bool hasPointLight = false;
+    for (int i = 0; i < m_pendingLights.count.x; i++)
+    {
+        if (m_pendingLights.lights[i].position.w >= 0.5f)
+        {
+            pointLightPos = glm::vec3(m_pendingLights.lights[i].position);
+            hasPointLight = true;
+            break;
+        }
+    }
+    if (hasPointLight)
+        updatePointLightMatrices(pointLightPos);
+
+    m_hasPointLightShadow = hasPointLight;
+    m_currentPointLightPos = pointLightPos;
+
+    MVP mvp{};
+    mvp.view = camera.getViewMatrix();
+    mvp.proj = camera.getProjectionMatrix();
+    mvp.lightSpaceMatrix = m_lightSpaceMatrix;
+    mvp.camPos = glm::vec4(camera.getPosition(), 1.0f);
+    m_uniformBuffer.update(m_currentFrame, mvp);
+    m_lightBuffer.update(m_currentFrame, m_pendingLights);
 
     recordCommandBuffer(cmd, imageIndex, scene, camera);
 
@@ -371,6 +434,52 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
                 obj->mesh->drawSubmesh(commandBuffer, sm);
         }
         commandBuffer.endRenderPass();
+    }
+    
+    if (m_hasPointLightShadow)
+    {
+        for (uint32_t face = 0; face < 6; face++)
+        {
+            vk::ClearValue shadowClear{};
+            shadowClear.setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
+
+            vk::RenderPassBeginInfo facePass{};
+            facePass.setRenderPass(m_pointShadowRenderPass.getRenderPass());
+            facePass.setFramebuffer(m_pointShadowFramebuffers[face].get());
+            facePass.setRenderArea(vk::Rect2D{ {0, 0}, { m_pointShadowMap.getSize(), m_pointShadowMap.getSize() } });
+            facePass.setClearValues(shadowClear);
+
+            commandBuffer.beginRenderPass(facePass, vk::SubpassContents::eInline);
+            commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pointShadowPipeline.getPipeline());
+
+            vk::Viewport vp{};
+            vp.setWidth((float)m_pointShadowMap.getSize()).setHeight((float)m_pointShadowMap.getSize())
+              .setMinDepth(0.0f).setMaxDepth(1.0f);
+            commandBuffer.setViewport(0, vp);
+            vk::Rect2D sc{};
+            sc.setExtent({ m_pointShadowMap.getSize(), m_pointShadowMap.getSize() });
+            commandBuffer.setScissor(0, sc);
+
+            for (const auto& obj : scene.getObjects())
+            {
+                if (!obj->mesh) continue;
+                obj->mesh->bind(commandBuffer);
+
+                PointShadowPush psPush{};
+                psPush.lightViewProj = m_pointLightViewProj[face];
+                psPush.model = obj->transform.getMatrix();
+                psPush.lightPos = glm::vec4(m_currentPointLightPos, m_pointShadowFarPlane);
+
+                commandBuffer.pushConstants(m_pointShadowPipeline.getLayout(),
+                    vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                    0, sizeof(PointShadowPush), &psPush);
+
+                for (const auto& sm : obj->mesh->getSubmeshes())
+                    obj->mesh->drawSubmesh(commandBuffer, sm);
+            }
+
+            commandBuffer.endRenderPass();
+        }
     }
 
     //HDR
@@ -545,8 +654,9 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
         commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
             m_postPipeline.getLayout(), 0, m_postDescriptorSets[m_currentFrame], nullptr);
 
+        struct TonemapPush { float exposure; float contrast; } tmPush{ m_exposure, m_contrast };
         commandBuffer.pushConstants(m_postPipeline.getLayout(),
-            vk::ShaderStageFlagBits::eFragment, 0, sizeof(float), &m_exposure);
+            vk::ShaderStageFlagBits::eFragment, 0, sizeof(TonemapPush), &tmPush);
 
         commandBuffer.draw(3, 1, 0, 0);
 
@@ -590,6 +700,11 @@ void Renderer::cleanup()
     m_postPipeline.cleanup();
     m_hdrRenderPass.cleanup();
     m_hdrTarget.cleanup();
+
+    for (auto& fb : m_pointShadowFramebuffers) fb.reset();
+    m_pointShadowPipeline.cleanup();
+    m_pointShadowRenderPass.cleanup();
+    m_pointShadowMap.cleanup();
 
     m_shadowFramebuffer.reset();
     m_shadowPipeline.cleanup();

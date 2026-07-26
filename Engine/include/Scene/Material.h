@@ -31,8 +31,9 @@ public:
     void createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
         vk::DescriptorSetLayout layout,
         const std::vector<vk::DescriptorBufferInfo>& uboInfos,
-        const std::vector<vk::DescriptorBufferInfo>& lightInfo,
+        const std::vector<vk::DescriptorBufferInfo>& lightInfos,
         vk::ImageView shadowView, vk::Sampler shadowSampler,
+        vk::ImageView pointShadowView, vk::Sampler pointShadowSampler,
         uint32_t frameCount);
     
     vk::DescriptorSet getDescriptorSet(uint32_t frame) const { return m_descriptorSets[frame]; }
