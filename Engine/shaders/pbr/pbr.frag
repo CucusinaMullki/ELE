@@ -102,7 +102,7 @@ void main()
     vec3 albedo = pow(texture(albedoMap, fragTexCoord).rgb, vec3(2.2));
     vec3 mr = texture(metallicRoughnessMap, fragTexCoord).rgb;
     float roughness = clamp(mr.g, 0.05, 1.0);
-    float metallic = mr.b;
+    float metallic = mr.r;
     float ao = texture(aoMap, fragTexCoord).r;
 
     vec3 N = texture(normalMap, fragTexCoord).rgb;
@@ -159,17 +159,7 @@ void main()
         Lo += (kD * albedo / PI + specular) * radiance * NdotL * visibility;
     }
 
-    vec3 kS_ambient = FresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
-    vec3 kD_ambient = (1.0 - kS_ambient) * (1.0 - metallic);
-
-    vec3 irradiance = sampleSky(N);
-    vec3 diffuseIBL = irradiance * albedo * kD_ambient;
-
-    vec3 prefiltered = mix(sampleSky(R), irradiance, roughness * roughness);
-    vec3 specularIBL = prefiltered * kS_ambient;
-
-    vec3 ambient = (diffuseIBL + specularIBL) * ao * 1.3;
-
+    vec3 ambient = vec3(0.02) * albedo * ao;
     vec3 color = ambient + Lo;
 
     outColor = vec4(color, 1.0);

@@ -171,7 +171,7 @@ void GltfModel::load(const std::string& path)
         m_images.push_back(gi);
     }
 
-    for (const auto& mat : model.materials)
+        for (const auto& mat : model.materials)
     {
         GltfMaterial gm{};
 
@@ -189,9 +189,17 @@ void GltfModel::load(const std::string& path)
         if (mat.occlusionTexture.index >= 0)
             gm.aoImage = model.textures[mat.occlusionTexture.index].source;
 
+        // Числовые множители из glTF material
+        gm.metallicFactor = (float)pbr.metallicFactor;
+        gm.roughnessFactor = (float)pbr.roughnessFactor;
+
+        LOG("gltf material: mrImage=" << gm.mrImage
+            << " metallicFactor=" << gm.metallicFactor
+            << " roughnessFactor=" << gm.roughnessFactor);
+
         m_materials.push_back(gm);
     }
-
+    
     for (const auto& node : model.nodes)
     {
         if (node.light < 0) continue;

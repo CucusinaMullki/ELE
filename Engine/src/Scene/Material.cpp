@@ -9,7 +9,7 @@ void Material::load(vk::Device device, vk::PhysicalDevice physicalDevice,
 {
     m_albedo.initialize(device, physicalDevice, pool, queue, albedoPath);
     m_normal.initialize(device, physicalDevice, pool, queue, normalPath);
-    m_metallicRoughness.initialize(device, physicalDevice, pool, queue, metallicPath);
+    m_metallicRoughness.initialize(device, physicalDevice, pool, queue, metallicPath, false);
     m_ao.initialize(device, physicalDevice, pool, queue, roughnessPath);
 }
 

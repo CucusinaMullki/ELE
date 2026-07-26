@@ -13,8 +13,7 @@ void CubeShadowMap::initialize(vk::Device device, vk::PhysicalDevice physicalDev
     imageInfo.setFormat(m_format);
     imageInfo.setTiling(vk::ImageTiling::eOptimal);
     imageInfo.setInitialLayout(vk::ImageLayout::eUndefined);
-    imageInfo.setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment |
-                       vk::ImageUsageFlagBits::eSampled);
+    imageInfo.setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled);
     imageInfo.setSamples(vk::SampleCountFlagBits::e1);
     imageInfo.setSharingMode(vk::SharingMode::eExclusive);
     imageInfo.setFlags(vk::ImageCreateFlagBits::eCubeCompatible);
@@ -23,8 +22,7 @@ void CubeShadowMap::initialize(vk::Device device, vk::PhysicalDevice physicalDev
     auto memReq = device.getImageMemoryRequirements(m_image.get());
     vk::MemoryAllocateInfo allocInfo{};
     allocInfo.setAllocationSize(memReq.size);
-    allocInfo.setMemoryTypeIndex(findMemoryType(physicalDevice, memReq.memoryTypeBits,
-        vk::MemoryPropertyFlagBits::eDeviceLocal));
+    allocInfo.setMemoryTypeIndex(findMemoryType(physicalDevice, memReq.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal));
     m_memory = device.allocateMemoryUnique(allocInfo);
     device.bindImageMemory(m_image.get(), m_memory.get(), 0);
 
@@ -34,8 +32,7 @@ void CubeShadowMap::initialize(vk::Device device, vk::PhysicalDevice physicalDev
         faceViewInfo.setImage(m_image.get());
         faceViewInfo.setViewType(vk::ImageViewType::e2D);
         faceViewInfo.setFormat(m_format);
-        faceViewInfo.setSubresourceRange(vk::ImageSubresourceRange{
-            vk::ImageAspectFlagBits::eDepth, 0, 1, face, 1 });
+        faceViewInfo.setSubresourceRange(vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eDepth, 0, 1, face, 1 });
         m_faceViews[face] = device.createImageViewUnique(faceViewInfo);
     }
 
@@ -43,8 +40,7 @@ void CubeShadowMap::initialize(vk::Device device, vk::PhysicalDevice physicalDev
     cubeViewInfo.setImage(m_image.get());
     cubeViewInfo.setViewType(vk::ImageViewType::eCube);
     cubeViewInfo.setFormat(m_format);
-    cubeViewInfo.setSubresourceRange(vk::ImageSubresourceRange{
-        vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 6 });
+    cubeViewInfo.setSubresourceRange(vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 6 });
     m_cubeView = device.createImageViewUnique(cubeViewInfo);
 
     vk::SamplerCreateInfo samplerInfo{};
@@ -75,8 +71,7 @@ uint32_t CubeShadowMap::findMemoryType(vk::PhysicalDevice physicalDevice, uint32
     auto memProps = physicalDevice.getMemoryProperties();
     for (uint32_t i = 0; i < memProps.memoryTypeCount; i++)
     {
-        if ((typeFilter & (1 << i)) &&
-            (memProps.memoryTypes[i].propertyFlags & properties) == properties)
+        if ((typeFilter & (1 << i)) && (memProps.memoryTypes[i].propertyFlags & properties) == properties)
             return i;
     }
     throw std::runtime_error("failed to find suitable memory type!");

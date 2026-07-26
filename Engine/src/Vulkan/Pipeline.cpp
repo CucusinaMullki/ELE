@@ -28,11 +28,11 @@ void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
     
         vk::DescriptorPoolSize poolSize{};
         poolSize.setType(vk::DescriptorType::eCombinedImageSampler);
-        poolSize.setDescriptorCount(config.frameCount * 4 * 2);
+        poolSize.setDescriptorCount(config.frameCount * 16);
     
         vk::DescriptorPoolCreateInfo poolInfo{};
         poolInfo.setPoolSizes(poolSize);
-        poolInfo.setMaxSets(config.frameCount * 4);
+        poolInfo.setMaxSets(config.frameCount * 16);
         m_descriptorPool = device.createDescriptorPoolUnique(poolInfo);
     }
     else if (config.useDescriptors)
@@ -167,6 +167,12 @@ void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
             vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | 
             vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
         colorBlendAttachment.setBlendEnable(config.blendEnable);
+        colorBlendAttachment.setSrcColorBlendFactor(config.blendSrcFactor);
+        colorBlendAttachment.setDstColorBlendFactor(config.blendDstFactor);
+        colorBlendAttachment.setColorBlendOp(config.blendOp);
+        colorBlendAttachment.setSrcAlphaBlendFactor(vk::BlendFactor::eOne);
+        colorBlendAttachment.setDstAlphaBlendFactor(vk::BlendFactor::eZero);
+        colorBlendAttachment.setAlphaBlendOp(vk::BlendOp::eAdd);
         colorBlending.setAttachments({colorBlendAttachment});
     }
     else

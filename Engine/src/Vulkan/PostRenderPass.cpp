@@ -1,11 +1,11 @@
 #include "Vulkan/PostRenderPass.h"
 
-void PostRenderPass::initialize(vk::Device device, vk::Format colorFormat)
+void PostRenderPass::initialize(vk::Device device, vk::Format colorFormat, vk::AttachmentLoadOp loadOp)
 {
     vk::AttachmentDescription colorAttachment{};
     colorAttachment.setFormat(colorFormat);
     colorAttachment.setSamples(vk::SampleCountFlagBits::e1);
-    colorAttachment.setLoadOp(vk::AttachmentLoadOp::eClear);
+    colorAttachment.setLoadOp(loadOp); 
     colorAttachment.setStoreOp(vk::AttachmentStoreOp::eStore);
     colorAttachment.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
     colorAttachment.setStencilStoreOp(vk::AttachmentStoreOp::eDontCare);

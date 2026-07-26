@@ -1,6 +1,20 @@
 #include "Core/Engine.h"
 #include "Core/Log.h"
 
+std::vector<unsigned char> applyMRFactors(const unsigned char* src, int w, int h,
+    float metallicFactor, float roughnessFactor)
+{
+    std::vector<unsigned char> result(w * h * 4);
+    for (int i = 0; i < w * h; i++)
+    {
+        result[i*4+0] = src[i*4+0];
+        result[i*4+1] = (unsigned char)std::clamp((int)(src[i*4+1] * roughnessFactor), 0, 255);
+        result[i*4+2] = (unsigned char)std::clamp((int)(src[i*4+2] * metallicFactor), 0, 255);
+        result[i*4+3] = src[i*4+3];
+    }
+    return result;
+}
+
 void Engine::initialize(int width, int height, const std::string& title)
 {
     glfwInit();
@@ -110,6 +124,7 @@ GameObject& Engine::loadGltfObject(const std::string& path)
 
     static const unsigned char white[4] = { 255, 255, 255, 255 };
     static const unsigned char normalPx[4] = { 128, 128, 255, 255 };
+    static const unsigned char defaultMR[4] = {0, 128, 0, 255}; 
 
     std::vector<std::shared_ptr<Material>> materials;
     for (const auto& gm : model.getMaterials())
@@ -135,8 +150,11 @@ GameObject& Engine::loadGltfObject(const std::string& path)
         int aw, ah, nw, nh, mw, mh, ow, oh;
         const unsigned char* aPx = getPx(gm.albedoImage, white, aw, ah);
         const unsigned char* nPx = getPx(gm.normalImage, normalPx, nw, nh);
-        const unsigned char* mPx = getPx(gm.mrImage, white, mw, mh);
+        const unsigned char* mPxRaw = getPx(gm.mrImage, defaultMR, mw, mh);
         const unsigned char* oPx = getPx(gm.aoImage, white, ow, oh);
+
+        std::vector<unsigned char> mrAdjusted = applyMRFactors(mPxRaw, mw, mh, gm.metallicFactor, gm.roughnessFactor);
+        const unsigned char* mPx = mrAdjusted.data();
 
         auto mat = std::make_shared<Material>();
         mat->loadFromPixels(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
@@ -158,16 +176,14 @@ GameObject& Engine::loadGltfObject(const std::string& path)
     {
         switch (gl.type)
         {
-        case 0:
-            addDirectionalLight(gl.direction, gl.color, gl.intensity); // 683.0f);
-            break;
-        
-        case 1:
-            addPointLight(gl.position, gl.color, gl.intensity); // 683.0f);
-            break;
-
-        default:
-            break;
+            case 0:
+                addDirectionalLight(gl.direction, gl.color, gl.intensity / 683.0f);
+                break;
+            case 1:
+                addPointLight(gl.position, gl.color, gl.intensity / 683.0f);
+                break;
+            default:
+                break;
         }
     }
 

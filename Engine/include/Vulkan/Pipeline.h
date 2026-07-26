@@ -14,6 +14,10 @@ struct PipelineConfig
     uint32_t maxMaterials = 100;
     uint32_t pushConstantSize = sizeof(glm::mat4) * 2;
 
+    vk::BlendFactor blendSrcFactor = vk::BlendFactor::eOne;
+    vk::BlendFactor blendDstFactor = vk::BlendFactor::eZero;
+    vk::BlendOp blendOp = vk::BlendOp::eAdd;
+
     vk::ShaderStageFlags pushStage = vk::ShaderStageFlagBits::eVertex;
 
     bool useDescriptors = true;

@@ -19,6 +19,7 @@
 #include "Vulkan/PostRenderPass.h"
 #include "Vulkan/CubeShadowMap.h"
 #include "Vulkan/PointShadowRenderPass.h"
+#include "Vulkan/BloomChain.h"
 #include "Vulkan/PointShadowPush.h"
 #include "Scene/Scene.h"
 #include "Core/Camera.h"
@@ -65,7 +66,7 @@ private:
     bool m_framebufferResized = false;
     size_t m_currentFrame = 0;
     
-    float m_exposure = 0.01f;
+    float m_exposure = 1.0f;
 
     VulkanContext m_context;
     SwapChain m_swapchain;
@@ -118,7 +119,18 @@ private:
     std::vector<vk::DescriptorSet> m_blurDescriptorSetsA;
     std::vector<vk::DescriptorSet> m_blurDescriptorSetsB;
 
-    float m_bloomThreshold = 1.0f;
+    BloomChain m_bloomChain;
+    std::array<vk::UniqueFramebuffer, BloomChain::MIP_COUNT> m_bloomFramebuffers;
+
+    Pipeline m_downsamplePipeline;
+    Pipeline m_upsamplePipeline;
+
+    std::vector<vk::DescriptorSet> m_downsampleDescriptorSets[BloomChain::MIP_COUNT];
+    std::vector<vk::DescriptorSet> m_upsampleDescriptorSets[BloomChain::MIP_COUNT];
+    
+    PostRenderPass m_postRenderPassLoad;
+    
+    float m_bloomThreshold = 4.0f;
 
     float m_contrast = 1.0f;
 

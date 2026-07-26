@@ -27,6 +27,8 @@ struct GltfMaterial
     int normalImage = -1;
     int mrImage = -1;
     int aoImage = -1;
+    float metallicFactor = 1.0f;
+    float roughnessFactor = 1.0f;
 };
 
 class GltfModel

@@ -53,6 +53,7 @@ add_library(ELE STATIC
     Engine/src/Vulkan/PostRenderPass.cpp
     Engine/src/Vulkan/PointShadowRenderPass.cpp
     Engine/src/Vulkan/CubeShadowMap.cpp
+    Engine/src/Vulkan/BloomChain.cpp
 )
 
 target_include_directories(ELE PUBLIC
