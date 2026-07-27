@@ -4,7 +4,7 @@
 class HdrRenderPass
 {
 public:
-    void initialize(vk::Device device, vk::Format colorFormat, vk::Format depthFormat);
+    void initialize(vk::Device device, vk::Format colorFormat, vk::Format velocityFormat, vk::Format depthFormat);
     void cleanup();
 
     vk::RenderPass getRenderPass() const { return m_renderPass.get(); }

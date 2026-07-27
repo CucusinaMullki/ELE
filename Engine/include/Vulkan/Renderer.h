@@ -22,6 +22,8 @@
 #include "Vulkan/BloomChain.h"
 #include "Vulkan/AntiAliasing.h"
 #include "Vulkan/NoAA.h"
+#include "Vulkan/VelocityTarget.h"
+#include "Vulkan/HistoryBuffer.h"
 #include "Vulkan/PointShadowPush.h"
 #include "Scene/Scene.h"
 #include "Vulkan/LdrTarget.h"
@@ -122,7 +124,7 @@ private:
     Pipeline m_brightPipeline;
     Pipeline m_blurPipeline;
 
-    std::vector<vk::DescriptorSet> m_brightDescriptorSets;
+    std::vector<vk::DescriptorSet> m_brightDescriptorSets[2];
     std::vector<vk::DescriptorSet> m_blurDescriptorSetsA;
     std::vector<vk::DescriptorSet> m_blurDescriptorSetsB;
 
@@ -146,7 +148,7 @@ private:
     HdrRenderPass m_hdrRenderPass;
     vk::UniqueFramebuffer m_hdrFramebuffer;
     Pipeline m_postPipeline;
-    std::vector<vk::DescriptorSet> m_postDescriptorSets;
+    std::vector<vk::DescriptorSet> m_postDescriptorSets[2];
 
     std::vector<vk::UniqueSemaphore> m_imageAvailableSemaphore;
     std::vector<vk::UniqueSemaphore> m_renderFinishedSemaphore;
@@ -160,4 +162,21 @@ private:
     PostRenderPass m_ldrRenderPass;
     vk::UniqueFramebuffer m_ldrFramebuffer;
     FXAA m_fxaa;
+
+    std::array<glm::vec2, 16> m_halfSequence;
+    uint32_t m_frameIndex = 0;
+
+    glm::vec2 getJitter() const;
+
+    VelocityTarget m_velocityTarget;
+
+    HistoryBuffer m_historyBuffer;
+    std::array<vk::UniqueFramebuffer, 2> m_taaFramebuffers;
+    Pipeline m_taaPipeline;
+    std::vector<vk::DescriptorSet> m_taaDescriptorSets[2];
+    uint32_t m_historyIndex = 0;
+    float m_taaBlendFactor = 0.9f;
+
+    std::vector<vk::DescriptorSet> m_brightDescriptorSetsRaw;
+    std::vector<vk::DescriptorSet> m_postDescriptorSetsRaw;
 };

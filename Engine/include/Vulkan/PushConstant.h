@@ -5,4 +5,5 @@ struct PushConstant
 {
     glm::mat4 model;
     glm::mat4 normalMatrix;
+    glm::mat4 prevModel;
 };

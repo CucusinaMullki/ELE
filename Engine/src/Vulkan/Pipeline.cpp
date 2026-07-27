@@ -8,31 +8,26 @@ void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
 {
     if (config.postProcess)
     {
-        vk::DescriptorSetLayoutBinding samplerBinding{};
-        samplerBinding.setBinding(0);
-        samplerBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-        samplerBinding.setDescriptorCount(1);
-        samplerBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
-    
-        vk::DescriptorSetLayoutBinding bloomBinding{};
-        bloomBinding.setBinding(1);
-        bloomBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-        bloomBinding.setDescriptorCount(1);
-        bloomBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
-    
-        std::array<vk::DescriptorSetLayoutBinding, 2> postBindings = { samplerBinding, bloomBinding };
-    
+        std::array<vk::DescriptorSetLayoutBinding, 3> postBindings{};
+        for (uint32_t b = 0; b < 3; b++)
+        {
+            postBindings[b].setBinding(b);
+            postBindings[b].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+            postBindings[b].setDescriptorCount(1);
+            postBindings[b].setStageFlags(vk::ShaderStageFlagBits::eFragment);
+        }
+
         vk::DescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.setBindings(postBindings);
         m_descriptorSetLayout = device.createDescriptorSetLayoutUnique(layoutInfo);
-    
+
         vk::DescriptorPoolSize poolSize{};
         poolSize.setType(vk::DescriptorType::eCombinedImageSampler);
-        poolSize.setDescriptorCount(config.frameCount * 16);
-    
+        poolSize.setDescriptorCount(config.frameCount * 256 * 3);
+
         vk::DescriptorPoolCreateInfo poolInfo{};
         poolInfo.setPoolSizes(poolSize);
-        poolInfo.setMaxSets(config.frameCount * 16);
+        poolInfo.setMaxSets(config.frameCount * 256);
         m_descriptorPool = device.createDescriptorPoolUnique(poolInfo);
     }
     else if (config.useDescriptors)
@@ -159,21 +154,29 @@ void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
     multisampling.setRasterizationSamples(vk::SampleCountFlagBits::e1);
 
     vk::PipelineColorBlendStateCreateInfo colorBlending{};
-    vk::PipelineColorBlendAttachmentState colorBlendAttachment{};
     colorBlending.setLogicOpEnable(false);
+
+    std::vector<vk::PipelineColorBlendAttachmentState> colorBlendAttachments;
+
     if (config.colorAttachmentCount > 0)
     {
-        colorBlendAttachment.setColorWriteMask(
-            vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | 
-            vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
-        colorBlendAttachment.setBlendEnable(config.blendEnable);
-        colorBlendAttachment.setSrcColorBlendFactor(config.blendSrcFactor);
-        colorBlendAttachment.setDstColorBlendFactor(config.blendDstFactor);
-        colorBlendAttachment.setColorBlendOp(config.blendOp);
-        colorBlendAttachment.setSrcAlphaBlendFactor(vk::BlendFactor::eOne);
-        colorBlendAttachment.setDstAlphaBlendFactor(vk::BlendFactor::eZero);
-        colorBlendAttachment.setAlphaBlendOp(vk::BlendOp::eAdd);
-        colorBlending.setAttachments({colorBlendAttachment});
+        colorBlendAttachments.resize(config.colorAttachmentCount);
+
+        for (auto& cba : colorBlendAttachments)
+        {
+            cba.setColorWriteMask(
+                vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
+            cba.setBlendEnable(config.blendEnable);
+            cba.setSrcColorBlendFactor(config.blendSrcFactor);
+            cba.setDstColorBlendFactor(config.blendDstFactor);
+            cba.setColorBlendOp(config.blendOp);
+            cba.setSrcAlphaBlendFactor(vk::BlendFactor::eOne);
+            cba.setDstAlphaBlendFactor(vk::BlendFactor::eZero);
+            cba.setAlphaBlendOp(vk::BlendOp::eAdd);
+        }
+
+        colorBlending.setAttachments(colorBlendAttachments);
     }
     else
     {

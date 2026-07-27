@@ -56,6 +56,8 @@ add_library(ELE STATIC
     Engine/src/Vulkan/BloomChain.cpp
     Engine/src/Vulkan/LdrTarget.cpp
     Engine/src/Vulkan/FXAA.cpp
+    Engine/src/Vulkan/VelocityTarget.cpp
+    Engine/src/Vulkan/HistoryBuffer.cpp
 )
 
 target_include_directories(ELE PUBLIC

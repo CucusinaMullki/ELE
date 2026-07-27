@@ -34,7 +34,11 @@ layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec4 fragLightSpacePos;
 layout(location = 3) in mat3 fragTBN;
 
+layout(location = 6) in vec4 fragCurrClipPos;
+layout(location = 7) in vec4 fragPrevClipPos;
+
 layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec2 outVelocity;
 
 const vec3 SKY_ZENITH  = vec3(0.20, 0.32, 0.55);
 const vec3 SKY_HORIZON = vec3(0.55, 0.60, 0.65);
@@ -163,4 +167,8 @@ void main()
     vec3 color = ambient + Lo;
 
     outColor = vec4(color, 1.0);
+
+    vec2 currNDC = fragCurrClipPos.xy / fragCurrClipPos.w;
+    vec2 prevNDC = fragPrevClipPos.xy / fragPrevClipPos.w;
+    outVelocity = (currNDC - prevNDC) * 0.5;
 }
