@@ -30,6 +30,8 @@ public:
 
     void onFramebufferResize();
 
+    void setAntialiasing(AAMethod method) { m_renderer.setAAMethod(method); }
+
 private:
     void updateInput(float deltaTime);
 

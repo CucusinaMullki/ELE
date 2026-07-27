@@ -12,6 +12,8 @@ void Renderer::initialize(GLFWwindow* window)
     m_renderPass.initialize(m_context.getDevice(), m_swapchain.getImageFormat(), m_depthBuffer.getFormat());
     m_pipelineCache.initialize(m_context.getDevice());
 
+    setAAMethod(AAMethod::None);
+
     m_hdrTarget.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), m_swapchain.getExtent());
     m_hdrRenderPass.initialize(m_context.getDevice(), m_hdrTarget.getColorFormat(), m_depthBuffer.getFormat());
 
@@ -144,10 +146,23 @@ void Renderer::initialize(GLFWwindow* window)
 
     m_postRenderPassLoad.initialize(m_context.getDevice(), m_brighTarget.getColorFormat(), vk::AttachmentLoadOp::eLoad);
 
+    m_ldrTarget.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), m_swapchain.getExtent());
+    m_ldrRenderPass.initialize(m_context.getDevice(), m_ldrTarget.getColorFormat());
+
+    vk::ImageView ldrView = m_ldrTarget.getColorView();
+    vk::FramebufferCreateInfo ldrFbInfo{};
+    ldrFbInfo.setRenderPass(m_ldrRenderPass.getRenderPass());
+    ldrFbInfo.setAttachmentCount(1);
+    ldrFbInfo.setPAttachments(&ldrView);
+    ldrFbInfo.setWidth(m_swapchain.getExtent().width);
+    ldrFbInfo.setHeight(m_swapchain.getExtent().height);
+    ldrFbInfo.setLayers(1);
+    m_ldrFramebuffer = m_context.getDevice().createFramebufferUnique(ldrFbInfo);    
+
     PipelineConfig postConfig{};
     postConfig.vertexShader = "fullscreen";
     postConfig.fragmentShader = "tonemap";
-    postConfig.renderPass = m_renderPass.getRenderPass();
+    postConfig.renderPass = m_ldrRenderPass.getRenderPass();
     postConfig.cache = m_pipelineCache.get();
     postConfig.useVertexInput = false;
     postConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
@@ -194,6 +209,11 @@ void Renderer::initialize(GLFWwindow* window)
 
         m_context.getDevice().updateDescriptorSets(writes, nullptr);
     }
+
+    m_fxaa.initializeWithRenderPass(m_context.getDevice(), m_pipelineCache.get(),
+        m_renderPass.getRenderPass(), MAX_FRAMES_IN_FLIGHT);
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        m_fxaa.updateDescriptorSet(m_context.getDevice(), i, m_ldrTarget.getColorView(), m_ldrTarget.getSampler());
 
     PipelineConfig pbrConfig{};
     pbrConfig.vertexShader = "pbr";
@@ -429,11 +449,140 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
 void Renderer::recreateSwapchain()
 {
     m_context.getDevice().waitIdle();
+
     m_framebuffers.cleanup();
     m_depthBuffer.cleanup();
     m_swapchain.recreate(m_context, m_window);
-    m_depthBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), m_swapchain.getExtent());
+    vk::Extent2D extent = m_swapchain.getExtent();
+
+    m_depthBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), extent);
     m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass(), m_depthBuffer.getImageView());
+
+    m_hdrFramebuffer.reset();
+    m_hdrTarget.cleanup();
+    m_hdrTarget.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), extent);
+
+    std::array<vk::ImageView, 2> hdrAttachment = {
+        m_hdrTarget.getColorView(),
+        m_depthBuffer.getImageView()
+    };
+    vk::FramebufferCreateInfo hdrFbInfo{};
+    hdrFbInfo.setRenderPass(m_hdrRenderPass.getRenderPass());
+    hdrFbInfo.setAttachments(hdrAttachment);
+    hdrFbInfo.setWidth(extent.width);
+    hdrFbInfo.setHeight(extent.height);
+    hdrFbInfo.setLayers(1);
+    m_hdrFramebuffer = m_context.getDevice().createFramebufferUnique(hdrFbInfo);
+
+    m_brightFramebuffer.reset();
+    m_brighTarget.cleanup();
+    m_brighTarget.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), extent);
+
+    vk::ImageView brightView = m_brighTarget.getColorView();
+    vk::FramebufferCreateInfo brightFbInfo{};
+    brightFbInfo.setRenderPass(m_postRenderPass.getRenderPass());
+    brightFbInfo.setAttachmentCount(1);
+    brightFbInfo.setPAttachments(&brightView);
+    brightFbInfo.setWidth(extent.width);
+    brightFbInfo.setHeight(extent.height);
+    brightFbInfo.setLayers(1);
+    m_brightFramebuffer = m_context.getDevice().createFramebufferUnique(brightFbInfo);
+
+    for (auto& fb : m_bloomFramebuffers) fb.reset();
+    m_bloomChain.cleanup();
+    m_bloomChain.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), extent);
+
+    for (uint32_t level = 0; level < BloomChain::MIP_COUNT; level++)
+    {
+        vk::ImageView view = m_bloomChain.getMipView(level);
+        vk::FramebufferCreateInfo fbInfo{};
+        fbInfo.setRenderPass(m_postRenderPass.getRenderPass());
+        fbInfo.setAttachmentCount(1);
+        fbInfo.setPAttachments(&view);
+        vk::Extent2D mipExtent = m_bloomChain.getMipExtent(level);
+        fbInfo.setWidth(mipExtent.width);
+        fbInfo.setHeight(mipExtent.height);
+        fbInfo.setLayers(1);
+        m_bloomFramebuffers[level] = m_context.getDevice().createFramebufferUnique(fbInfo);
+    }
+
+    m_ldrFramebuffer.reset();
+    m_ldrTarget.cleanup();
+    m_ldrTarget.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), extent);
+
+    vk::ImageView ldrView = m_ldrTarget.getColorView();
+    vk::FramebufferCreateInfo ldrFbInfo{};
+    ldrFbInfo.setRenderPass(m_ldrRenderPass.getRenderPass());
+    ldrFbInfo.setAttachmentCount(1);
+    ldrFbInfo.setPAttachments(&ldrView);
+    ldrFbInfo.setWidth(extent.width);
+    ldrFbInfo.setHeight(extent.height);
+    ldrFbInfo.setLayers(1);
+    m_ldrFramebuffer = m_context.getDevice().createFramebufferUnique(ldrFbInfo);
+
+    auto writeDescSet = [&](vk::DescriptorSet set, vk::ImageView view, vk::Sampler sampler) {
+        vk::DescriptorImageInfo info{};
+        info.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+        info.setImageView(view);
+        info.setSampler(sampler);
+
+        vk::WriteDescriptorSet write{};
+        write.setDstSet(set);
+        write.setDstBinding(0);
+        write.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        write.setDescriptorCount(1);
+        write.setImageInfo(info);
+        m_context.getDevice().updateDescriptorSets(write, nullptr);
+    };
+
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        writeDescSet(m_brightDescriptorSets[i], m_hdrTarget.getColorView(), m_hdrTarget.getSampler());
+
+    for (uint32_t level = 0; level < BloomChain::MIP_COUNT; level++)
+    {
+        vk::ImageView srcView = (level == 0) ? m_brighTarget.getColorView() : m_bloomChain.getMipView(level - 1);
+        vk::Sampler srcSampler = (level == 0) ? m_brighTarget.getSampler() : m_bloomChain.getSampler();
+        for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+            writeDescSet(m_downsampleDescriptorSets[level][i], srcView, srcSampler);
+    }
+
+    for (uint32_t level = 0; level < BloomChain::MIP_COUNT - 1; level++)
+    {
+        vk::ImageView srcView = m_bloomChain.getMipView(level + 1);
+        for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+            writeDescSet(m_upsampleDescriptorSets[level][i], srcView, m_bloomChain.getSampler());
+    }
+
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+    {
+        vk::DescriptorImageInfo hdrInfo{};
+        hdrInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+        hdrInfo.setImageView(m_hdrTarget.getColorView());
+        hdrInfo.setSampler(m_hdrTarget.getSampler());
+
+        vk::DescriptorImageInfo bloomInfo{};
+        bloomInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+        bloomInfo.setImageView(m_bloomChain.getMipView(0));
+        bloomInfo.setSampler(m_bloomChain.getSampler());
+
+        std::array<vk::WriteDescriptorSet, 2> writes{};
+        writes[0].setDstSet(m_postDescriptorSets[i]);
+        writes[0].setDstBinding(0);
+        writes[0].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        writes[0].setDescriptorCount(1);
+        writes[0].setImageInfo(hdrInfo);
+
+        writes[1].setDstSet(m_postDescriptorSets[i]);
+        writes[1].setDstBinding(1);
+        writes[1].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        writes[1].setDescriptorCount(1);
+        writes[1].setImageInfo(bloomInfo);
+
+        m_context.getDevice().updateDescriptorSets(writes, nullptr);
+    }
+
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        m_fxaa.updateDescriptorSet(m_context.getDevice(), i, m_ldrTarget.getColorView(), m_ldrTarget.getSampler());
 
     size_t imageCount = m_swapchain.getImageViews().size();
     if (m_renderFinishedSemaphore.size() != imageCount)
@@ -696,18 +845,50 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
     }
 
     {
+        vk::ClearValue clear{};
+        clear.setColor(vk::ClearColorValue{ std::array<float,4>{ 0.0f, 0.0f, 0.0f, 1.0f } });
+
+        vk::RenderPassBeginInfo pass{};
+        pass.setRenderPass(m_ldrRenderPass.getRenderPass());
+        pass.setFramebuffer(m_ldrFramebuffer.get());
+        pass.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
+        pass.setClearValues(clear);
+
+        commandBuffer.beginRenderPass(pass, vk::SubpassContents::eInline);
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_postPipeline.getPipeline());
+
+        vk::Viewport viewport{};
+        viewport.setWidth((float)m_swapchain.getExtent().width)
+                .setHeight((float)m_swapchain.getExtent().height)
+                .setMinDepth(0.0f).setMaxDepth(1.0f);
+        commandBuffer.setViewport(0, viewport);
+        vk::Rect2D scissor{};
+        scissor.setExtent(m_swapchain.getExtent());
+        commandBuffer.setScissor(0, scissor);
+
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+            m_postPipeline.getLayout(), 0, m_postDescriptorSets[m_currentFrame], nullptr);
+
+        struct TonemapPush { float exposure; float contrast; } tmPush{ m_exposure, m_contrast };
+        commandBuffer.pushConstants(m_postPipeline.getLayout(),
+            vk::ShaderStageFlagBits::eFragment, 0, sizeof(TonemapPush), &tmPush);
+
+        commandBuffer.draw(3, 1, 0, 0);
+        commandBuffer.endRenderPass();
+    }
+
+    {
         std::array<vk::ClearValue, 2> clearValues{};
         clearValues[0].setColor(vk::ClearColorValue{ std::array<float,4>{ 0.0f, 0.0f, 0.0f, 1.0f } });
         clearValues[1].setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
 
-        vk::RenderPassBeginInfo postPass{};
-        postPass.setRenderPass(m_renderPass.getRenderPass());
-        postPass.setFramebuffer(m_framebuffers.getFramebuffers()[imageIndex].get());
-        postPass.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
-        postPass.setClearValues(clearValues);
+        vk::RenderPassBeginInfo finalPass{};
+        finalPass.setRenderPass(m_renderPass.getRenderPass());
+        finalPass.setFramebuffer(m_framebuffers.getFramebuffers()[imageIndex].get());
+        finalPass.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
+        finalPass.setClearValues(clearValues);
 
-        commandBuffer.beginRenderPass(postPass, vk::SubpassContents::eInline);
-        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_postPipeline.getPipeline());
+        commandBuffer.beginRenderPass(finalPass, vk::SubpassContents::eInline);
 
         vk::Viewport viewport{};
         viewport.setWidth((float)m_swapchain.getExtent().width)
@@ -718,16 +899,36 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
         scissor.setExtent(m_swapchain.getExtent());
         commandBuffer.setScissor(0, scissor);
 
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_postPipeline.getLayout(), 0, m_postDescriptorSets[m_currentFrame], nullptr);
+        if (m_aaMethod == AAMethod::FXAA)
+        {
+            m_fxaa.apply(commandBuffer, m_currentFrame, m_ldrTarget.getColorView(), m_ldrTarget.getSampler());
+        }
+        else
+        {
+            m_fxaa.apply(commandBuffer, m_currentFrame, m_ldrTarget.getColorView(), m_ldrTarget.getSampler());
+        }
 
-        struct TonemapPush { float exposure; float contrast; } tmPush{ m_exposure, m_contrast };
-        commandBuffer.pushConstants(m_postPipeline.getLayout(), vk::ShaderStageFlagBits::eFragment, 0, sizeof(TonemapPush), &tmPush);
-
-        commandBuffer.draw(3, 1, 0, 0);
         commandBuffer.endRenderPass();
     }
 
     commandBuffer.end();
+}
+
+void Renderer::setAAMethod(AAMethod method)
+{
+    m_aaMethod = method;
+
+    switch (method)
+    {
+        case AAMethod::FXAA:
+            break;
+        case AAMethod::None:
+        default:
+            m_antiAliasing = std::make_unique<NoAA>();
+            m_antiAliasing->initialize(m_context.getDevice(), m_context.getPhysicalDevice(),
+                m_swapchain.getExtent(), m_pipelineCache.get());
+            break;
+    }
 }
 
 void Renderer::cleanup()
@@ -736,6 +937,11 @@ void Renderer::cleanup()
     m_cleaned = true;
 
     m_context.getDevice().waitIdle();
+
+    m_fxaa.cleanup();
+    m_ldrFramebuffer.reset();
+    m_ldrRenderPass.cleanup();
+    m_ldrTarget.cleanup();
 
     m_pipelineCache.save();
     m_pipelineCache.cleanup();

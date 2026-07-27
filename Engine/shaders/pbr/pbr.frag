@@ -101,8 +101,8 @@ void main()
 {
     vec3 albedo = pow(texture(albedoMap, fragTexCoord).rgb, vec3(2.2));
     vec3 mr = texture(metallicRoughnessMap, fragTexCoord).rgb;
-    float roughness = clamp(mr.g, 0.05, 1.0);
-    float metallic = mr.r;
+    float roughness = clamp(mr.g, 0.4, 1.0);
+    float metallic = mr.b;
     float ao = texture(aoMap, fragTexCoord).r;
 
     vec3 N = texture(normalMap, fragTexCoord).rgb;

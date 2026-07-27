@@ -4,6 +4,7 @@ int main()
 {
     Engine engine;
     engine.initialize(800, 600, "ELE Game");
+    engine.setAntialiasing(AAMethod::FXAA);
 
     auto& character = engine.loadGltfObject("assets/models/BlenderModel.glb");
     character.transform.position = glm::vec3(0.0f, 0.0f, 0.0f);

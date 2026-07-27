@@ -20,8 +20,13 @@
 #include "Vulkan/CubeShadowMap.h"
 #include "Vulkan/PointShadowRenderPass.h"
 #include "Vulkan/BloomChain.h"
+#include "Vulkan/AntiAliasing.h"
+#include "Vulkan/NoAA.h"
 #include "Vulkan/PointShadowPush.h"
 #include "Scene/Scene.h"
+#include "Vulkan/LdrTarget.h"
+#include "Vulkan/PostRenderPass.h"
+#include "Vulkan/FXAA.h"
 #include "Core/Camera.h"
 #include <GLFW/glfw3.h>
 
@@ -35,6 +40,8 @@ public:
     void onResize() { m_framebufferResized = true; }
 
     void setLights(const LightData& lights) { m_pendingLights = lights; }
+
+    void setAAMethod(AAMethod method);
 
     vk::Device getDevice() const { return m_context.getDevice(); }
     vk::PhysicalDevice getPhysicalDevice() const { return m_context.getPhysicalDevice(); }
@@ -145,4 +152,12 @@ private:
     std::vector<vk::UniqueSemaphore> m_renderFinishedSemaphore;
     std::vector<vk::UniqueFence> m_inFlightFences;
     std::vector<vk::Fence> m_imagesInFlight;
+
+    //Anti Aliasing
+    AAMethod m_aaMethod = AAMethod::None;
+    std::unique_ptr<AntiAliasing> m_antiAliasing;
+    LdrTarget m_ldrTarget;
+    PostRenderPass m_ldrRenderPass;
+    vk::UniqueFramebuffer m_ldrFramebuffer;
+    FXAA m_fxaa;
 };
