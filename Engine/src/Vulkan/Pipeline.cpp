@@ -65,7 +65,13 @@ void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
         pointShadowBinding.setDescriptorCount(1);
         pointShadowBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
 
-        std::array<vk::DescriptorSetLayoutBinding, 8> bindings = { 
+        vk::DescriptorSetLayoutBinding lightmapBinding{};
+        lightmapBinding.setBinding(8);
+        lightmapBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        lightmapBinding.setDescriptorCount(1);
+        lightmapBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+
+        std::array<vk::DescriptorSetLayoutBinding, 9> bindings = { 
             uboBinding, 
             makeSamplerBinding(1),
             makeSamplerBinding(2),
@@ -73,7 +79,8 @@ void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
             makeSamplerBinding(4),
             lightBinding,
             shadowBinding,
-            pointShadowBinding
+            pointShadowBinding,
+            lightmapBinding
         };
 
         vk::DescriptorSetLayoutCreateInfo layoutCreateInfo{};

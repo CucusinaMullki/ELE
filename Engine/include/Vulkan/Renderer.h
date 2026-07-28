@@ -45,6 +45,8 @@ public:
 
     void setAAMethod(AAMethod method);
 
+    void setExposure(float exp) { m_exposure = exp; }
+
     vk::Device getDevice() const { return m_context.getDevice(); }
     vk::PhysicalDevice getPhysicalDevice() const { return m_context.getPhysicalDevice(); }
     vk::CommandPool getCommandPool() const { return m_commandManager.getCommandPool(); }

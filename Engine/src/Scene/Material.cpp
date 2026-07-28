@@ -19,6 +19,7 @@ void Material::cleanup()
     m_normal.cleanup();
     m_metallicRoughness.cleanup();
     m_ao.cleanup();
+    m_lightmap.cleanup();
 }
 
 void Material::createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
@@ -50,8 +51,9 @@ void Material::createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
         auto mrInfo     = makeImageInfo(m_metallicRoughness.getImageView(), m_metallicRoughness.getSampler());
         auto aoInfo     = makeImageInfo(m_ao.getImageView(), m_ao.getSampler());
         auto shadowInfo = makeImageInfo(shadowView, shadowSampler);
+        auto lightmapInfo = makeImageInfo(m_lightmap.getImageView(), m_lightmap.getSampler());
 
-        std::array<vk::WriteDescriptorSet, 8> writes{};
+        std::array<vk::WriteDescriptorSet, 9> writes{};
 
         writes[0].setDstSet(m_descriptorSets[i]);
         writes[0].setDstBinding(0);
@@ -91,7 +93,13 @@ void Material::createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
         writes[7].setDstBinding(7);
         writes[7].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
         writes[7].setDescriptorCount(1);
-        writes[7].setImageInfo(pointShadowInfo);    
+        writes[7].setImageInfo(pointShadowInfo);  
+        
+        writes[8].setDstSet(m_descriptorSets[i]);
+        writes[8].setDstBinding(8);
+        writes[8].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        writes[8].setDescriptorCount(1);
+        writes[8].setImageInfo(lightmapInfo);
 
         device.updateDescriptorSets(writes, nullptr);
     }
@@ -102,10 +110,12 @@ void Material::loadFromPixels(vk::Device device, vk::PhysicalDevice physicalDevi
     const unsigned char* albedoPx, int aw, int ah,
     const unsigned char* normalPx, int nw, int nh,
     const unsigned char* mrPx, int mw, int mh,
-    const unsigned char* aoPx, int ow, int oh)
+    const unsigned char* aoPx, int ow, int oh,
+    const unsigned char* lightmapPx, int lw, int lh, bool hasLightmap)
 {
     m_albedo.initializeFromMemory(device, physicalDevice, pool, queue, albedoPx, aw, ah, true);
     m_normal.initializeFromMemory(device, physicalDevice, pool, queue, normalPx, nw, nh, false);
     m_metallicRoughness.initializeFromMemory(device, physicalDevice, pool, queue, mrPx, mw, mh, false);
     m_ao.initializeFromMemory(device, physicalDevice, pool, queue, aoPx, ow, oh, false);
+    m_lightmap.initializeFromMemory(device, physicalDevice, pool, queue, lightmapPx, lw, lh, true);
 }

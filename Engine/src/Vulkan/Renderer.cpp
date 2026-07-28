@@ -1175,12 +1175,6 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
         vk::Rect2D sc{};
         sc.setExtent(m_swapchain.getExtent());
         commandBuffer.setScissor(0, sc);
-
-        LOG("bright bind: historyIndex=" << m_historyIndex
-            << " size[0]=" << m_brightDescriptorSets[0].size()
-            << " size[1]=" << m_brightDescriptorSets[1].size());
-
-        LOG("raw size=" << m_brightDescriptorSetsRaw.size() << " currentFrame=" << m_currentFrame);
         
         vk::DescriptorSet brightSet = (m_aaMethod == AAMethod::TAA)
             ? m_brightDescriptorSets[m_historyIndex][m_currentFrame]
@@ -1284,7 +1278,6 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
         scissor.setExtent(m_swapchain.getExtent());
         commandBuffer.setScissor(0, scissor);
 
-        LOG("post raw size=" << m_postDescriptorSetsRaw.size() << " currentFrame=" << m_currentFrame);
         vk::DescriptorSet postSet = (m_aaMethod == AAMethod::TAA)
             ? m_postDescriptorSets[m_historyIndex][m_currentFrame]
             : m_postDescriptorSetsRaw[m_currentFrame];

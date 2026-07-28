@@ -21,7 +21,9 @@ public:
 
     std::shared_ptr<Mesh> loadMesh(const std::string& path);
     std::shared_ptr<Material> loadMaterial(const std::string& albedo, const std::string& normal,
-                                           const std::string& metallic, const std::string& roughness);
+        const std::string& metallic, const std::string& roughness);
+
+    void setExposure(float exp) { m_renderer.setExposure(exp); }
 
     Scene& getScene()   { return m_scene; }
     Camera& getCamera() { return m_camera; }

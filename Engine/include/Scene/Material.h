@@ -16,7 +16,8 @@ public:
         const unsigned char* albedoPx, int aw, int ah,
         const unsigned char* normalPx, int nw, int nh,
         const unsigned char* mrPx, int mw, int mh,
-        const unsigned char* aoPx, int ow, int oh);
+        const unsigned char* aoPx, int ow, int oh,
+        const unsigned char* lightmapPx, int lw, int lh, bool hasLightmap);
 
     vk::ImageView getAlbedoView() const { return m_albedo.getImageView(); }
     vk::Sampler getAlbedoSampler() const { return m_albedo.getSampler(); }
@@ -26,7 +27,9 @@ public:
     vk::Sampler getMetallicRoughnessSampler() const { return m_metallicRoughness.getSampler(); }
     vk::ImageView getAoView() const { return m_ao.getImageView(); }
     vk::Sampler getAoSampler() const { return m_ao.getSampler(); }
-    
+    vk::ImageView getLightmapView() const { return m_lightmap.getImageView(); }
+    vk::Sampler getLightmapSampler() const { return m_lightmap.getSampler(); }
+    bool hasLightmap() const { return m_hasLightmap; }
 
     void createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
         vk::DescriptorSetLayout layout,
@@ -45,5 +48,7 @@ private:
     Texture m_normal;
     Texture m_metallicRoughness;
     Texture m_ao;
+    Texture m_lightmap;
+    bool m_hasLightmap = false;
     std::vector<vk::DescriptorSet> m_descriptorSets;
 };

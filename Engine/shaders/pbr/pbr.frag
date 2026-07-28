@@ -28,6 +28,7 @@ layout(binding = 5) uniform LightUBO {
 
 layout(binding = 6) uniform sampler2DShadow shadowMap;
 layout(binding = 7) uniform samplerCube pointShadowMap;
+layout(binding = 8) uniform sampler2D lightmapMap;
 
 layout(location = 0) in vec3 fragWorldPos;
 layout(location = 1) in vec2 fragTexCoord;
@@ -36,6 +37,7 @@ layout(location = 3) in mat3 fragTBN;
 
 layout(location = 6) in vec4 fragCurrClipPos;
 layout(location = 7) in vec4 fragPrevClipPos;
+layout(location = 8) in vec2 fragLightmapUV;
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec2 outVelocity;
@@ -165,6 +167,9 @@ void main()
 
     vec3 ambient = vec3(0.02) * albedo * ao;
     vec3 color = ambient + Lo;
+
+    vec3 lightmapColor = texture(lightmapMap, fragLightmapUV).rgb;
+    color += lightmapColor * 0.3;
 
     outColor = vec4(color, 1.0);
 

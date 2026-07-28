@@ -114,6 +114,7 @@ void Engine::shutdown()
 
 GameObject& Engine::loadGltfObject(const std::string& path)
 {
+
     GltfModel model;
     model.load(path);
 
@@ -124,21 +125,17 @@ GameObject& Engine::loadGltfObject(const std::string& path)
 
     static const unsigned char white[4] = { 255, 255, 255, 255 };
     static const unsigned char normalPx[4] = { 128, 128, 255, 255 };
-    static const unsigned char defaultMR[4] = {0, 128, 0, 255}; 
+    static const unsigned char defaultMR[4] = {0, 128, 0, 255};
+    static const unsigned char black[4] = { 0, 0, 0, 255 };   // ← новое, fallback для лайтмапа
 
     std::vector<std::shared_ptr<Material>> materials;
     for (const auto& gm : model.getMaterials())
     {
-        LOG("material: albedo=" << gm.albedoImage
-            << " normal=" << gm.normalImage
-            << " mr=" << gm.mrImage
-            << " ao=" << gm.aoImage);
-
         auto getPx = [&](int imgIdx, const unsigned char* fallback, int& w, int& h) -> const unsigned char* {
             if (imgIdx >= 0 && imgIdx < (int)model.getImage().size())
             {
                 const auto& img = model.getImage()[imgIdx];
-                w = img.width; 
+                w = img.width;
                 h = img.height;
                 return img.pixels.data();
             }
@@ -146,12 +143,13 @@ GameObject& Engine::loadGltfObject(const std::string& path)
             h = 1;
             return fallback;
         };
-        
-        int aw, ah, nw, nh, mw, mh, ow, oh;
+
+        int aw, ah, nw, nh, mw, mh, ow, oh, lw, lh;
         const unsigned char* aPx = getPx(gm.albedoImage, white, aw, ah);
         const unsigned char* nPx = getPx(gm.normalImage, normalPx, nw, nh);
         const unsigned char* mPxRaw = getPx(gm.mrImage, defaultMR, mw, mh);
         const unsigned char* oPx = getPx(gm.aoImage, white, ow, oh);
+        const unsigned char* lPx = getPx(gm.lightmapImage, black, lw, lh);
 
         std::vector<unsigned char> mrAdjusted = applyMRFactors(mPxRaw, mw, mh, gm.metallicFactor, gm.roughnessFactor);
         const unsigned char* mPx = mrAdjusted.data();
@@ -159,7 +157,8 @@ GameObject& Engine::loadGltfObject(const std::string& path)
         auto mat = std::make_shared<Material>();
         mat->loadFromPixels(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
             m_renderer.getCommandPool(), m_renderer.getGraphicsQueue(),
-            aPx, aw, ah, nPx, nw, nh, mPx, mw, mh, oPx, ow, oh);
+            aPx, aw, ah, nPx, nw, nh, mPx, mw, mh, oPx, ow, oh,
+            lPx, lw, lh, gm.hasLightmap);
 
         mat->createDescriptorSet(m_renderer.getDevice(),
             m_renderer.getDescriptorPool(), m_renderer.getDescriptorSetLayout(),
@@ -192,7 +191,7 @@ GameObject& Engine::loadGltfObject(const std::string& path)
         auto mat = std::make_shared<Material>();
         mat->loadFromPixels(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
             m_renderer.getCommandPool(), m_renderer.getGraphicsQueue(),
-            white, 1, 1, normalPx, 1, 1, white, 1, 1, white, 1, 1);
+            white, 1, 1, normalPx, 1, 1, white, 1, 1, white, 1, 1, black, 1, 1, false);
         mat->createDescriptorSet(m_renderer.getDevice(),
             m_renderer.getDescriptorPool(), m_renderer.getDescriptorSetLayout(),
             m_renderer.getUboInfos(), m_renderer.getLightInfos(),

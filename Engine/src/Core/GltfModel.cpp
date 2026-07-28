@@ -64,6 +64,12 @@ void GltfModel::load(const std::string& path)
             if (uvIt != primitive.attributes.end())
                 uvData = getAccessorPtr(model, uvIt->second, dummy, uvStride);
 
+            const unsigned char* uv2Data = nullptr;
+            size_t uv2Stride = 0;
+            auto uv2It = primitive.attributes.find("TEXCOORD_1");
+            if (uv2It != primitive.attributes.end())
+                uv2Data = getAccessorPtr(model, uv2It->second, dummy, uv2Stride);
+
             const unsigned char* tanData = nullptr;
             size_t tanStride = 0;
             auto tanIt = primitive.attributes.find("TANGENT");
@@ -88,6 +94,11 @@ void GltfModel::load(const std::string& path)
                     std::memcpy(&v.texCoord, uvData + i * uvStride, sizeof(glm::vec2));
                 else
                     v.texCoord = glm::vec2(0.0f);
+
+                if (uv2Data)
+                    std::memcpy(&v.lightmapUV, uv2Data + i * uv2Stride, sizeof(glm::vec2));
+                else
+                    v.lightmapUV = v.texCoord;
 
                 if (tanData)
                 {
@@ -188,6 +199,13 @@ void GltfModel::load(const std::string& path)
 
         if (mat.occlusionTexture.index >= 0)
             gm.aoImage = model.textures[mat.occlusionTexture.index].source;
+
+        LOG("gltf material: lightmapImage=" << gm.lightmapImage << " hasLightmap=" << gm.hasLightmap);
+        if (mat.emissiveTexture.index >= 0)
+        {
+            gm.lightmapImage = model.textures[mat.emissiveTexture.index].source;
+            gm.hasLightmap = true;
+        }
 
         gm.metallicFactor = (float)pbr.metallicFactor;
         gm.roughnessFactor = (float)pbr.roughnessFactor;

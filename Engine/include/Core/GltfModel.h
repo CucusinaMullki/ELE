@@ -29,6 +29,8 @@ struct GltfMaterial
     int aoImage = -1;
     float metallicFactor = 1.0f;
     float roughnessFactor = 1.0f;
+    int lightmapImage = -1;
+    bool hasLightmap = false;
 };
 
 class GltfModel

@@ -10,6 +10,7 @@ struct Vertex
     glm::vec2 texCoord;
     glm::vec3 normal;
     glm::vec3 tangent;
+    glm::vec2 lightmapUV;
 
     bool operator==(const Vertex& other) const
     {
@@ -26,9 +27,9 @@ struct Vertex
         return binding;
     }
 
-    static std::array<vk::VertexInputAttributeDescription, 5> getAttributeDescriptions()
+    static std::array<vk::VertexInputAttributeDescription, 6> getAttributeDescriptions()
     {
-        std::array<vk::VertexInputAttributeDescription, 5> attributes{};
+        std::array<vk::VertexInputAttributeDescription, 6> attributes{};
 
         attributes[0].setBinding(0);
         attributes[0].setLocation(0);
@@ -54,6 +55,11 @@ struct Vertex
         attributes[4].setLocation(4);
         attributes[4].setFormat(vk::Format::eR32G32B32Sfloat);
         attributes[4].setOffset(offsetof(Vertex, tangent));
+
+        attributes[5].setBinding(0);
+        attributes[5].setLocation(5);
+        attributes[5].setFormat(vk::Format::eR32G32Sfloat);
+        attributes[5].setOffset(offsetof(Vertex, lightmapUV));
 
         return attributes;
     }
