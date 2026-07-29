@@ -1,5 +1,6 @@
 #include "Scene/ScreenSpaceDecal.h"
 #include <glm/gtc/matrix_transform.hpp>
+#include "Vulkan/LightBuffer.h"
 #include "Core/Log.h"
 
 void ScreenSpaceDecal::loadTexture(vk::Device device, vk::PhysicalDevice physicalDevice,
@@ -31,7 +32,7 @@ glm::mat4 ScreenSpaceDecal::getInvModelMatrix() const
 
 void ScreenSpaceDecal::createDescriptorSet(vk::Device device, vk::DescriptorPool pool, vk::DescriptorSetLayout layout,
     vk::ImageView depthView, vk::Sampler depthSampler,
-    const DecalCameraBuffer& cameraBuffer, uint32_t frameCount)
+    const DecalCameraBuffer& cameraBuffer, const LightBuffer& lightBuffer, uint32_t frameCount)
 {
     LOG("decal depth view  = " << (void*)(VkImageView)depthView);
     std::vector<vk::DescriptorSetLayout> layouts(frameCount, layout);
@@ -52,7 +53,7 @@ void ScreenSpaceDecal::createDescriptorSet(vk::Device device, vk::DescriptorPool
         depthInfo.setImageView(depthView);
         depthInfo.setSampler(depthSampler);
 
-        std::array<vk::WriteDescriptorSet, 3> writes{};
+        std::array<vk::WriteDescriptorSet, 4> writes{};
         writes[0].setDstSet(m_descriptorSets[i]);
         writes[0].setDstBinding(0);
         writes[0].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
@@ -71,6 +72,13 @@ void ScreenSpaceDecal::createDescriptorSet(vk::Device device, vk::DescriptorPool
         writes[2].setDescriptorCount(1);
         vk::DescriptorBufferInfo camInfo = cameraBuffer.getDescriptorInfo(i);
         writes[2].setBufferInfo(camInfo);  
+
+        vk::DescriptorBufferInfo lightInfo = lightBuffer.getDescriptorInfo(i);
+        writes[3].setDstSet(m_descriptorSets[i]);
+        writes[3].setDstBinding(3);
+        writes[3].setDescriptorType(vk::DescriptorType::eUniformBuffer);
+        writes[3].setDescriptorCount(1);
+        writes[3].setBufferInfo(lightInfo);
 
         device.updateDescriptorSets(writes, nullptr);
     }

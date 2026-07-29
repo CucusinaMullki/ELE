@@ -27,7 +27,13 @@ void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
         cameraBinding.setDescriptorCount(1);
         cameraBinding.setStageFlags(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment);
 
-        std::array<vk::DescriptorSetLayoutBinding, 3> bindings = { decalTexBinding, depthTexBinding, cameraBinding };
+        vk::DescriptorSetLayoutBinding lightBinding{};
+        lightBinding.setBinding(3);
+        lightBinding.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+        lightBinding.setDescriptorCount(1);
+        lightBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+
+        std::array<vk::DescriptorSetLayoutBinding, 4> bindings = { decalTexBinding, depthTexBinding, cameraBinding, lightBinding };
 
         vk::DescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.setBindings(bindings);

@@ -67,6 +67,7 @@ public:
     vk::DescriptorSetLayout getDecalDescriptorSetLayout() const { return m_decalPipeline.getDescriptorSetLayout(); }
     vk::ImageView getDepthView() const { return m_depthBuffer.getImageView(); }
     vk::Sampler getDepthSampler() const { return m_depthBuffer.getSampler(); }
+    const LightBuffer& getLightBuffer() const { return m_lightBuffer; }
     const DecalCameraBuffer& getDecalCameraBuffer() const { return m_decalCameraBuffer; }
 
     uint32_t getFramesInFlight() const { return MAX_FRAMES_IN_FLIGHT; }

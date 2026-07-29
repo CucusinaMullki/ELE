@@ -205,6 +205,13 @@ GameObject& Engine::loadGltfObject(const std::string& path)
         }
     }
 
+    for (const auto& gd : model.getDecals())
+    {
+        auto decal = addScreenSpaceDecal(gd.texturePath, gd.position, gd.rotationEuler, gd.size);
+        decal->metallic = gd.metallic;
+        decal->roughness = gd.roughness;
+    }
+
     if (materials.empty())
     {
         auto mat = std::make_shared<Material>();
@@ -263,7 +270,7 @@ std::shared_ptr<ScreenSpaceDecal> Engine::addScreenSpaceDecal(const std::string&
 
     decal->createDescriptorSet(m_renderer.getDevice(), m_renderer.getDecalDescriptorPool(),
         m_renderer.getDecalDescriptorSetLayout(), m_renderer.getDepthView(), m_renderer.getDepthSampler(),
-        m_renderer.getDecalCameraBuffer(), m_renderer.getFramesInFlight());
+        m_renderer.getDecalCameraBuffer(), m_renderer.getLightBuffer(), m_renderer.getFramesInFlight());
 
     m_renderer.addScreenSpaceDecal(decal);
     return decal;

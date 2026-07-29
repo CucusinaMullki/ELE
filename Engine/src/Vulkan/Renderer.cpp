@@ -436,7 +436,7 @@ void Renderer::initialize(GLFWwindow* window)
     decalConfig.decalLayout = true;
     decalConfig.useDescriptors = false;
     decalConfig.colorAttachmentCount = 1;
-    decalConfig.pushConstantSize = sizeof(glm::mat4) * 2;
+    decalConfig.pushConstantSize = sizeof(glm::mat4) * 2 + sizeof(glm::vec4);
     decalConfig.pushStage = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment;
     decalConfig.blendEnable = true;
     decalConfig.blendSrcFactor = vk::BlendFactor::eSrcAlpha;
@@ -683,6 +683,7 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
     decalCamData.view = camera.getViewMatrix();
     decalCamData.proj = baseProj;
     decalCamData.invViewProj = glm::inverse(decalCamData.proj * decalCamData.view);
+    decalCamData.camPos = glm::vec4(camera.getPosition(), 1.0f);
     m_decalCameraBuffer.update(m_currentFrame, decalCamData);
 
     recordCommandBuffer(cmd, imageIndex, scene, camera);
@@ -1195,9 +1196,10 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
 
         for (const auto& decal : m_screenSpaceDecals)
         {
-            struct DecalPush { glm::mat4 model; glm::mat4 invModel; } dpush;
+            struct DecalPush { glm::mat4 model; glm::mat4 invModel; glm::vec4 params; } dpush;
             dpush.model = decal->getModelMatrix();
             dpush.invModel = decal->getInvModelMatrix();
+            dpush.params = glm::vec4(decal->metallic, decal->roughness, 0.0f, 0.0f);
             commandBuffer.pushConstants(m_decalPipeline.getLayout(),
                 vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
                 0, sizeof(DecalPush), &dpush);

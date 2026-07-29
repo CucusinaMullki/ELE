@@ -8,6 +8,9 @@
 #include <stdexcept>
 #include <cstring>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/matrix_decompose.hpp>
+
 namespace 
 {
     const unsigned char* getAccessorPtr(const tinygltf::Model& model, int accessorIdx, size_t& count, size_t& stride)
@@ -223,6 +226,47 @@ void GltfModel::load(const std::string& path)
 
     for (const auto& node : model.nodes)
     {
+        if (node.extras.Has("decal_texture"))
+        {
+            GltfDecal decal{};
+            decal.texturePath = node.extras.Get("decal_texture").Get<std::string>();
+
+            if (node.extras.Has("decal_metallic"))
+                decal.metallic = (float)node.extras.Get("decal_metallic").Get<double>();
+            if (node.extras.Has("decal_roughness"))
+                decal.roughness = (float)node.extras.Get("decal_roughness").Get<double>();
+                
+            if (!node.matrix.empty() && node.matrix.size() == 16)
+            {
+                glm::mat4 m = glm::make_mat4(node.matrix.data());
+                glm::vec3 skew; glm::vec4 persp; glm::quat rotQ;
+                glm::decompose(m, decal.size, rotQ, decal.position, skew, persp);
+                decal.rotationEuler = glm::degrees(glm::eulerAngles(rotQ));
+            }
+            else
+            {
+                if (node.translation.size() >= 3)
+                    decal.position = glm::vec3(node.translation[0], node.translation[1], node.translation[2]);
+
+                if (node.rotation.size() >= 4)
+                {
+                    glm::quat q((float)node.rotation[3], (float)node.rotation[0],
+                        (float)node.rotation[1], (float)node.rotation[2]);
+                    decal.rotationEuler = glm::degrees(glm::eulerAngles(q));
+                }
+
+                if (node.scale.size() >= 3)
+                    decal.size = glm::vec3(node.scale[0], node.scale[1], node.scale[2]);
+            }
+
+            LOG("gltf decal: tex=" << decal.texturePath
+                << " pos=(" << decal.position.x << ", " << decal.position.y << ", " << decal.position.z << ")");
+
+            m_decals.push_back(decal);
+            continue;
+        
+        }
+
         if (node.light < 0) continue;
         if (node.light >= (int)model.lights.size()) continue;
 
@@ -262,6 +306,8 @@ void GltfModel::load(const std::string& path)
                 light.direction = glm::normalize(q * glm::vec3(0.0f, 0.0f, -1.0f));
             }
         }
+
+        
 
         LOG("gltf light: type=" << light.type
             << " intensity=" << light.intensity

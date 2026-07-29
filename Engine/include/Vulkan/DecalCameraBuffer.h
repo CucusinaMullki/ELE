@@ -8,6 +8,7 @@ struct DecalCameraData
     glm::mat4 view;
     glm::mat4 proj;
     glm::mat4 invViewProj;
+    glm::vec4 camPos;
 };
 
 class DecalCameraBuffer
@@ -17,6 +18,8 @@ public:
     void update(uint32_t frameIndex, const DecalCameraData& data);
     void cleanup();
 
+    float metallic = 0.0f;
+    float roughness = 0.6f;
     vk::DescriptorBufferInfo getDescriptorInfo(uint32_t frameIndex) const;
 
 private:

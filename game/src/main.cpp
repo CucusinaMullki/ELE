@@ -9,9 +9,9 @@ int main()
 
     auto& character = engine.loadGltfObject("assets/models/BlenderModel.glb");
     engine.addScreenSpaceDecal("assets/decals/blood.png",
-        glm::vec3(-1.5f, 0.05f, 0.0f),
+        glm::vec3(-1.5f, 0.00f, 0.0f),
         glm::vec3(0.0f, 0.0f, 0.0f),
-        glm::vec3(1.0f, 0.5f, 1.0f)); 
+        glm::vec3(1.0f, 0.01f, 1.0f)); 
     //////////////////////////////
     engine.addPointLight(glm::vec3(-1.5f, 1.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), .0f);
     engine.run();

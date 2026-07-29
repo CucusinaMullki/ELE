@@ -21,6 +21,16 @@ struct GltfImage
     int height = 0;
 };
 
+struct GltfDecal
+{
+    std::string texturePath;
+    glm::vec3 position{0.0f};
+    glm::vec3 rotationEuler{0.0f};
+    glm::vec3 size{1.0f};
+    float metallic = 0.0f;
+    float roughness = 0.6f;
+};
+
 struct GltfMaterial
 {
     int albedoImage = -1;
@@ -45,6 +55,7 @@ public:
     const std::vector<GltfImage>& getImage() const { return m_images; }
     const std::vector<GltfMaterial>& getMaterials() const { return m_materials; } 
     const std::vector<GltfLight>& getLights() const { return m_lights; }
+    const std::vector<GltfDecal>& getDecals() const { return m_decals; }
 
 private:
     void computeTangents();
@@ -55,5 +66,6 @@ private:
     std::vector<GltfImage> m_images;
     std::vector<GltfMaterial> m_materials;
     std::vector<GltfLight> m_lights;
+    std::vector<GltfDecal> m_decals;
     bool m_hasTangents = false;
 };
