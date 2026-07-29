@@ -2,11 +2,50 @@
 #include "Vulkan/Shader.h"
 #include "Vulkan/Vertex.h"
 #include <glm/glm.hpp>
+#include "Core/Log.h"
 #include <array>
 
 void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
 {
-    if (config.postProcess)
+    if (config.decalLayout)
+    {
+        vk::DescriptorSetLayoutBinding decalTexBinding{};
+        decalTexBinding.setBinding(0);
+        decalTexBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        decalTexBinding.setDescriptorCount(1);
+        decalTexBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+
+        vk::DescriptorSetLayoutBinding depthTexBinding{};
+        depthTexBinding.setBinding(1);
+        depthTexBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        depthTexBinding.setDescriptorCount(1);
+        depthTexBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+        
+        vk::DescriptorSetLayoutBinding cameraBinding{};
+        cameraBinding.setBinding(2);
+        cameraBinding.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+        cameraBinding.setDescriptorCount(1);
+        cameraBinding.setStageFlags(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment);
+
+        std::array<vk::DescriptorSetLayoutBinding, 3> bindings = { decalTexBinding, depthTexBinding, cameraBinding };
+
+        vk::DescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.setBindings(bindings);
+        m_descriptorSetLayout = device.createDescriptorSetLayoutUnique(layoutInfo);
+        LOG("decalLayout created, layout ptr=" << (void*)(VkDescriptorSetLayout)m_descriptorSetLayout.get());
+
+        std::array<vk::DescriptorPoolSize, 2> poolSizes{};
+        poolSizes[0].setType(vk::DescriptorType::eCombinedImageSampler);
+        poolSizes[0].setDescriptorCount(config.frameCount * 32 * 2);
+        poolSizes[1].setType(vk::DescriptorType::eUniformBuffer);
+        poolSizes[1].setDescriptorCount(config.frameCount * 32);
+
+        vk::DescriptorPoolCreateInfo poolInfo{};
+        poolInfo.setPoolSizes(poolSizes);
+        poolInfo.setMaxSets(config.frameCount * 32);
+        m_descriptorPool = device.createDescriptorPoolUnique(poolInfo);
+    }
+    else if (config.postProcess)
     {
         std::array<vk::DescriptorSetLayoutBinding, 3> postBindings{};
         for (uint32_t b = 0; b < 3; b++)
@@ -112,7 +151,8 @@ void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
     pushRange.setSize(config.pushConstantSize);
 
     std::vector<vk::DescriptorSetLayout> setLayouts;
-    if (config.useDescriptors || config.postProcess) setLayouts.push_back(m_descriptorSetLayout.get());
+    if (config.useDescriptors || config.postProcess || config.decalLayout)
+        setLayouts.push_back(m_descriptorSetLayout.get());
 
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.setSetLayouts(setLayouts);

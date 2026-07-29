@@ -13,9 +13,22 @@ void DepthBuffer::initialize(vk::Device device, vk::PhysicalDevice physicalDevic
     imageInfo.setFormat(m_format);
     imageInfo.setTiling(vk::ImageTiling::eOptimal);
     imageInfo.setInitialLayout(vk::ImageLayout::eUndefined);
-    imageInfo.setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment);
+    imageInfo.setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled);
     imageInfo.setSamples(vk::SampleCountFlagBits::e1);
     imageInfo.setSharingMode(vk::SharingMode::eExclusive);
+
+    vk::SamplerCreateInfo samplerInfo{};
+    samplerInfo.setMagFilter(vk::Filter::eNearest);
+    samplerInfo.setMinFilter(vk::Filter::eNearest);
+    samplerInfo.setAddressModeU(vk::SamplerAddressMode::eClampToEdge);
+    samplerInfo.setAddressModeV(vk::SamplerAddressMode::eClampToEdge);
+    samplerInfo.setAddressModeW(vk::SamplerAddressMode::eClampToEdge);
+    samplerInfo.setAnisotropyEnable(false);
+    samplerInfo.setBorderColor(vk::BorderColor::eFloatOpaqueWhite);
+    samplerInfo.setUnnormalizedCoordinates(false);
+    samplerInfo.setCompareEnable(false);
+    samplerInfo.setMipmapMode(vk::SamplerMipmapMode::eNearest);
+    m_sampler = device.createSamplerUnique(samplerInfo);
 
     m_image = device.createImageUnique(imageInfo);
 
@@ -46,6 +59,7 @@ void DepthBuffer::initialize(vk::Device device, vk::PhysicalDevice physicalDevic
 
 void DepthBuffer::cleanup()
 {
+    m_sampler.reset();
     m_imageView.reset();
     m_image.reset();
     m_memory.reset();

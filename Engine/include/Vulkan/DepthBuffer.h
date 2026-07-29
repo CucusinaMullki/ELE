@@ -8,6 +8,7 @@ public:
     void cleanup();
 
     vk::ImageView getImageView() const { return m_imageView.get(); }
+    vk::Sampler getSampler() const { return m_sampler.get(); }
     vk::Format getFormat() const { return m_format; }
 
     static vk::Format findDepthFormat(vk::PhysicalDevice physicalDevice);
@@ -18,5 +19,6 @@ private:
     vk::UniqueImage m_image;
     vk::UniqueDeviceMemory m_memory;
     vk::UniqueImageView m_imageView;
+    vk::UniqueSampler m_sampler;
     vk::Format m_format;
 };

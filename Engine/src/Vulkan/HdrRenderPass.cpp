@@ -27,11 +27,11 @@ void HdrRenderPass::initialize(vk::Device device, vk::Format colorFormat, vk::Fo
     depthAttachment.setFormat(depthFormat);
     depthAttachment.setSamples(vk::SampleCountFlagBits::e1);
     depthAttachment.setLoadOp(vk::AttachmentLoadOp::eClear);
-    depthAttachment.setStoreOp(vk::AttachmentStoreOp::eDontCare);
+    depthAttachment.setStoreOp(vk::AttachmentStoreOp::eStore);
     depthAttachment.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
     depthAttachment.setStencilStoreOp(vk::AttachmentStoreOp::eDontCare);
     depthAttachment.setInitialLayout(vk::ImageLayout::eUndefined);
-    depthAttachment.setFinalLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
+    depthAttachment.setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
 
     vk::AttachmentReference colorRef{};
     colorRef.setAttachment(0);
@@ -58,18 +58,21 @@ void HdrRenderPass::initialize(vk::Device device, vk::Format colorFormat, vk::Fo
     dependencies[0].setDstSubpass(0);
     dependencies[0].setSrcStageMask(vk::PipelineStageFlagBits::eFragmentShader);
     dependencies[0].setDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
-    dependencies[0].setSrcAccessMask(vk::AccessFlagBits::eShaderRead);
-    dependencies[0].setDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite);
+    dependencies[0].setDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput | 
+        vk::PipelineStageFlagBits::eEarlyFragmentTests);
+    dependencies[0].setDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite | 
+        vk::AccessFlagBits::eDepthStencilAttachmentWrite);
     dependencies[0].setDependencyFlags(vk::DependencyFlagBits::eByRegion);
 
     dependencies[1].setSrcSubpass(0);
     dependencies[1].setDstSubpass(VK_SUBPASS_EXTERNAL);
-    dependencies[1].setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+    dependencies[1].setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput | 
+        vk::PipelineStageFlagBits::eLateFragmentTests);
     dependencies[1].setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader);
-    dependencies[1].setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite);
+    dependencies[1].setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite | 
+        vk::AccessFlagBits::eDepthStencilAttachmentWrite);
     dependencies[1].setDstAccessMask(vk::AccessFlagBits::eShaderRead);
     dependencies[1].setDependencyFlags(vk::DependencyFlagBits::eByRegion);
-
     std::array<vk::AttachmentDescription, 3> attachments = { colorAttachment, velocityAttachment, depthAttachment };
 
     vk::RenderPassCreateInfo renderPassInfo{};

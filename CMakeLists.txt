@@ -58,6 +58,9 @@ add_library(ELE STATIC
     Engine/src/Vulkan/FXAA.cpp
     Engine/src/Vulkan/VelocityTarget.cpp
     Engine/src/Vulkan/HistoryBuffer.cpp
+    Engine/src/Vulkan/DecalBox.cpp
+    Engine/src/Scene/ScreenSpaceDecal.cpp
+    Engine/src/Vulkan/DecalCameraBuffer.cpp
 )
 
 target_include_directories(ELE PUBLIC

@@ -32,7 +32,9 @@ void Renderer::initialize(GLFWwindow* window)
 
     m_context.initialize(m_window);
     m_swapchain.initialize(m_context, m_window);
+    LOG("swapchain extent: " << m_swapchain.getExtent().width << "x" << m_swapchain.getExtent().height);
     m_depthBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), m_swapchain.getExtent());
+    LOG("depth buffer created with extent from swapchain");
     m_renderPass.initialize(m_context.getDevice(), m_swapchain.getImageFormat(), m_depthBuffer.getFormat());
     m_pipelineCache.initialize(m_context.getDevice());
 
@@ -54,6 +56,20 @@ void Renderer::initialize(GLFWwindow* window)
     hdrFbInfo.setHeight(m_swapchain.getExtent().height);
     hdrFbInfo.setLayers(1);
     m_hdrFramebuffer = m_context.getDevice().createFramebufferUnique(hdrFbInfo);
+
+    LOG("HDR fb depth view = " << (void*)(VkImageView)m_depthBuffer.getImageView());
+
+    m_hdrDecalRenderPass.initialize(m_context.getDevice(), m_hdrTarget.getColorFormat(), vk::AttachmentLoadOp::eLoad);
+
+    vk::ImageView hdrDecalView = m_hdrTarget.getColorView();
+    vk::FramebufferCreateInfo hdrDecalFbInfo{};
+    hdrDecalFbInfo.setRenderPass(m_hdrDecalRenderPass.getRenderPass());
+    hdrDecalFbInfo.setAttachmentCount(1);
+    hdrDecalFbInfo.setPAttachments(&hdrDecalView);
+    hdrDecalFbInfo.setWidth(m_swapchain.getExtent().width);
+    hdrDecalFbInfo.setHeight(m_swapchain.getExtent().height);
+    hdrDecalFbInfo.setLayers(1);
+    m_hdrDecalFramebuffer = m_context.getDevice().createFramebufferUnique(hdrDecalFbInfo);
 
     vk::Extent2D bloomExtent = m_swapchain.getExtent();
     m_brighTarget.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), bloomExtent);
@@ -411,6 +427,29 @@ void Renderer::initialize(GLFWwindow* window)
     pbrConfig.pushConstantSize = sizeof(glm::mat4) * 3;
     m_pipeline.initialize(m_context.getDevice(), pbrConfig);
 
+    PipelineConfig decalConfig{};
+    decalConfig.vertexShader = "decal_box";
+    decalConfig.fragmentShader = "decal_box";
+    decalConfig.renderPass = m_hdrDecalRenderPass.getRenderPass();
+    decalConfig.cache = m_pipelineCache.get();
+    decalConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
+    decalConfig.decalLayout = true;
+    decalConfig.useDescriptors = false;
+    decalConfig.colorAttachmentCount = 1;
+    decalConfig.pushConstantSize = sizeof(glm::mat4) * 2;
+    decalConfig.pushStage = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment;
+    decalConfig.blendEnable = true;
+    decalConfig.blendSrcFactor = vk::BlendFactor::eSrcAlpha;
+    decalConfig.blendDstFactor = vk::BlendFactor::eOneMinusSrcAlpha;
+    decalConfig.blendOp = vk::BlendOp::eAdd;
+    decalConfig.cullMode = vk::CullModeFlagBits::eFront;
+    decalConfig.depthTest = false;
+    decalConfig.depthWrite = false;
+    decalConfig.useVertexInput = true;
+    m_decalBox.initialize(m_context.getDevice(), m_context.getPhysicalDevice());
+    m_decalCameraBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), MAX_FRAMES_IN_FLIGHT);
+    m_decalPipeline.initialize(m_context.getDevice(), decalConfig);
+    
     m_lightBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), MAX_FRAMES_IN_FLIGHT);
 
     auto indices = m_context.GetQueueFamilyIndices();
@@ -625,8 +664,9 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
     m_currentPointLightPos = pointLightPos;
 
     glm::vec2 jitter = getJitter();
-    glm::mat4 proj = camera.getProjectionMatrix();
+    glm::mat4 baseProj = camera.getProjectionMatrix(); 
 
+    glm::mat4 proj = baseProj;
     vk::Extent2D extent = m_swapchain.getExtent();
     proj[2][0] += jitter.x / (float)extent.width * 2.0f;
     proj[2][1] += jitter.y / (float)extent.height * 2.0f;
@@ -638,6 +678,12 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
     mvp.camPos = glm::vec4(camera.getPosition(), 1.0f);
     m_uniformBuffer.update(m_currentFrame, mvp);
     m_lightBuffer.update(m_currentFrame, m_pendingLights);
+
+    DecalCameraData decalCamData{};
+    decalCamData.view = camera.getViewMatrix();
+    decalCamData.proj = baseProj;
+    decalCamData.invViewProj = glm::inverse(decalCamData.proj * decalCamData.view);
+    m_decalCameraBuffer.update(m_currentFrame, decalCamData);
 
     recordCommandBuffer(cmd, imageIndex, scene, camera);
 
@@ -676,6 +722,7 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
 
 void Renderer::recreateSwapchain()
 {
+    LOG("recreateSwapchain() called!");
     m_context.getDevice().waitIdle();
 
     m_context.getDevice().resetDescriptorPool(m_brightPipeline.getDescriptorPool());
@@ -1087,7 +1134,6 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
         hdrPass.setClearValues(clearValues);
 
         commandBuffer.beginRenderPass(hdrPass, vk::SubpassContents::eInline);
-        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.getPipeline());
 
         vk::Viewport viewport{};
         viewport.setWidth((float)m_swapchain.getExtent().width)
@@ -1098,6 +1144,8 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
         scissor.setExtent(m_swapchain.getExtent());
         commandBuffer.setScissor(0, scissor);
 
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.getPipeline());
+
         for (const auto& obj : scene.getObjects())
         {
             if (!obj->mesh) continue;
@@ -1106,6 +1154,7 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
             PushConstant pc{};
             pc.model = obj->transform.getMatrix();
             pc.normalMatrix = obj->transform.getNormalMatrix();
+            pc.prevModel = obj->transform.getMatrix();
             commandBuffer.pushConstants(m_pipeline.getLayout(),
                 vk::ShaderStageFlagBits::eVertex, 0, sizeof(PushConstant), &pc);
 
@@ -1118,6 +1167,47 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
                 obj->mesh->drawSubmesh(commandBuffer, sm);
             }
         }
+
+        commandBuffer.endRenderPass();
+    }
+
+    if (!m_screenSpaceDecals.empty())
+    {
+        vk::RenderPassBeginInfo decalPass{};
+        decalPass.setRenderPass(m_hdrDecalRenderPass.getRenderPass());
+        decalPass.setFramebuffer(m_hdrDecalFramebuffer.get());
+        decalPass.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
+        decalPass.setClearValueCount(0);
+
+        commandBuffer.beginRenderPass(decalPass, vk::SubpassContents::eInline);
+
+        vk::Viewport viewport{};
+        viewport.setWidth((float)m_swapchain.getExtent().width)
+                .setHeight((float)m_swapchain.getExtent().height)
+                .setMinDepth(0.0f).setMaxDepth(1.0f);
+        commandBuffer.setViewport(0, viewport);
+        vk::Rect2D scissor{};
+        scissor.setExtent(m_swapchain.getExtent());
+        commandBuffer.setScissor(0, scissor);
+
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_decalPipeline.getPipeline());
+        m_decalBox.bind(commandBuffer);
+
+        for (const auto& decal : m_screenSpaceDecals)
+        {
+            struct DecalPush { glm::mat4 model; glm::mat4 invModel; } dpush;
+            dpush.model = decal->getModelMatrix();
+            dpush.invModel = decal->getInvModelMatrix();
+            commandBuffer.pushConstants(m_decalPipeline.getLayout(),
+                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                0, sizeof(DecalPush), &dpush);
+
+            commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                m_decalPipeline.getLayout(), 0, decal->getDescriptorSet(m_currentFrame), nullptr);
+
+            m_decalBox.draw(commandBuffer);
+        }
+
         commandBuffer.endRenderPass();
     }
 
@@ -1175,7 +1265,7 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
         vk::Rect2D sc{};
         sc.setExtent(m_swapchain.getExtent());
         commandBuffer.setScissor(0, sc);
-        
+
         vk::DescriptorSet brightSet = (m_aaMethod == AAMethod::TAA)
             ? m_brightDescriptorSets[m_historyIndex][m_currentFrame]
             : m_brightDescriptorSetsRaw[m_currentFrame];
@@ -1315,14 +1405,7 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
         scissor.setExtent(m_swapchain.getExtent());
         commandBuffer.setScissor(0, scissor);
 
-        if (m_aaMethod == AAMethod::FXAA)
-        {
-            m_fxaa.apply(commandBuffer, m_currentFrame, m_ldrTarget.getColorView(), m_ldrTarget.getSampler());
-        }
-        else
-        {
-            m_fxaa.apply(commandBuffer, m_currentFrame, m_ldrTarget.getColorView(), m_ldrTarget.getSampler());
-        }
+        m_fxaa.apply(commandBuffer, m_currentFrame, m_ldrTarget.getColorView(), m_ldrTarget.getSampler());
 
         commandBuffer.endRenderPass();
     }
@@ -1354,6 +1437,7 @@ void Renderer::cleanup()
 
     m_context.getDevice().waitIdle();
 
+    m_decalPipeline.cleanup();
     m_fxaa.cleanup();
     m_ldrFramebuffer.reset();
     m_ldrRenderPass.cleanup();
@@ -1368,6 +1452,16 @@ void Renderer::cleanup()
     m_hdrTarget.cleanup();
 
     m_velocityTarget.cleanup();
+
+    m_decalBox.cleanup();
+    m_decalCameraBuffer.cleanup();
+    m_decalPipeline.cleanup();
+    m_hdrDecalFramebuffer.reset();
+    m_hdrDecalRenderPass.cleanup();
+
+    for (auto& decal : m_screenSpaceDecals)
+        decal->cleanup();
+    m_screenSpaceDecals.clear();
 
     for (auto& fb : m_taaFramebuffers) fb.reset();
     m_taaPipeline.cleanup();

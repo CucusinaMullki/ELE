@@ -29,6 +29,9 @@
 #include "Vulkan/LdrTarget.h"
 #include "Vulkan/PostRenderPass.h"
 #include "Vulkan/FXAA.h"
+#include "Vulkan/DecalBox.h"
+#include "Vulkan/DecalCameraBuffer.h"
+#include "Scene/ScreenSpaceDecal.h"
 #include "Core/Camera.h"
 #include <GLFW/glfw3.h>
 
@@ -47,6 +50,8 @@ public:
 
     void setExposure(float exp) { m_exposure = exp; }
 
+    void addScreenSpaceDecal(std::shared_ptr<ScreenSpaceDecal> decal) { m_screenSpaceDecals.push_back(decal); }
+
     vk::Device getDevice() const { return m_context.getDevice(); }
     vk::PhysicalDevice getPhysicalDevice() const { return m_context.getPhysicalDevice(); }
     vk::CommandPool getCommandPool() const { return m_commandManager.getCommandPool(); }
@@ -58,6 +63,11 @@ public:
     vk::Sampler getShadowSampler() const { return m_shadowMap.getSampler(); }
     vk::ImageView getPointShadowView() const { return m_pointShadowMap.getCubeView(); }
     vk::Sampler getPointShadowSampler() const { return m_pointShadowMap.getSampler(); }
+    vk::DescriptorPool getDecalDescriptorPool() const { return m_decalPipeline.getDescriptorPool(); }
+    vk::DescriptorSetLayout getDecalDescriptorSetLayout() const { return m_decalPipeline.getDescriptorSetLayout(); }
+    vk::ImageView getDepthView() const { return m_depthBuffer.getImageView(); }
+    vk::Sampler getDepthSampler() const { return m_depthBuffer.getSampler(); }
+    const DecalCameraBuffer& getDecalCameraBuffer() const { return m_decalCameraBuffer; }
 
     uint32_t getFramesInFlight() const { return MAX_FRAMES_IN_FLIGHT; }
     float getAspect() const;
@@ -181,4 +191,12 @@ private:
 
     std::vector<vk::DescriptorSet> m_brightDescriptorSetsRaw;
     std::vector<vk::DescriptorSet> m_postDescriptorSetsRaw;
+
+    //Decal
+    Pipeline m_decalPipeline;
+    DecalBox m_decalBox;
+    DecalCameraBuffer m_decalCameraBuffer;
+    std::vector<std::shared_ptr<ScreenSpaceDecal>> m_screenSpaceDecals;
+    PostRenderPass m_hdrDecalRenderPass;
+    vk::UniqueFramebuffer m_hdrDecalFramebuffer;
 };

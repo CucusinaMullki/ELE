@@ -9,7 +9,11 @@ void PostRenderPass::initialize(vk::Device device, vk::Format colorFormat, vk::A
     colorAttachment.setStoreOp(vk::AttachmentStoreOp::eStore);
     colorAttachment.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
     colorAttachment.setStencilStoreOp(vk::AttachmentStoreOp::eDontCare);
-    colorAttachment.setInitialLayout(vk::ImageLayout::eUndefined);
+    colorAttachment.setInitialLayout(
+        loadOp == vk::AttachmentLoadOp::eLoad
+            ? vk::ImageLayout::eShaderReadOnlyOptimal
+            : vk::ImageLayout::eUndefined
+    );
     colorAttachment.setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
 
     vk::AttachmentReference colorRef{};

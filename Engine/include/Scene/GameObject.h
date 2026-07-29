@@ -10,8 +10,8 @@ class GameObject
 public:
     Transform transform;
     std::shared_ptr<Mesh> mesh;
-
     std::vector<std::shared_ptr<Material>> materials;
+    bool isDecal = false;
 
     void setMaterial(std::shared_ptr<Material> mat) { materials = { mat }; }
 

@@ -191,6 +191,10 @@ void GltfModel::load(const std::string& path)
         if (pbr.baseColorTexture.index >= 0)
             gm.albedoImage = model.textures[pbr.baseColorTexture.index].source;
 
+        if (pbr.baseColorFactor.size() == 4)
+            gm.baseColorFactor = glm::vec4(pbr.baseColorFactor[0], pbr.baseColorFactor[1],
+                pbr.baseColorFactor[2], pbr.baseColorFactor[3]);
+
         if (pbr.metallicRoughnessTexture.index >= 0)
             gm.mrImage = model.textures[pbr.metallicRoughnessTexture.index].source;
 

@@ -15,6 +15,20 @@ std::vector<unsigned char> applyMRFactors(const unsigned char* src, int w, int h
     return result;
 }
 
+std::vector<unsigned char> applyBaseColorFactor(const unsigned char* src, int w, int h,
+    const glm::vec4& factor)
+{
+    std::vector<unsigned char> result(w * h * 4);
+    for (int i = 0; i < w * h; i++)
+    {
+        result[i*4+0] = (unsigned char)std::clamp((int)(src[i*4+0] * factor.r), 0, 255);
+        result[i*4+1] = (unsigned char)std::clamp((int)(src[i*4+1] * factor.g), 0, 255);
+        result[i*4+2] = (unsigned char)std::clamp((int)(src[i*4+2] * factor.b), 0, 255);
+        result[i*4+3] = (unsigned char)std::clamp((int)(src[i*4+3] * factor.a), 0, 255);
+    }
+    return result;
+}
+
 void Engine::initialize(int width, int height, const std::string& title)
 {
     glfwInit();
@@ -131,6 +145,8 @@ GameObject& Engine::loadGltfObject(const std::string& path)
     std::vector<std::shared_ptr<Material>> materials;
     for (const auto& gm : model.getMaterials())
     {
+        LOG("material: albedo=" << gm.albedoImage << " normal=" << gm.normalImage
+            << " mr=" << gm.mrImage << " ao=" << gm.aoImage);
         auto getPx = [&](int imgIdx, const unsigned char* fallback, int& w, int& h) -> const unsigned char* {
             if (imgIdx >= 0 && imgIdx < (int)model.getImage().size())
             {
@@ -145,11 +161,14 @@ GameObject& Engine::loadGltfObject(const std::string& path)
         };
 
         int aw, ah, nw, nh, mw, mh, ow, oh, lw, lh;
-        const unsigned char* aPx = getPx(gm.albedoImage, white, aw, ah);
+        const unsigned char* aPxRaw = getPx(gm.albedoImage, white, aw, ah);
         const unsigned char* nPx = getPx(gm.normalImage, normalPx, nw, nh);
         const unsigned char* mPxRaw = getPx(gm.mrImage, defaultMR, mw, mh);
         const unsigned char* oPx = getPx(gm.aoImage, white, ow, oh);
         const unsigned char* lPx = getPx(gm.lightmapImage, black, lw, lh);
+
+        std::vector<unsigned char> aAdjusted = applyBaseColorFactor(aPxRaw, aw, ah, gm.baseColorFactor);
+        const unsigned char* aPx = aAdjusted.data();
 
         std::vector<unsigned char> mrAdjusted = applyMRFactors(mPxRaw, mw, mh, gm.metallicFactor, gm.roughnessFactor);
         const unsigned char* mPx = mrAdjusted.data();
@@ -225,4 +244,27 @@ void Engine::addPointLight(glm::vec3 position, glm::vec3 color, float intensity)
     m_lights.lights[i].color = glm::vec4(color, intensity);
     LOG("addPointLight called with y=" << position.y);
     m_lights.count.x++;
+}
+
+std::shared_ptr<ScreenSpaceDecal> Engine::addScreenSpaceDecal(const std::string& texturePath,
+    glm::vec3 position, glm::vec3 rotationEuler, glm::vec3 size)
+{
+    LOG("addScreenSpaceDecal called!");
+
+    auto decal = std::make_shared<ScreenSpaceDecal>();
+    decal->position = position;
+    decal->rotationEuler = rotationEuler;
+    decal->size = size;
+
+    decal->loadTexture(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
+        m_renderer.getCommandPool(), m_renderer.getGraphicsQueue(), texturePath);
+
+    LOG("using layout ptr=" << (void*)(VkDescriptorSetLayout)m_renderer.getDecalDescriptorSetLayout());
+
+    decal->createDescriptorSet(m_renderer.getDevice(), m_renderer.getDecalDescriptorPool(),
+        m_renderer.getDecalDescriptorSetLayout(), m_renderer.getDepthView(), m_renderer.getDepthSampler(),
+        m_renderer.getDecalCameraBuffer(), m_renderer.getFramesInFlight());
+
+    m_renderer.addScreenSpaceDecal(decal);
+    return decal;
 }

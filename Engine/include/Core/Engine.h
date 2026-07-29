@@ -4,10 +4,12 @@
 #include "Core/Input.h"
 #include "Core/Camera.h"
 #include "Scene/Scene.h"
+#include "Scene/ScreenSpaceDecal.h"
 #include "Core/GltfModel.h"
 #include <GLFW/glfw3.h>
 #include <memory>
 #include <string>
+
 
 class Engine
 {
@@ -33,6 +35,8 @@ public:
     void onFramebufferResize();
 
     void setAntialiasing(AAMethod method) { m_renderer.setAAMethod(method); }
+
+    std::shared_ptr<ScreenSpaceDecal> addScreenSpaceDecal(const std::string& texturePath, glm::vec3 position, glm::vec3 rotationEuler, glm::vec3 size);
 
 private:
     void updateInput(float deltaTime);

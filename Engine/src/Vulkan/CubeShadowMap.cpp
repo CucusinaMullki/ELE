@@ -53,7 +53,7 @@ void CubeShadowMap::initialize(vk::Device device, vk::PhysicalDevice physicalDev
     samplerInfo.setBorderColor(vk::BorderColor::eFloatOpaqueWhite);
     samplerInfo.setUnnormalizedCoordinates(false);
     samplerInfo.setCompareEnable(true);
-    samplerInfo.setCompareOp(vk::CompareOp::eLessOrEqual); 
+    samplerInfo.setCompareOp(vk::CompareOp::eLessOrEqual);
     samplerInfo.setMipmapMode(vk::SamplerMipmapMode::eLinear);
     m_sampler = device.createSamplerUnique(samplerInfo);
 }

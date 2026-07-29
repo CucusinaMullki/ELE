@@ -158,9 +158,10 @@ void main()
         float NdotL = max(dot(N, L), 0.0);
 
         float visibility = 1.0;
-        if (i == 0 && light.position.w < 0.5) {
-            visibility = calculateShadow(fragLightSpacePos, N, L, gl_FragCoord.xy);
-        }
+    if (i == 0 && light.position.w < 0.5) {
+        vec3 geoN = normalize(fragTBN[2]);
+        visibility = calculateShadow(fragLightSpacePos, geoN, L, gl_FragCoord.xy);
+    }
 
         Lo += (kD * albedo / PI + specular) * radiance * NdotL * visibility;
     }
@@ -171,7 +172,8 @@ void main()
     vec3 lightmapColor = texture(lightmapMap, fragLightmapUV).rgb;
     color += lightmapColor * 0.3;
 
-    outColor = vec4(color, 1.0);
+    float alpha = texture(albedoMap, fragTexCoord).a;
+    outColor = vec4(color, alpha);
 
     vec2 currNDC = fragCurrClipPos.xy / fragCurrClipPos.w;
     vec2 prevNDC = fragPrevClipPos.xy / fragPrevClipPos.w;
