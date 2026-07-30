@@ -2,7 +2,7 @@
 #extension GL_GOOGLE_include_directive : require
 #include "brdf.glsl"
 
-layout(binding = 0) uniform sampler2D decalTexture;
+layout(binding = 0) uniform sampler2D decalTexture;      // albedo.rgb + базовая opacity в .a
 layout(binding = 1) uniform sampler2D depthTexture;
 
 layout(binding = 2) uniform Camera {
@@ -18,10 +18,14 @@ layout(binding = 3) uniform LightUBO {
     ivec4 count;
 } lightData;
 
+layout(binding = 4) uniform sampler2D opacityTexture;
+layout(binding = 5) uniform sampler2D normalTexture;
+layout(binding = 6) uniform sampler2D mrTexture;
+
 layout(push_constant) uniform Push {
     mat4 model;
     mat4 invModel;
-    vec4 params; // x=metallic, y=roughness
+    vec4 params;
 } push;
 
 layout(location = 0) in vec4 fragClipPos;
@@ -41,17 +45,26 @@ void main()
         discard;
 
     vec2 decalUV = localPos.xz + 0.5;
-    vec4 tex = texture(decalTexture, decalUV);
-    if (tex.a < 0.01)
+
+    vec4 albedoTex = texture(decalTexture, decalUV);
+    float opacity = albedoTex.a * texture(opacityTexture, decalUV).r;
+    if (opacity < 0.01)
         discard;
 
-    vec3 albedo = pow(tex.rgb, vec3(2.2));
+    vec3 albedo = pow(albedoTex.rgb, vec3(2.2));
 
-    // нормаль = локальная ось Y бокса, повёрнутая в мир (без учёта реальной геометрии сцены)
-    vec3 N = normalize((push.model * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+    mat3 normalMat = mat3(transpose(inverse(push.model)));
+    vec3 T  = normalize(normalMat * vec3(1.0, 0.0, 0.0));
+    vec3 B  = normalize(normalMat * vec3(0.0, 0.0, 1.0));
+    vec3 N0 = normalize(normalMat * vec3(0.0, 1.0, 0.0));
+    mat3 TBN = mat3(T, B, N0);
 
-    float metallic  = push.params.x;
-    float roughness = clamp(push.params.y, 0.05, 1.0);
+    vec3 nSample = texture(normalTexture, decalUV).rgb * 2.0 - 1.0;
+    vec3 N = normalize(TBN * nSample);
+
+    vec3 mr = texture(mrTexture, decalUV).rgb;
+    float roughness = clamp(mr.g * push.params.y, 0.05, 1.0);
+    float metallic  = clamp(mr.b * push.params.x, 0.0, 1.0);
 
     vec3 V = normalize(cam.camPos.xyz - worldPos);
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
@@ -85,5 +98,5 @@ void main()
     }
 
     vec3 ambient = vec3(0.02) * albedo;
-    outColor = vec4(ambient + Lo, tex.a);
+    outColor = vec4(ambient + Lo, opacity);
 }

@@ -207,8 +207,9 @@ GameObject& Engine::loadGltfObject(const std::string& path)
 
     for (const auto& gd : model.getDecals())
     {
-        auto decal = addScreenSpaceDecal(gd.texturePath, gd.position, gd.rotationEuler, gd.size);
-        decal->metallic = gd.metallic;
+        auto decal = addScreenSpaceDecal(gd.texturePath, gd.position, gd.rotationEuler, gd.size,
+            gd.opacityPath, gd.normalPath, gd.mrPath);
+        decal->metallic  = gd.metallic;
         decal->roughness = gd.roughness;
     }
 
@@ -254,7 +255,8 @@ void Engine::addPointLight(glm::vec3 position, glm::vec3 color, float intensity)
 }
 
 std::shared_ptr<ScreenSpaceDecal> Engine::addScreenSpaceDecal(const std::string& texturePath,
-    glm::vec3 position, glm::vec3 rotationEuler, glm::vec3 size)
+    glm::vec3 position, glm::vec3 rotationEuler, glm::vec3 size,
+    const std::string& opacityPath, const std::string& normalPath, const std::string& mrPath)
 {
     LOG("addScreenSpaceDecal called!");
 
@@ -264,7 +266,7 @@ std::shared_ptr<ScreenSpaceDecal> Engine::addScreenSpaceDecal(const std::string&
     decal->size = size;
 
     decal->loadTexture(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
-        m_renderer.getCommandPool(), m_renderer.getGraphicsQueue(), texturePath);
+        m_renderer.getCommandPool(), m_renderer.getGraphicsQueue(), texturePath, opacityPath, normalPath, mrPath);
 
     LOG("using layout ptr=" << (void*)(VkDescriptorSetLayout)m_renderer.getDecalDescriptorSetLayout());
 

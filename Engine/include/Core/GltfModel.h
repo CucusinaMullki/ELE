@@ -24,6 +24,9 @@ struct GltfImage
 struct GltfDecal
 {
     std::string texturePath;
+    std::string opacityPath;
+    std::string normalPath;
+    std::string mrPath;
     glm::vec3 position{0.0f};
     glm::vec3 rotationEuler{0.0f};
     glm::vec3 size{1.0f};

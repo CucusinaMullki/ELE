@@ -230,11 +230,18 @@ void GltfModel::load(const std::string& path)
         {
             GltfDecal decal{};
             decal.texturePath = node.extras.Get("decal_texture").Get<std::string>();
+            LOG("Texture was imported");
 
             if (node.extras.Has("decal_metallic"))
                 decal.metallic = (float)node.extras.Get("decal_metallic").Get<double>();
             if (node.extras.Has("decal_roughness"))
                 decal.roughness = (float)node.extras.Get("decal_roughness").Get<double>();
+            if (node.extras.Has("decal_opacity"))
+                decal.opacityPath = node.extras.Get("decal_opacity").Get<std::string>(); LOG("Texture was imported");
+            if (node.extras.Has("decal_normal"))
+                decal.normalPath = node.extras.Get("decal_normal").Get<std::string>();
+            if (node.extras.Has("decal_mr"))
+                decal.mrPath = node.extras.Get("decal_mr").Get<std::string>();
                 
             if (!node.matrix.empty() && node.matrix.size() == 16)
             {

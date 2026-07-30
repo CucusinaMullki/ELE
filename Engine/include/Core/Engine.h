@@ -36,7 +36,9 @@ public:
 
     void setAntialiasing(AAMethod method) { m_renderer.setAAMethod(method); }
 
-    std::shared_ptr<ScreenSpaceDecal> addScreenSpaceDecal(const std::string& texturePath, glm::vec3 position, glm::vec3 rotationEuler, glm::vec3 size);
+    std::shared_ptr<ScreenSpaceDecal> addScreenSpaceDecal(const std::string& texturePath,
+        glm::vec3 position, glm::vec3 rotationEuler, glm::vec3 size,
+        const std::string& opacityPath = "", const std::string& normalPath = "", const std::string& mrPath = "");
 
 private:
     void updateInput(float deltaTime);
