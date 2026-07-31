@@ -302,6 +302,94 @@ void Renderer::initialize(GLFWwindow* window)
             writeDescSet(m_upsampleDescriptorSets[level][i], srcView, m_bloomChain.getSampler());
     }
 
+    m_godRayMaskTarget.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), m_swapchain.getExtent());
+    m_godRayBlurTarget.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), m_swapchain.getExtent());
+
+    vk::ImageView maskView = m_godRayMaskTarget.getColorView();
+    vk::FramebufferCreateInfo maskFbInfo{};
+    maskFbInfo.setRenderPass(m_postRenderPass.getRenderPass());
+    maskFbInfo.setAttachmentCount(1);
+    maskFbInfo.setPAttachments(&maskView);
+    maskFbInfo.setWidth(bloomExtent.width);
+    maskFbInfo.setHeight(bloomExtent.height);
+    maskFbInfo.setLayers(1);
+    m_godRayMaskFramebuffer = m_context.getDevice().createFramebufferUnique(maskFbInfo);
+
+    vk::ImageView blurView = m_godRayBlurTarget.getColorView();
+    vk::FramebufferCreateInfo blurFbInfo{};
+    blurFbInfo.setRenderPass(m_postRenderPass.getRenderPass());
+    blurFbInfo.setAttachmentCount(1);
+    blurFbInfo.setPAttachments(&blurView);
+    blurFbInfo.setWidth(bloomExtent.width);
+    blurFbInfo.setHeight(bloomExtent.height);
+    blurFbInfo.setLayers(1);
+    m_godRayBlurFramebuffer = m_context.getDevice().createFramebufferUnique(blurFbInfo);
+
+    PipelineConfig godRayMaskConfig{};
+    godRayMaskConfig.vertexShader = "fullscreen";
+    godRayMaskConfig.fragmentShader = "godray_mask";
+    godRayMaskConfig.renderPass = m_postRenderPass.getRenderPass();
+    godRayMaskConfig.cache = m_pipelineCache.get();
+    godRayMaskConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
+    godRayMaskConfig.postProcess = true;
+    godRayMaskConfig.useDescriptors = false;
+    godRayMaskConfig.useVertexInput = false;
+    godRayMaskConfig.depthTest = false;
+    godRayMaskConfig.depthWrite = false;
+    godRayMaskConfig.cullMode = vk::CullModeFlagBits::eNone;
+    godRayMaskConfig.pushStage = vk::ShaderStageFlagBits::eFragment;
+    godRayMaskConfig.pushConstantSize = sizeof(glm::mat4) + sizeof(glm::vec4) * 2;
+    m_godRayMaskPipeline.initialize(m_context.getDevice(), godRayMaskConfig);
+
+    PipelineConfig godRayBlurConfig{};
+    godRayBlurConfig.vertexShader = "fullscreen";
+    godRayBlurConfig.fragmentShader = "godray_blur";
+    godRayBlurConfig.renderPass = m_postRenderPass.getRenderPass();
+    godRayBlurConfig.cache = m_pipelineCache.get();
+    godRayBlurConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
+    godRayBlurConfig.postProcess = true;
+    godRayBlurConfig.useDescriptors = false;
+    godRayBlurConfig.useVertexInput = false;
+    godRayBlurConfig.depthTest = false;
+    godRayBlurConfig.depthWrite = false;
+    godRayBlurConfig.cullMode = vk::CullModeFlagBits::eNone;
+    godRayBlurConfig.pushStage = vk::ShaderStageFlagBits::eFragment;
+    godRayBlurConfig.pushConstantSize = sizeof(glm::vec4) * 2;
+    m_godRayBlurPipeline.initialize(m_context.getDevice(), godRayBlurConfig);
+
+    PipelineConfig godRayCompositeConfig{};
+    godRayCompositeConfig.vertexShader = "fullscreen";
+    godRayCompositeConfig.fragmentShader = "godray_composite";
+    godRayCompositeConfig.renderPass = m_hdrDecalRenderPass.getRenderPass();
+    godRayCompositeConfig.cache = m_pipelineCache.get();
+    godRayCompositeConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
+    godRayCompositeConfig.postProcess = true;
+    godRayCompositeConfig.useDescriptors = false;
+    godRayCompositeConfig.useVertexInput = false;
+    godRayCompositeConfig.colorAttachmentCount = 1;
+    godRayCompositeConfig.depthTest = false;
+    godRayCompositeConfig.depthWrite = false;
+    godRayCompositeConfig.cullMode = vk::CullModeFlagBits::eNone;
+    godRayCompositeConfig.blendEnable = true;
+    godRayCompositeConfig.blendSrcFactor = vk::BlendFactor::eOne;
+    godRayCompositeConfig.blendDstFactor = vk::BlendFactor::eOne;
+    godRayCompositeConfig.blendOp = vk::BlendOp::eAdd;
+    godRayCompositeConfig.pushStage = vk::ShaderStageFlagBits::eFragment;
+    godRayCompositeConfig.pushConstantSize = sizeof(float);
+    m_godRayCompositePipeline.initialize(m_context.getDevice(), godRayCompositeConfig);
+
+    m_godRayMaskDescriptorSets = allocDescSets(m_godRayMaskPipeline);
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        writeDescSet(m_godRayMaskDescriptorSets[i], m_depthBuffer.getImageView(), m_depthBuffer.getSampler());
+
+    m_godRayBlurDescriptorSets = allocDescSets(m_godRayBlurPipeline);
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        writeDescSet(m_godRayBlurDescriptorSets[i], m_godRayMaskTarget.getColorView(), m_godRayMaskTarget.getSampler());
+
+    m_godRayCompositeDescriptorSets = allocDescSets(m_godRayCompositePipeline);
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        writeDescSet(m_godRayCompositeDescriptorSets[i], m_godRayBlurTarget.getColorView(), m_godRayBlurTarget.getSampler());
+
     m_postRenderPassLoad.initialize(m_context.getDevice(), m_brighTarget.getColorFormat(), vk::AttachmentLoadOp::eLoad);
 
     m_ldrTarget.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), m_swapchain.getExtent());
@@ -333,9 +421,8 @@ void Renderer::initialize(GLFWwindow* window)
     postConfig.depthTest = false;
     postConfig.depthWrite = false;
     postConfig.cullMode = vk::CullModeFlagBits::eNone;
-    m_postPipeline.initialize(m_context.getDevice(), postConfig);   // ← ПОСЛЕ ЭТОЙ СТРОКИ pipeline существует
+    m_postPipeline.initialize(m_context.getDevice(), postConfig);
 
-    // TAA-based tonemap descriptor sets
     for (uint32_t slot = 0; slot < 2; slot++)
     {
         std::vector<vk::DescriptorSetLayout> postLayouts(MAX_FRAMES_IN_FLIGHT, m_postPipeline.getDescriptorSetLayout());
@@ -373,7 +460,6 @@ void Renderer::initialize(GLFWwindow* window)
         }
     }
 
-    // ═══ ПЕРЕМЕЩЕНО СЮДА: Raw tonemap descriptor set (m_postPipeline уже создан) ═══
     {
         std::vector<vk::DescriptorSetLayout> postLayoutsRaw(MAX_FRAMES_IN_FLIGHT, m_postPipeline.getDescriptorSetLayout());
         vk::DescriptorSetAllocateInfo postAllocRaw{};
@@ -449,7 +535,7 @@ void Renderer::initialize(GLFWwindow* window)
     m_decalBox.initialize(m_context.getDevice(), m_context.getPhysicalDevice());
     m_decalCameraBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), MAX_FRAMES_IN_FLIGHT);
     m_decalPipeline.initialize(m_context.getDevice(), decalConfig);
-    
+
     m_lightBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), MAX_FRAMES_IN_FLIGHT);
 
     auto indices = m_context.GetQueueFamilyIndices();
@@ -517,12 +603,35 @@ void Renderer::initialize(GLFWwindow* window)
     pointShadowConfig.pushStage = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment;
     m_pointShadowPipeline.initialize(m_context.getDevice(), pointShadowConfig);
 
+    m_fogCameraBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), MAX_FRAMES_IN_FLIGHT);
+
+    PipelineConfig fogConfig{};
+    fogConfig.vertexShader = "fullscreen";
+    fogConfig.fragmentShader = "fog";
+    fogConfig.renderPass = m_hdrDecalRenderPass.getRenderPass();
+    fogConfig.cache = m_pipelineCache.get();
+    fogConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
+    fogConfig.colorAttachmentCount = 1;
+    fogConfig.useVertexInput = false;
+    fogConfig.fogLayout = true;
+    fogConfig.depthTest = false;
+    fogConfig.depthWrite = false;
+    fogConfig.cullMode = vk::CullModeFlagBits::eNone;
+    fogConfig.blendEnable = true;
+    fogConfig.blendSrcFactor = vk::BlendFactor::eSrcAlpha;
+    fogConfig.blendDstFactor = vk::BlendFactor::eOneMinusSrcAlpha;
+    fogConfig.blendOp = vk::BlendOp::eAdd;
+    fogConfig.pushConstantSize = sizeof(glm::vec4) * 4;
+    fogConfig.pushStage = vk::ShaderStageFlagBits::eFragment;
+
+    m_fogPipeline.initialize(m_context.getDevice(), fogConfig);
+    createFogDescriptorSets();
+
     size_t imageCount = m_swapchain.getImageViews().size();
     m_imageAvailableSemaphore.resize(MAX_FRAMES_IN_FLIGHT);
     m_renderFinishedSemaphore.resize(imageCount);
     m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
     m_imagesInFlight.resize(imageCount, VK_NULL_HANDLE);
-
     vk::SemaphoreCreateInfo semaphoreInfo{};
     vk::FenceCreateInfo fenceInfo{};
     fenceInfo.setFlags(vk::FenceCreateFlagBits::eSignaled);
@@ -571,6 +680,42 @@ void Renderer::initialize(GLFWwindow* window)
     }
 }
 
+void Renderer::createFogDescriptorSets()
+{
+    std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_fogPipeline.getDescriptorSetLayout());
+    vk::DescriptorSetAllocateInfo allocInfo{};
+    allocInfo.setDescriptorPool(m_fogPipeline.getDescriptorPool());
+    allocInfo.setSetLayouts(layouts);
+    m_fogDescriptorSets = m_context.getDevice().allocateDescriptorSets(allocInfo);
+
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+    {
+        vk::DescriptorImageInfo depthInfo{};
+        depthInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+        depthInfo.setImageView(m_depthBuffer.getImageView());
+        depthInfo.setSampler(m_depthBuffer.getSampler());
+
+        vk::DescriptorImageInfo shadowInfo{};
+        shadowInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+        shadowInfo.setImageView(m_shadowMap.getImageView());
+        shadowInfo.setSampler(m_shadowMap.getSampler());
+
+        vk::DescriptorBufferInfo camInfo   = m_fogCameraBuffer.getDescriptorInfo(i);
+        vk::DescriptorBufferInfo lightInfo = m_lightBuffer.getDescriptorInfo(i);
+
+        std::array<vk::WriteDescriptorSet, 4> writes{};
+        writes[0].setDstSet(m_fogDescriptorSets[i]).setDstBinding(0)
+            .setDescriptorType(vk::DescriptorType::eCombinedImageSampler).setDescriptorCount(1).setImageInfo(depthInfo);
+        writes[1].setDstSet(m_fogDescriptorSets[i]).setDstBinding(1)
+            .setDescriptorType(vk::DescriptorType::eUniformBuffer).setDescriptorCount(1).setBufferInfo(camInfo);
+        writes[2].setDstSet(m_fogDescriptorSets[i]).setDstBinding(2)
+            .setDescriptorType(vk::DescriptorType::eCombinedImageSampler).setDescriptorCount(1).setImageInfo(shadowInfo);
+        writes[3].setDstSet(m_fogDescriptorSets[i]).setDstBinding(3)
+            .setDescriptorType(vk::DescriptorType::eUniformBuffer).setDescriptorCount(1).setBufferInfo(lightInfo);
+
+        m_context.getDevice().updateDescriptorSets(writes, nullptr);
+    }
+}
 void Renderer::updatePointLightMatrices(glm::vec3 lightPos)
 {
     float aspect = 1.0f;
@@ -663,7 +808,7 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
     m_hasPointLightShadow = hasPointLight;
     m_currentPointLightPos = pointLightPos;
 
-    glm::vec2 jitter = getJitter();
+    glm::vec2 jitter = (m_aaMethod == AAMethod::TAA) ? getJitter() : glm::vec2(0.0f);
     glm::mat4 baseProj = camera.getProjectionMatrix(); 
 
     glm::mat4 proj = baseProj;
@@ -734,9 +879,37 @@ void Renderer::recreateSwapchain()
     m_swapchain.recreate(m_context, m_window);
     vk::Extent2D extent = m_swapchain.getExtent();
 
+    m_godRayMaskFramebuffer.reset();
+    m_godRayBlurFramebuffer.reset();
+    m_godRayMaskTarget.cleanup();
+    m_godRayBlurTarget.cleanup();
+    m_godRayMaskTarget.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), extent);
+    m_godRayBlurTarget.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), extent);
+
+    vk::ImageView maskView = m_godRayMaskTarget.getColorView();
+    vk::FramebufferCreateInfo maskFbInfo{};
+    maskFbInfo.setRenderPass(m_postRenderPass.getRenderPass());
+    maskFbInfo.setAttachmentCount(1);
+    maskFbInfo.setPAttachments(&maskView);
+    maskFbInfo.setWidth(extent.width);
+    maskFbInfo.setHeight(extent.height);
+    maskFbInfo.setLayers(1);
+    m_godRayMaskFramebuffer = m_context.getDevice().createFramebufferUnique(maskFbInfo);
+
+    vk::ImageView blurView = m_godRayBlurTarget.getColorView();
+    vk::FramebufferCreateInfo blurFbInfo{};
+    blurFbInfo.setRenderPass(m_postRenderPass.getRenderPass());
+    blurFbInfo.setAttachmentCount(1);
+    blurFbInfo.setPAttachments(&blurView);
+    blurFbInfo.setWidth(extent.width);
+    blurFbInfo.setHeight(extent.height);
+    blurFbInfo.setLayers(1);
+    m_godRayBlurFramebuffer = m_context.getDevice().createFramebufferUnique(blurFbInfo);
+
     m_depthBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), extent);
     m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass(), m_depthBuffer.getImageView());
 
+    createFogDescriptorSets();
     m_velocityTarget.cleanup();
     m_velocityTarget.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), extent);
 
@@ -1213,6 +1386,184 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
         commandBuffer.endRenderPass();
     }
 
+    if (m_fogSettings.enabled)
+    {
+        FogCameraData fogCam{};
+        fogCam.view = camera.getViewMatrix();
+        fogCam.proj = camera.getProjectionMatrix();
+        fogCam.invViewProj = glm::inverse(fogCam.proj * fogCam.view);
+        fogCam.lightSpaceMatrix = m_lightSpaceMatrix;
+        fogCam.camPos = glm::vec4(camera.getPosition(), 1.0f);
+        m_fogCameraBuffer.update(m_currentFrame, fogCam);
+
+        vk::RenderPassBeginInfo fogPass{};
+        fogPass.setRenderPass(m_hdrDecalRenderPass.getRenderPass());
+        fogPass.setFramebuffer(m_hdrDecalFramebuffer.get());
+        fogPass.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
+        fogPass.setClearValueCount(0);
+
+        commandBuffer.beginRenderPass(fogPass, vk::SubpassContents::eInline);
+
+        vk::Viewport viewport{};
+        viewport.setWidth((float)m_swapchain.getExtent().width)
+                .setHeight((float)m_swapchain.getExtent().height)
+                .setMinDepth(0.0f).setMaxDepth(1.0f);
+        commandBuffer.setViewport(0, viewport);
+        vk::Rect2D scissor{};
+        scissor.setExtent(m_swapchain.getExtent());
+        commandBuffer.setScissor(0, scissor);
+
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_fogPipeline.getPipeline());
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+            m_fogPipeline.getLayout(), 0, m_fogDescriptorSets[m_currentFrame], nullptr);
+
+        struct FogPush
+        {
+            glm::vec4 scatteringColorDensity;
+            glm::vec4 heightParams;
+            glm::vec4 lightParams;
+            glm::vec4 miscParams;
+        } fogPush{};
+
+        fogPush.scatteringColorDensity = glm::vec4(m_fogSettings.scatteringColor, m_fogSettings.density);
+        fogPush.heightParams = glm::vec4(m_fogSettings.heightFalloff, m_fogSettings.heightStart,
+                                           m_fogSettings.maxDistance, (float)m_fogSettings.stepCount);
+        fogPush.lightParams = glm::vec4(m_fogSettings.ambientIntensity, m_fogSettings.sunIntensity,
+                                          m_fogSettings.noiseScale, m_fogSettings.noiseSpeed);
+        fogPush.miscParams = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+
+        commandBuffer.pushConstants(m_fogPipeline.getLayout(), vk::ShaderStageFlagBits::eFragment,
+            0, sizeof(FogPush), &fogPush);
+
+        commandBuffer.draw(3, 1, 0, 0);
+        commandBuffer.endRenderPass();
+    }
+
+    if (m_godRaySettings.enabled)
+    {
+        bool sunVisible = false;
+        glm::vec3 sunDir(0.0f, 1.0f, 0.0f);
+        glm::vec3 sunColor(1.0f);
+        glm::vec2 sunUV(0.5f);
+
+        if (m_pendingLights.count.x > 0 && m_pendingLights.lights[0].position.w < 0.5f)
+        {
+            sunDir = glm::normalize(-glm::vec3(m_pendingLights.lights[0].position));
+            sunColor = glm::vec3(m_pendingLights.lights[0].color);
+
+            glm::mat4 proj = camera.getProjectionMatrix();
+            glm::mat4 view = camera.getViewMatrix();
+            glm::vec3 sunFarPoint = camera.getPosition() + sunDir * 1000.0f;
+            glm::vec4 clip = proj * view * glm::vec4(sunFarPoint, 1.0f);
+
+            if (clip.w > 0.0f)
+            {
+                glm::vec3 ndc = glm::vec3(clip) / clip.w;
+                sunUV = glm::vec2(ndc.x * 0.5f + 0.5f, ndc.y * 0.5f + 0.5f);
+                sunVisible = true;
+            }
+        }
+
+        if (sunVisible)
+        {
+            vk::Extent2D grExtent = m_swapchain.getExtent();
+
+            {
+                vk::ClearValue clear{};
+                clear.setColor(vk::ClearColorValue{ std::array<float,4>{0,0,0,0} });
+
+                vk::RenderPassBeginInfo pass{};
+                pass.setRenderPass(m_postRenderPass.getRenderPass());
+                pass.setFramebuffer(m_godRayMaskFramebuffer.get());
+                pass.setRenderArea(vk::Rect2D{ {0,0}, grExtent });
+                pass.setClearValues(clear);
+
+                commandBuffer.beginRenderPass(pass, vk::SubpassContents::eInline);
+                commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_godRayMaskPipeline.getPipeline());
+
+                vk::Viewport vp{};
+                vp.setWidth((float)grExtent.width).setHeight((float)grExtent.height).setMaxDepth(1.0f);
+                commandBuffer.setViewport(0, vp);
+                vk::Rect2D sc{}; sc.setExtent(grExtent);
+                commandBuffer.setScissor(0, sc);
+
+                commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                    m_godRayMaskPipeline.getLayout(), 0, m_godRayMaskDescriptorSets[m_currentFrame], nullptr);
+
+                struct MaskPush { glm::mat4 invViewProj; glm::vec4 sunDirIntensity; glm::vec4 sunColorSize; } maskPush{};
+                maskPush.invViewProj = glm::inverse(camera.getProjectionMatrix() * camera.getViewMatrix());
+                maskPush.sunDirIntensity = glm::vec4(sunDir, 1.0f);
+                maskPush.sunColorSize = glm::vec4(sunColor, m_godRaySettings.sunSize);
+
+                commandBuffer.pushConstants(m_godRayMaskPipeline.getLayout(), vk::ShaderStageFlagBits::eFragment,
+                    0, sizeof(MaskPush), &maskPush);
+
+                commandBuffer.draw(3, 1, 0, 0);
+                commandBuffer.endRenderPass();
+            }
+
+            {
+                vk::ClearValue clear{};
+                clear.setColor(vk::ClearColorValue{ std::array<float,4>{0,0,0,0} });
+
+                vk::RenderPassBeginInfo pass{};
+                pass.setRenderPass(m_postRenderPass.getRenderPass());
+                pass.setFramebuffer(m_godRayBlurFramebuffer.get());
+                pass.setRenderArea(vk::Rect2D{ {0,0}, grExtent });
+                pass.setClearValues(clear);
+
+                commandBuffer.beginRenderPass(pass, vk::SubpassContents::eInline);
+                commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_godRayBlurPipeline.getPipeline());
+
+                vk::Viewport vp{};
+                vp.setWidth((float)grExtent.width).setHeight((float)grExtent.height).setMaxDepth(1.0f);
+                commandBuffer.setViewport(0, vp);
+                vk::Rect2D sc{}; sc.setExtent(grExtent);
+                commandBuffer.setScissor(0, sc);
+
+                commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                    m_godRayBlurPipeline.getLayout(), 0, m_godRayBlurDescriptorSets[m_currentFrame], nullptr);
+
+                struct BlurPush { glm::vec4 sunUVParams; glm::vec4 weightCountParams; } blurPush{};
+                blurPush.sunUVParams = glm::vec4(sunUV, m_godRaySettings.density, m_godRaySettings.decay);
+                blurPush.weightCountParams = glm::vec4(m_godRaySettings.weight, (float)m_godRaySettings.sampleCount, 0.0f, 0.0f);
+
+                commandBuffer.pushConstants(m_godRayBlurPipeline.getLayout(), vk::ShaderStageFlagBits::eFragment,
+                    0, sizeof(BlurPush), &blurPush);
+
+                commandBuffer.draw(3, 1, 0, 0);
+                commandBuffer.endRenderPass();
+            }
+
+            {
+                vk::RenderPassBeginInfo pass{};
+                pass.setRenderPass(m_hdrDecalRenderPass.getRenderPass());
+                pass.setFramebuffer(m_hdrDecalFramebuffer.get());
+                pass.setRenderArea(vk::Rect2D{ {0,0}, m_swapchain.getExtent() });
+                pass.setClearValueCount(0);
+
+                commandBuffer.beginRenderPass(pass, vk::SubpassContents::eInline);
+                commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_godRayCompositePipeline.getPipeline());
+
+                vk::Viewport vp{};
+                vp.setWidth((float)m_swapchain.getExtent().width).setHeight((float)m_swapchain.getExtent().height).setMaxDepth(1.0f);
+                commandBuffer.setViewport(0, vp);
+                vk::Rect2D sc{}; sc.setExtent(m_swapchain.getExtent());
+                commandBuffer.setScissor(0, sc);
+
+                commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                    m_godRayCompositePipeline.getLayout(), 0, m_godRayCompositeDescriptorSets[m_currentFrame], nullptr);
+
+                float intensity = m_godRaySettings.intensity;
+                commandBuffer.pushConstants(m_godRayCompositePipeline.getLayout(), vk::ShaderStageFlagBits::eFragment,
+                    0, sizeof(float), &intensity);
+
+                commandBuffer.draw(3, 1, 0, 0);
+                commandBuffer.endRenderPass();
+            }
+        }
+    }
+
     if (m_aaMethod == AAMethod::TAA)
     {
         uint32_t writeSlot = m_historyIndex;
@@ -1439,6 +1790,20 @@ void Renderer::cleanup()
 
     m_context.getDevice().waitIdle();
 
+    m_godRayMaskPipeline.cleanup();
+    m_godRayBlurPipeline.cleanup();
+    m_godRayCompositePipeline.cleanup();
+    m_godRayMaskTarget.cleanup();
+    m_godRayBlurTarget.cleanup();
+
+    m_godRayMaskFramebuffer.reset();
+    m_godRayBlurFramebuffer.reset();
+    m_godRayMaskPipeline.cleanup();
+    m_godRayBlurPipeline.cleanup();
+    m_godRayCompositePipeline.cleanup();
+    m_godRayMaskTarget.cleanup();
+    m_godRayBlurTarget.cleanup();
+
     m_decalPipeline.cleanup();
     m_fxaa.cleanup();
     m_ldrFramebuffer.reset();
@@ -1447,6 +1812,8 @@ void Renderer::cleanup()
 
     m_pipelineCache.save();
     m_pipelineCache.cleanup();
+    m_fogPipeline.cleanup();
+    m_fogCameraBuffer.cleanup();
 
     m_hdrFramebuffer.reset();
     m_postPipeline.cleanup();

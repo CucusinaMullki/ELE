@@ -18,8 +18,6 @@ public:
     void update(uint32_t frameIndex, const DecalCameraData& data);
     void cleanup();
 
-    float metallic = 0.0f;
-    float roughness = 0.6f;
     vk::DescriptorBufferInfo getDescriptorInfo(uint32_t frameIndex) const;
 
 private:

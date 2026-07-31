@@ -5,6 +5,7 @@
 #include "Core/Camera.h"
 #include "Scene/Scene.h"
 #include "Scene/ScreenSpaceDecal.h"
+#include "Core/FogSettings.h"
 #include "Core/GltfModel.h"
 #include <GLFW/glfw3.h>
 #include <memory>
@@ -27,6 +28,10 @@ public:
 
     void setExposure(float exp) { m_renderer.setExposure(exp); }
 
+    void setFogEnabled(bool enabled);
+    void setFogSettings(const FogSettings& settings);
+    const FogSettings& getFogSettings() const;
+
     Scene& getScene()   { return m_scene; }
     Camera& getCamera() { return m_camera; }
 
@@ -35,6 +40,8 @@ public:
     void onFramebufferResize();
 
     void setAntialiasing(AAMethod method) { m_renderer.setAAMethod(method); }
+
+    void setGodRaySettings(const GodRaySettings& settings) { m_renderer.setGodRaySettings(settings); }
 
     std::shared_ptr<ScreenSpaceDecal> addScreenSpaceDecal(const std::string& texturePath,
         glm::vec3 position, glm::vec3 rotationEuler, glm::vec3 size,
@@ -52,5 +59,6 @@ private:
     Input           m_input;
     Camera          m_camera;
     Scene           m_scene;
+    FogSettings m_fogSettings;
     LightData m_lights{};
 };

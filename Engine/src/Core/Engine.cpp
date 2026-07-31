@@ -235,6 +235,23 @@ GameObject& Engine::loadGltfObject(const std::string& path)
     return obj;
 }
 
+void Engine::setFogEnabled(bool enabled)
+{
+    m_fogSettings.enabled = enabled;
+    m_renderer.setFogSettings(m_fogSettings);
+}
+
+void Engine::setFogSettings(const FogSettings& settings)
+{
+    m_fogSettings = settings;
+    m_renderer.setFogSettings(m_fogSettings);
+}
+
+const FogSettings& Engine::getFogSettings() const
+{
+    return m_fogSettings;
+}
+
 void Engine::addDirectionalLight(glm::vec3 direction, glm::vec3 color, float intensity)
 {
     int i = m_lights.count.x;

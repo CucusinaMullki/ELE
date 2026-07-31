@@ -24,10 +24,14 @@
 #include "Vulkan/NoAA.h"
 #include "Vulkan/VelocityTarget.h"
 #include "Vulkan/HistoryBuffer.h"
+#include "Vulkan/GodRayTarget.h"
+#include "Core/GodRaySettings.h"
 #include "Vulkan/PointShadowPush.h"
 #include "Scene/Scene.h"
 #include "Vulkan/LdrTarget.h"
 #include "Vulkan/PostRenderPass.h"
+#include "Vulkan/FogCameraBuffer.h"
+#include "Core/FogSettings.h"
 #include "Vulkan/FXAA.h"
 #include "Vulkan/DecalBox.h"
 #include "Vulkan/DecalCameraBuffer.h"
@@ -50,9 +54,14 @@ public:
 
     void setExposure(float exp) { m_exposure = exp; }
 
+    void setFogSettings(const FogSettings& settings) { m_fogSettings = settings; }
+
+    void setGodRaySettings(const GodRaySettings& settings) { m_godRaySettings = settings; }
+
     void addScreenSpaceDecal(std::shared_ptr<ScreenSpaceDecal> decal) { m_screenSpaceDecals.push_back(decal); }
 
     vk::Device getDevice() const { return m_context.getDevice(); }
+    const FogSettings& getFogSettings() const { return m_fogSettings;}
     vk::PhysicalDevice getPhysicalDevice() const { return m_context.getPhysicalDevice(); }
     vk::CommandPool getCommandPool() const { return m_commandManager.getCommandPool(); }
     vk::Queue getGraphicsQueue() const { return m_context.getGraphicQueue(); }
@@ -69,7 +78,7 @@ public:
     vk::Sampler getDepthSampler() const { return m_depthBuffer.getSampler(); }
     const LightBuffer& getLightBuffer() const { return m_lightBuffer; }
     const DecalCameraBuffer& getDecalCameraBuffer() const { return m_decalCameraBuffer; }
-
+    const GodRaySettings& getGodRaySettings() const{ return m_godRaySettings; }
     uint32_t getFramesInFlight() const { return MAX_FRAMES_IN_FLIGHT; }
     float getAspect() const;
 
@@ -200,4 +209,27 @@ private:
     std::vector<std::shared_ptr<ScreenSpaceDecal>> m_screenSpaceDecals;
     PostRenderPass m_hdrDecalRenderPass;
     vk::UniqueFramebuffer m_hdrDecalFramebuffer;
+
+    //Volumetric fog
+    Pipeline m_fogPipeline;
+    FogCameraBuffer m_fogCameraBuffer;
+    std::vector<vk::DescriptorSet> m_fogDescriptorSets;
+    FogSettings m_fogSettings;
+    void createFogDescriptorSets();
+
+    //God rays
+    GodRayTarget m_godRayMaskTarget;
+    GodRayTarget m_godRayBlurTarget;
+    vk::UniqueFramebuffer m_godRayMaskFramebuffer;
+    vk::UniqueFramebuffer m_godRayBlurFramebuffer;
+
+    Pipeline m_godRayMaskPipeline;
+    Pipeline m_godRayBlurPipeline;
+    Pipeline m_godRayCompositePipeline;
+
+    std::vector<vk::DescriptorSet> m_godRayMaskDescriptorSets;
+    std::vector<vk::DescriptorSet> m_godRayBlurDescriptorSets;
+    std::vector<vk::DescriptorSet> m_godRayCompositeDescriptorSets;
+
+    GodRaySettings m_godRaySettings;
 };

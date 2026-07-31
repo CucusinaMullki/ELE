@@ -61,6 +61,8 @@ add_library(ELE STATIC
     Engine/src/Vulkan/DecalBox.cpp
     Engine/src/Scene/ScreenSpaceDecal.cpp
     Engine/src/Vulkan/DecalCameraBuffer.cpp
+    Engine/src/Vulkan/FogCameraBuffer.cpp
+    Engine/src/Vulkan/GodRayTarget.cpp
 )
 
 target_include_directories(ELE PUBLIC

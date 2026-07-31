@@ -28,6 +28,8 @@ struct PipelineConfig
     bool depthTest = true;
     bool blendEnable = false;
 
+    bool fogLayout = false;
+
     bool decalLayout = false;
 
     bool useVertexInput = true;
