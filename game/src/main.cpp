@@ -8,6 +8,8 @@ int main()
     engine.setExposure(0.25f);
     FogSettings fog;
     fog.enabled = true;
+    fog.density = 0.25f;
+    fog.scatteringColor = glm::vec3(0.36f, 0.36f ,0.36f);
     engine.setFogSettings(fog);
 
     GodRaySettings godrays;
@@ -15,7 +17,7 @@ int main()
     godrays.intensity = 1.0f;
     engine.setFogSettings(fog);
     engine.setGodRaySettings(godrays);
-    auto& character = engine.loadGltfObject("assets/models/GodRaysTestModel.glb");
+    auto& character = engine.loadGltfObject("assets/models/Level.glb");
     //////////////////////////////
     
     engine.run();

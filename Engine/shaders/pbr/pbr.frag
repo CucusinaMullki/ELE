@@ -97,12 +97,31 @@ float calculateShadow(vec4 lightSpacePos, vec3 N, vec3 L, vec2 screenXY)
 float calculatePointShadow(vec3 fragPos, vec3 lightPos)
 {
     vec3 toFrag = fragPos - lightPos;
-    float closestDist = texture(pointShadowMap, toFrag).r * POINT_SHADOW_FAR_PLANE;
     float currentDist = length(toFrag);
     float bias = 0.05;
-    return (currentDist - bias > closestDist) ? 1.0 : 0.0;
-}
 
+    const int SAMPLES = 20;
+    vec3 sampleOffsets[SAMPLES] = vec3[]
+    (
+        vec3( 1,  1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1,  1,  1),
+        vec3( 1,  1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1,  1, -1),
+        vec3( 1,  1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1,  1,  0),
+        vec3( 1,  0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1,  0, -1),
+        vec3( 0,  1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0,  1, -1)
+    );
+
+    float shadow = 0.0;
+    float diskRadius = (1.0 + (currentDist / POINT_SHADOW_FAR_PLANE)) / 25.0;
+
+    for (int i = 0; i < SAMPLES; i++)
+    {
+        float closestDist = texture(pointShadowMap, toFrag + sampleOffsets[i] * diskRadius).r * POINT_SHADOW_FAR_PLANE;
+        if (currentDist - bias > closestDist)
+            shadow += 1.0;
+    }
+
+    return shadow / float(SAMPLES);
+}
 void main()
 {
     vec3 albedo = pow(texture(albedoMap, fragTexCoord).rgb, vec3(2.2));

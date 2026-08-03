@@ -1,5 +1,6 @@
 #include "Vulkan/Renderer.h"
 #include "Vulkan/PushConstant.h"
+#include <vector>
 #include "Core/Log.h"
 
 namespace
@@ -405,7 +406,6 @@ void Renderer::initialize(GLFWwindow* window)
     ldrFbInfo.setLayers(1);
     m_ldrFramebuffer = m_context.getDevice().createFramebufferUnique(ldrFbInfo);
 
-    // ═══ Tonemap pipeline создаётся ЗДЕСЬ ═══
     PipelineConfig postConfig{};
     postConfig.vertexShader = "fullscreen";
     postConfig.fragmentShader = "tonemap";
@@ -625,6 +625,7 @@ void Renderer::initialize(GLFWwindow* window)
     fogConfig.pushStage = vk::ShaderStageFlagBits::eFragment;
 
     m_fogPipeline.initialize(m_context.getDevice(), fogConfig);
+    m_context.getDevice().resetDescriptorPool(m_fogPipeline.getDescriptorPool());
     createFogDescriptorSets();
 
     size_t imageCount = m_swapchain.getImageViews().size();
@@ -873,6 +874,10 @@ void Renderer::recreateSwapchain()
 
     m_context.getDevice().resetDescriptorPool(m_brightPipeline.getDescriptorPool());
     m_context.getDevice().resetDescriptorPool(m_postPipeline.getDescriptorPool());
+    m_context.getDevice().resetDescriptorPool(m_fogPipeline.getDescriptorPool());          // ДОБАВЛЕНО
+    m_context.getDevice().resetDescriptorPool(m_godRayMaskPipeline.getDescriptorPool());    // ДОБАВЛЕНО
+    m_context.getDevice().resetDescriptorPool(m_godRayBlurPipeline.getDescriptorPool());    // ДОБАВЛЕНО
+    m_context.getDevice().resetDescriptorPool(m_godRayCompositePipeline.getDescriptorPool()); // ДОБАВЛЕНО
 
     m_framebuffers.cleanup();
     m_depthBuffer.cleanup();
@@ -909,7 +914,8 @@ void Renderer::recreateSwapchain()
     m_depthBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), extent);
     m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass(), m_depthBuffer.getImageView());
 
-    createFogDescriptorSets();
+    createFogDescriptorSets();   // теперь безопасно — пул сброшен выше
+
     m_velocityTarget.cleanup();
     m_velocityTarget.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), extent);
 
@@ -929,6 +935,17 @@ void Renderer::recreateSwapchain()
     hdrFbInfo.setHeight(extent.height);
     hdrFbInfo.setLayers(1);
     m_hdrFramebuffer = m_context.getDevice().createFramebufferUnique(hdrFbInfo);
+
+    m_hdrDecalFramebuffer.reset();
+    vk::ImageView hdrDecalView = m_hdrTarget.getColorView();
+    vk::FramebufferCreateInfo hdrDecalFbInfo{};
+    hdrDecalFbInfo.setRenderPass(m_hdrDecalRenderPass.getRenderPass());
+    hdrDecalFbInfo.setAttachmentCount(1);
+    hdrDecalFbInfo.setPAttachments(&hdrDecalView);
+    hdrDecalFbInfo.setWidth(extent.width);
+    hdrDecalFbInfo.setHeight(extent.height);
+    hdrDecalFbInfo.setLayers(1);
+    m_hdrDecalFramebuffer = m_context.getDevice().createFramebufferUnique(hdrDecalFbInfo);
 
     m_brightFramebuffer.reset();
     m_brighTarget.cleanup();
@@ -1022,6 +1039,30 @@ void Renderer::recreateSwapchain()
         for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
             writeDescSet(m_upsampleDescriptorSets[level][i], srcView, m_bloomChain.getSampler());
     }
+
+    std::vector<vk::DescriptorSetLayout> godRayMaskLayouts(MAX_FRAMES_IN_FLIGHT, m_godRayMaskPipeline.getDescriptorSetLayout());
+    vk::DescriptorSetAllocateInfo godRayMaskAllocInfo{};
+    godRayMaskAllocInfo.setDescriptorPool(m_godRayMaskPipeline.getDescriptorPool());
+    godRayMaskAllocInfo.setSetLayouts(godRayMaskLayouts);
+    m_godRayMaskDescriptorSets = m_context.getDevice().allocateDescriptorSets(godRayMaskAllocInfo);
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        writeDescSet(m_godRayMaskDescriptorSets[i], m_depthBuffer.getImageView(), m_depthBuffer.getSampler());
+    
+    std::vector<vk::DescriptorSetLayout> godRayBlurLayouts(MAX_FRAMES_IN_FLIGHT, m_godRayBlurPipeline.getDescriptorSetLayout());
+    vk::DescriptorSetAllocateInfo godRayBlurAllocInfo{};
+    godRayBlurAllocInfo.setDescriptorPool(m_godRayBlurPipeline.getDescriptorPool());
+    godRayBlurAllocInfo.setSetLayouts(godRayBlurLayouts);
+    m_godRayBlurDescriptorSets = m_context.getDevice().allocateDescriptorSets(godRayBlurAllocInfo);
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        writeDescSet(m_godRayBlurDescriptorSets[i], m_godRayMaskTarget.getColorView(), m_godRayMaskTarget.getSampler());
+    
+    std::vector<vk::DescriptorSetLayout> godRayCompositeLayouts(MAX_FRAMES_IN_FLIGHT, m_godRayCompositePipeline.getDescriptorSetLayout());
+    vk::DescriptorSetAllocateInfo godRayCompositeAllocInfo{};
+    godRayCompositeAllocInfo.setDescriptorPool(m_godRayCompositePipeline.getDescriptorPool());
+    godRayCompositeAllocInfo.setSetLayouts(godRayCompositeLayouts);
+    m_godRayCompositeDescriptorSets = m_context.getDevice().allocateDescriptorSets(godRayCompositeAllocInfo);
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        writeDescSet(m_godRayCompositeDescriptorSets[i], m_godRayBlurTarget.getColorView(), m_godRayBlurTarget.getSampler());
 
     for (uint32_t slot = 0; slot < 2; slot++)
     {

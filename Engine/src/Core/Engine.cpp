@@ -100,6 +100,11 @@ void Engine::run()
     {
         glfwPollEvents();
 
+        int fbWidth, fbHeight;
+        glfwGetFramebufferSize(m_window, &fbWidth, &fbHeight);
+        if (fbHeight > 0)
+            m_camera.setAspect((float)fbWidth / (float)fbHeight);
+
         float now = static_cast<float>(glfwGetTime());
         float deltaTime = now - m_lastFrameTime;
         m_lastFrameTime = now;
