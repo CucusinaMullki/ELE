@@ -44,6 +44,8 @@ add_library(ELE STATIC
     src/Vulkan/GodRayTarget.cpp
     src/Core/TimeSystem.cpp
     src/Core/GLFWGamepad.cpp
+    src/Core/FreeFlyCameraController.cpp
+    src/Core/OrbitCameraController.cpp
 )
 
 target_include_directories(ELE PUBLIC

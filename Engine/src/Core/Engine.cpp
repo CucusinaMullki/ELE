@@ -45,6 +45,7 @@ void Engine::initialize(int width, int height, const std::string& title)
     m_resources.initialize(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
         m_renderer.getCommandPool(), m_renderer.getGraphicsQueue());
 
+    m_cameraController = std::make_unique<FreeFlyCameraController>();
     m_input.initialize(m_window);
     m_camera.initialize(glm::vec3(0.0f, 0.0f, 3.0f));
     m_camera.setAspect(m_renderer.getAspect());
@@ -76,32 +77,24 @@ std::shared_ptr<Material> Engine::loadMaterial(const std::string& albedo, const 
     return material;
 }
 
+void Engine::setCameraController(std::unique_ptr<ICameraController> controller)
+{
+    m_cameraController = std::move(controller);
+    m_cameraController->onActivate(m_camera);
+}
+
 void Engine::updateInput(float deltaTime)
 {
     m_input.update();
 
-    glm::vec3 moveDir(0.0f);
+    LOG("LeftX=" << m_input.gamepad().getAxis(GamepadAxis::LeftX)
+        << " LeftY=" << m_input.gamepad().getAxis(GamepadAxis::LeftY)
+        << " connected=" << (m_input.gamepad().isConnected() ? "yes" : "no"));
 
-    if (m_input.isKeyPressed(Key::W)) moveDir += m_camera.getFront();
-    if (m_input.isKeyPressed(Key::S)) moveDir -= m_camera.getFront();
-    if (m_input.isKeyPressed(Key::A)) moveDir -= m_camera.getRight();
-    if (m_input.isKeyPressed(Key::D)) moveDir += m_camera.getRight();
-    if (m_input.isKeyPressed(Key::E)) moveDir += m_camera.getUp();
-    if (m_input.isKeyPressed(Key::Q)) moveDir -= m_camera.getUp();
-
-    moveDir += m_camera.getFront() * -1.0f *m_input.gamepad().getAxis(GamepadAxis::LeftY)
-        + m_camera.getRight() * m_input.gamepad().getAxis(GamepadAxis::LeftX);
-
-    if (glm::length(moveDir) > 0.0f)
-        m_camera.processKeyboard(glm::normalize(moveDir), deltaTime);
-
-    m_camera.processMouse(m_input.getMouseDeltaX(), m_input.getMouseDeltaY());
-    m_camera.processMouse(m_input.gamepad().getAxis(GamepadAxis::RightX) * 10.0f, m_input.gamepad().getAxis(GamepadAxis::RightY) * -10.0f);
-
-
+    m_cameraController->update(m_camera, m_input, deltaTime);
     if (m_input.isActionJustPressed("Fire"))
     {
-        LOG("Fire pressed!");   // сюда позже подставите реальную логику — выстрел, спавн снаряда и т.п.
+        LOG("Fire pressed!");
     }
 }
 

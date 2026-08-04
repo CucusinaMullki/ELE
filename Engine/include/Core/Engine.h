@@ -6,6 +6,8 @@
 #include "Scene/Scene.h"
 #include "Scene/ScreenSpaceDecal.h"
 #include "Core/FogSettings.h"
+#include "Core/ICameraController.h"
+#include "Core/FreeFlyCameraController.h"
 #include "Core/TimeSystem.h"
 #include "Core/GltfModel.h"
 #include <GLFW/glfw3.h>
@@ -28,6 +30,8 @@ public:
         const std::string& metallic, const std::string& roughness);
 
     void setExposure(float exp) { m_renderer.setExposure(exp); }
+
+    void setCameraController(std::unique_ptr<ICameraController> controller);
 
     void setFogEnabled(bool enabled);
     void setFogSettings(const FogSettings& settings);
@@ -71,5 +75,6 @@ private:
     Camera          m_camera;
     Scene           m_scene;
     FogSettings m_fogSettings;
+    std::unique_ptr<ICameraController> m_cameraController;
     LightData m_lights{};
 };

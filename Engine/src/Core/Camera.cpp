@@ -14,6 +14,14 @@ void Camera::processKeyboard(glm::vec3 direction, float deltaTime)
     m_position += direction * velocity;
 }
 
+void Camera::lookAt(glm::vec3 target)
+{
+    m_front = glm::normalize(target - m_position);
+    m_yaw = glm::degrees(atan2(m_front.z ,m_front.x));
+    m_pitch = glm::degrees(asin(m_front.y));
+    updateVectors();
+}
+
 void Camera::processMouse(float deltaX, float deltaY)
 {
     m_yaw += deltaX * m_mouseSensitivity;

@@ -10,6 +10,9 @@ public:
     void processMouse(float deltaX, float deltaY);
 
     void setAspect(float aspect) { m_aspect = aspect; }
+    void setPosition(glm::vec3 pos) { m_position = pos; }
+
+    void lookAt(glm::vec3 target);
 
     glm::mat4 getViewMatrix() const;
     glm::vec3 getFront() const { return m_front; }
