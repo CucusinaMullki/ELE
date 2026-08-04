@@ -874,10 +874,10 @@ void Renderer::recreateSwapchain()
 
     m_context.getDevice().resetDescriptorPool(m_brightPipeline.getDescriptorPool());
     m_context.getDevice().resetDescriptorPool(m_postPipeline.getDescriptorPool());
-    m_context.getDevice().resetDescriptorPool(m_fogPipeline.getDescriptorPool());          // ДОБАВЛЕНО
-    m_context.getDevice().resetDescriptorPool(m_godRayMaskPipeline.getDescriptorPool());    // ДОБАВЛЕНО
-    m_context.getDevice().resetDescriptorPool(m_godRayBlurPipeline.getDescriptorPool());    // ДОБАВЛЕНО
-    m_context.getDevice().resetDescriptorPool(m_godRayCompositePipeline.getDescriptorPool()); // ДОБАВЛЕНО
+    m_context.getDevice().resetDescriptorPool(m_fogPipeline.getDescriptorPool());
+    m_context.getDevice().resetDescriptorPool(m_godRayMaskPipeline.getDescriptorPool());
+    m_context.getDevice().resetDescriptorPool(m_godRayBlurPipeline.getDescriptorPool());
+    m_context.getDevice().resetDescriptorPool(m_godRayCompositePipeline.getDescriptorPool());
 
     m_framebuffers.cleanup();
     m_depthBuffer.cleanup();
@@ -914,7 +914,7 @@ void Renderer::recreateSwapchain()
     m_depthBuffer.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), extent);
     m_framebuffers.initialize(m_context.getDevice(), m_swapchain, m_renderPass.getRenderPass(), m_depthBuffer.getImageView());
 
-    createFogDescriptorSets();   // теперь безопасно — пул сброшен выше
+    createFogDescriptorSets();
 
     m_velocityTarget.cleanup();
     m_velocityTarget.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), extent);
@@ -1471,7 +1471,7 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
                                            m_fogSettings.maxDistance, (float)m_fogSettings.stepCount);
         fogPush.lightParams = glm::vec4(m_fogSettings.ambientIntensity, m_fogSettings.sunIntensity,
                                           m_fogSettings.noiseScale, m_fogSettings.noiseSpeed);
-        fogPush.miscParams = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+        fogPush.miscParams = glm::vec4(m_totalTime, 0.0f, 0.0f, 0.0f);
 
         commandBuffer.pushConstants(m_fogPipeline.getLayout(), vk::ShaderStageFlagBits::eFragment,
             0, sizeof(FogPush), &fogPush);

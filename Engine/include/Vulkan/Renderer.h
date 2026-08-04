@@ -58,6 +58,8 @@ public:
 
     void setGodRaySettings(const GodRaySettings& settings) { m_godRaySettings = settings; }
 
+    void setTotalTime(float t) { m_totalTime = t; }
+
     void addScreenSpaceDecal(std::shared_ptr<ScreenSpaceDecal> decal) { m_screenSpaceDecals.push_back(decal); }
 
     vk::Device getDevice() const { return m_context.getDevice(); }
@@ -216,6 +218,7 @@ private:
     std::vector<vk::DescriptorSet> m_fogDescriptorSets;
     FogSettings m_fogSettings;
     void createFogDescriptorSets();
+    float m_totalTime = 0.0f;
 
     //God rays
     GodRayTarget m_godRayMaskTarget;

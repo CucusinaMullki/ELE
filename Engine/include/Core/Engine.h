@@ -6,6 +6,7 @@
 #include "Scene/Scene.h"
 #include "Scene/ScreenSpaceDecal.h"
 #include "Core/FogSettings.h"
+#include "Core/TimeSystem.h"
 #include "Core/GltfModel.h"
 #include <GLFW/glfw3.h>
 #include <memory>
@@ -34,10 +35,19 @@ public:
 
     Scene& getScene()   { return m_scene; }
     Camera& getCamera() { return m_camera; }
+    TimeSystem& getTime() { return m_time; }
+
+    Input& getInput() { return m_input; }
+
+    void pause() { m_time.pause(); }
+    void resume() { m_time.resume(); }
+    void setTimeScale(float scale) { m_time.setTimeScale(scale); }
 
     GameObject& loadGltfObject(const std::string& path);
 
     void onFramebufferResize();
+
+    void fixedUpdate(float fixedDt);
 
     void setAntialiasing(AAMethod method) { m_renderer.setAAMethod(method); }
 
@@ -54,6 +64,7 @@ private:
     bool m_cleaned = false;
     float m_lastFrameTime = 0.0f;
 
+    TimeSystem m_time;
     Renderer        m_renderer;
     ResourceManager m_resources;
     Input           m_input;

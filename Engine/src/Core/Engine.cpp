@@ -81,6 +81,7 @@ void Engine::updateInput(float deltaTime)
     m_input.update();
 
     glm::vec3 moveDir(0.0f);
+
     if (m_input.isKeyPressed(Key::W)) moveDir += m_camera.getFront();
     if (m_input.isKeyPressed(Key::S)) moveDir -= m_camera.getFront();
     if (m_input.isKeyPressed(Key::A)) moveDir -= m_camera.getRight();
@@ -88,10 +89,20 @@ void Engine::updateInput(float deltaTime)
     if (m_input.isKeyPressed(Key::E)) moveDir += m_camera.getUp();
     if (m_input.isKeyPressed(Key::Q)) moveDir -= m_camera.getUp();
 
+    moveDir += m_camera.getFront() * -1.0f *m_input.gamepad().getAxis(GamepadAxis::LeftY)
+        + m_camera.getRight() * m_input.gamepad().getAxis(GamepadAxis::LeftX);
+
     if (glm::length(moveDir) > 0.0f)
         m_camera.processKeyboard(glm::normalize(moveDir), deltaTime);
 
     m_camera.processMouse(m_input.getMouseDeltaX(), m_input.getMouseDeltaY());
+    m_camera.processMouse(m_input.gamepad().getAxis(GamepadAxis::RightX) * 10.0f, m_input.gamepad().getAxis(GamepadAxis::RightY) * -10.0f);
+
+
+    if (m_input.isActionJustPressed("Fire"))
+    {
+        LOG("Fire pressed!");   // сюда позже подставите реальную логику — выстрел, спавн снаряда и т.п.
+    }
 }
 
 void Engine::run()
@@ -106,15 +117,27 @@ void Engine::run()
             m_camera.setAspect((float)fbWidth / (float)fbHeight);
 
         float now = static_cast<float>(glfwGetTime());
-        float deltaTime = now - m_lastFrameTime;
+        float rawDeltaTime = now - m_lastFrameTime;
         m_lastFrameTime = now;
 
-        updateInput(deltaTime);
+        m_time.update(rawDeltaTime);
+
+        int fixedSteps = m_time.consumeFixedSteps();
+        for (int i = 0; i < fixedSteps; i++)
+            fixedUpdate(m_time.fixedDeltaTime());
+
+        updateInput(m_time.deltaTime());
         m_renderer.setLights(m_lights);
+        m_renderer.setTotalTime((float)m_time.totalTime());
         m_renderer.drawScene(m_scene, m_camera);
     }
 
     m_renderer.getDevice().waitIdle();
+}
+
+void Engine::fixedUpdate(float fixedDt)
+{
+
 }
 
 void Engine::shutdown()
