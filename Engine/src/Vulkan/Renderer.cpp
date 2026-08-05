@@ -821,8 +821,12 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
     mvp.view = camera.getViewMatrix();
     mvp.proj = proj;
     mvp.lightSpaceMatrix = m_lightSpaceMatrix;
+    mvp.prevViewProj = m_prevViewProj;
+    mvp.viewProjNoJitter = baseProj * camera.getViewMatrix();
     mvp.camPos = glm::vec4(camera.getPosition(), 1.0f);
     m_uniformBuffer.update(m_currentFrame, mvp);
+
+    m_prevViewProj = mvp.viewProjNoJitter;
     m_lightBuffer.update(m_currentFrame, m_pendingLights);
 
     DecalCameraData decalCamData{};

@@ -2,11 +2,13 @@
 #include <vulkan/vulkan.hpp>
 #include <glm/glm.hpp>
 
-struct MVP 
+struct MVP
 {
     glm::mat4 view;
     glm::mat4 proj;
     glm::mat4 lightSpaceMatrix;
+    glm::mat4 prevViewProj;
+    glm::mat4 viewProjNoJitter;
     glm::vec4 camPos;
 };
 

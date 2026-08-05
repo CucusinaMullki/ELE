@@ -12,14 +12,17 @@ void FreeFlyCameraController::update(Camera& camera, const Input& input, float d
     if (input.isKeyPressed(Key::A)) moveDir -= camera.getRight();
     if (input.isKeyPressed(Key::D)) moveDir += camera.getRight();
 
+    if (input.isActionPressed("Up"))   moveDir += camera.getUp();
+    if (input.isActionPressed("Down")) moveDir -= camera.getUp();
+
     moveDir += camera.getFront() * (-input.gamepad().getAxis(GamepadAxis::LeftY))
-        + camera.getRight() * input.gamepad().getAxis(GamepadAxis::LeftX);
+             + camera.getRight() * input.gamepad().getAxis(GamepadAxis::LeftX);
 
     if (glm::length(moveDir) > 0.0f)
         camera.processKeyboard(glm::normalize(moveDir), deltaTime);
-    
-    float gamepadYaw = input.gamepad().getAxis(GamepadAxis::RightX) * 150.0f * deltaTime;
-    float gamepadPitch = input.gamepad().getAxis(GamepadAxis::RightY) * 150.0f * deltaTime;
+
+    float gamepadYaw = input.gamepad().getAxis(GamepadAxis::RightX) * 150.0f * deltaTime * 10.0f;
+    float gamepadPitch = input.gamepad().getAxis(GamepadAxis::RightY) * 150.0f * deltaTime * 10.0f;
 
     camera.processMouse(input.getMouseDeltaX() + gamepadYaw, input.getMouseDeltaY() - gamepadPitch);
 }

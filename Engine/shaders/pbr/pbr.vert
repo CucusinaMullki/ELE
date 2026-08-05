@@ -6,6 +6,7 @@ layout(binding = 0) uniform Camera {
     mat4 proj;
     mat4 lightSpaceMatrix;
     mat4 prevViewProj;
+    mat4 viewProjNoJitter;
     vec4 camPos;
 } cam;
 
@@ -40,7 +41,8 @@ void main()
     fragTexCoord = inTexCoord;
     fragLightSpacePos = cam.lightSpaceMatrix * worldPos;
 
-    fragCurrClipPos = gl_Position;
+    fragCurrClipPos = cam.viewProjNoJitter * worldPos;
+
     vec4 prevWorldPos = push.prevModel * vec4(inPosition, 1.0);
     fragPrevClipPos = cam.prevViewProj * prevWorldPos;
 

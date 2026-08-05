@@ -235,4 +235,6 @@ private:
     std::vector<vk::DescriptorSet> m_godRayCompositeDescriptorSets;
 
     GodRaySettings m_godRaySettings;
+
+    glm::mat4 m_prevViewProj = glm::mat4(1.0f);
 };

@@ -8,9 +8,10 @@ layout(binding = 0) uniform Camera {
     mat4 view;
     mat4 proj;
     mat4 lightSpaceMatrix;
+    mat4 prevViewProj;
+    mat4 viewProjNoJitter;
     vec4 camPos;
 } cam;
-
 layout(binding = 1) uniform sampler2D albedoMap;
 layout(binding = 2) uniform sampler2D normalMap;
 layout(binding = 3) uniform sampler2D metallicRoughnessMap;
