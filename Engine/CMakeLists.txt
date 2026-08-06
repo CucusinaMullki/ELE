@@ -46,6 +46,7 @@ add_library(ELE STATIC
     src/Core/GLFWGamepad.cpp
     src/Core/FreeFlyCameraController.cpp
     src/Core/OrbitCameraController.cpp
+    src/Physics/PhysicsSystem.cpp
 )
 
 target_include_directories(ELE PUBLIC
@@ -53,12 +54,14 @@ target_include_directories(ELE PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/external/stb
     ${CMAKE_SOURCE_DIR}/external/tinygltf
+    ${CMAKE_SOURCE_DIR}/external/Jolt
 )
 
 target_link_libraries(ELE PUBLIC
     Vulkan::Vulkan
     glfw
     glm::glm
+    Jolt    
 )
 
 target_compile_definitions(ELE PUBLIC

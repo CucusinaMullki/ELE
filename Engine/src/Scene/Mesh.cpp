@@ -2,13 +2,19 @@
 #include "Core/Model.h"
 #include "Core/GltfModel.h"
 
-void Mesh::load(vk::Device device, vk::PhysicalDevice physicalDevice, const std::string& path)
+void Mesh::load(vk::Device device, vk::PhysicalDevice physicalDevice, const std::string& path, bool keepCpuData)
 {
     GltfModel model;
     model.load(path);
     m_vertexBuffer.initialize(device, physicalDevice, model.getVertices());
     m_indexBuffer.initialize(device, physicalDevice, model.getIndices());
     m_submeshes = model.getSubmesh();
+
+    if (keepCpuData)
+    {
+        m_cpuVertices = model.getVertices();
+        m_cpuIndices = model.getIndices();
+    }
 }
 
 void Mesh::cleanup()
@@ -34,9 +40,16 @@ void Mesh::drawSubmesh(vk::CommandBuffer cmd, const Submesh& sm) const
 void Mesh::loadFromData(vk::Device device, vk::PhysicalDevice physicalDevice,
         const std::vector<Vertex>& vertices,
         const std::vector<uint32_t>& indices,
-        const std::vector<Submesh>& submeshes)
+        const std::vector<Submesh>& submeshes,
+        bool keepCpuData)
 {
     m_vertexBuffer.initialize(device, physicalDevice, vertices);
     m_indexBuffer.initialize(device, physicalDevice, indices);
     m_submeshes = submeshes;
+
+    if (keepCpuData)
+    {
+        m_cpuVertices = vertices;
+        m_cpuIndices = indices;
+    }
 }

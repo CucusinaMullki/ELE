@@ -4,6 +4,7 @@
 #include "Core/Input.h"
 #include "Core/Camera.h"
 #include "Scene/Scene.h"
+#include "Physics/PhysicsSystem.h"
 #include "Scene/ScreenSpaceDecal.h"
 #include "Core/FogSettings.h"
 #include "Core/ICameraController.h"
@@ -25,7 +26,7 @@ public:
     void addDirectionalLight(glm::vec3 direction, glm::vec3 color, float intensity);
     void addPointLight(glm::vec3 position, glm::vec3 color, float intensity);
 
-    std::shared_ptr<Mesh> loadMesh(const std::string& path);
+    std::shared_ptr<Mesh> loadMesh(const std::string& path, bool keepCpuData = false);
     std::shared_ptr<Material> loadMaterial(const std::string& albedo, const std::string& normal,
         const std::string& metallic, const std::string& roughness);
 
@@ -42,6 +43,7 @@ public:
     TimeSystem& getTime() { return m_time; }
 
     Input& getInput() { return m_input; }
+    PhysicsSystem& getPhysics() { return m_physics; }
 
     void pause() { m_time.pause(); }
     void resume() { m_time.resume(); }
@@ -61,6 +63,8 @@ public:
         glm::vec3 position, glm::vec3 rotationEuler, glm::vec3 size,
         const std::string& opacityPath = "", const std::string& normalPath = "", const std::string& mrPath = "");
 
+    std::shared_ptr<Material> createDefaultMaterial();        
+
 private:
     void updateInput(float deltaTime);
 
@@ -77,4 +81,5 @@ private:
     FogSettings m_fogSettings;
     std::unique_ptr<ICameraController> m_cameraController;
     LightData m_lights{};
+    PhysicsSystem m_physics;
 };

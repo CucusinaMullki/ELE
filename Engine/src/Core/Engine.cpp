@@ -35,6 +35,8 @@ void Engine::initialize(int width, int height, const std::string& title)
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     m_window = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
 
+    m_physics.initialize();
+
     glfwSetWindowUserPointer(m_window, this);
     glfwSetFramebufferSizeCallback(m_window, [](GLFWwindow* win, int, int) {
         static_cast<Engine*>(glfwGetWindowUserPointer(win))->onFramebufferResize();
@@ -57,9 +59,9 @@ void Engine::onFramebufferResize()
     m_camera.setAspect(m_renderer.getAspect());
 }
 
-std::shared_ptr<Mesh> Engine::loadMesh(const std::string& path)
+std::shared_ptr<Mesh> Engine::loadMesh(const std::string& path, bool keepCpuData)
 {
-    return m_resources.loadMesh(path);
+    return m_resources.loadMesh(path, keepCpuData);
 }
 
 std::shared_ptr<Material> Engine::loadMaterial(const std::string& albedo, const std::string& normal,
@@ -77,6 +79,29 @@ std::shared_ptr<Material> Engine::loadMaterial(const std::string& albedo, const 
     return material;
 }
 
+std::shared_ptr<Material> Engine::createDefaultMaterial()
+{
+    static const unsigned char white[4] = { 255, 255, 255, 255 };
+    static const unsigned char normalPx[4] = { 128, 128, 255, 255 };
+    static const unsigned char defaultMR[4] = { 0, 128, 0, 255 };
+    static const unsigned char black[4] = { 0, 0, 0, 255 };
+
+    auto mat = std::make_shared<Material>();
+    mat->loadFromPixels(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
+        m_renderer.getCommandPool(), m_renderer.getGraphicsQueue(),
+        white, 1, 1, normalPx, 1, 1, white, 1, 1, white, 1, 1, black, 1, 1, false);
+
+    mat->createDescriptorSet(m_renderer.getDevice(),
+        m_renderer.getDescriptorPool(), m_renderer.getDescriptorSetLayout(),
+        m_renderer.getUboInfos(), m_renderer.getLightInfos(),
+        m_renderer.getShadowView(), m_renderer.getShadowSampler(),
+        m_renderer.getPointShadowView(), m_renderer.getPointShadowSampler(),
+        m_renderer.getFramesInFlight());
+
+    m_resources.registerMaterial(mat);
+    return mat;
+}
+
 void Engine::setCameraController(std::unique_ptr<ICameraController> controller)
 {
     m_cameraController = std::move(controller);
@@ -86,10 +111,6 @@ void Engine::setCameraController(std::unique_ptr<ICameraController> controller)
 void Engine::updateInput(float deltaTime)
 {
     m_input.update();
-
-    LOG("LeftX=" << m_input.gamepad().getAxis(GamepadAxis::LeftX)
-        << " LeftY=" << m_input.gamepad().getAxis(GamepadAxis::LeftY)
-        << " connected=" << (m_input.gamepad().isConnected() ? "yes" : "no"));
 
     m_cameraController->update(m_camera, m_input, deltaTime);
     if (m_input.isActionJustPressed("Fire"))
@@ -117,9 +138,14 @@ void Engine::run()
 
         int fixedSteps = m_time.consumeFixedSteps();
         for (int i = 0; i < fixedSteps; i++)
+        {
             fixedUpdate(m_time.fixedDeltaTime());
+            m_scene.fixedUpdateComponents(m_time.fixedDeltaTime());
+        }
 
         updateInput(m_time.deltaTime());
+        m_scene.updateComponents(m_time.deltaTime());
+
         m_renderer.setLights(m_lights);
         m_renderer.setTotalTime((float)m_time.totalTime());
         m_renderer.drawScene(m_scene, m_camera);
@@ -130,7 +156,7 @@ void Engine::run()
 
 void Engine::fixedUpdate(float fixedDt)
 {
-
+    m_physics.update(fixedDt);
 }
 
 void Engine::shutdown()
@@ -142,6 +168,7 @@ void Engine::shutdown()
 
     m_resources.cleanup();
     m_renderer.cleanup();
+    m_physics.cleanup();
 
     if (m_window) glfwDestroyWindow(m_window);
     glfwTerminate();

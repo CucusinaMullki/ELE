@@ -11,7 +11,7 @@ class ResourceManager
 public:
     void initialize(vk::Device device, vk::PhysicalDevice physicalDevice, vk::CommandPool commandPool, vk::Queue graphicsQueue);
 
-    std::shared_ptr<Mesh> loadMesh(const std::string& path);
+    std::shared_ptr<Mesh> loadMesh(const std::string& path, bool keepCpuData = false);
     std::shared_ptr<Material> loadMaterial(const std::string& albedo, const std::string& normal,
         const std::string& metallic, const std::string& roughness);
 

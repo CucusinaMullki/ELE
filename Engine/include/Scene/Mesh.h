@@ -8,11 +8,12 @@
 class Mesh
 {
 public:
-    void load(vk::Device device, vk::PhysicalDevice physicalDevice, const std::string& path);
+    void load(vk::Device device, vk::PhysicalDevice physicalDevice, const std::string& path, bool keepCpuData = false);
     void loadFromData(vk::Device device, vk::PhysicalDevice physicalDevice,
         const std::vector<Vertex>& vertices,
         const std::vector<uint32_t>& indices,
-        const std::vector<Submesh>& submeshes);
+        const std::vector<Submesh>& submeshes,
+        bool keepCpuData = false);
     
     void cleanup();
 
@@ -21,8 +22,15 @@ public:
 
     const std::vector<Submesh>& getSubmeshes() const { return m_submeshes; }
 
+    bool hasCpuData() const { return !m_cpuVertices.empty(); }
+    const std::vector<Vertex>& getCpuVertices() const { return m_cpuVertices; }
+    const std::vector<uint32_t>& getCpuIndices() const { return m_cpuIndices; }
+
 private:
     VertexBuffer m_vertexBuffer;
     IndexBuffer  m_indexBuffer;
     std::vector<Submesh> m_submeshes;
+
+    std::vector<Vertex> m_cpuVertices;
+    std::vector<uint32_t> m_cpuIndices;
 };

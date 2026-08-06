@@ -9,10 +9,10 @@ void ResourceManager::initialize(vk::Device device, vk::PhysicalDevice physicalD
     m_graphicsQueue = graphicsQueue;
 }
 
-std::shared_ptr<Mesh> ResourceManager::loadMesh(const std::string& path)
+std::shared_ptr<Mesh> ResourceManager::loadMesh(const std::string& path, bool keepCpuData)
 {
     auto mesh = std::make_shared<Mesh>();
-    mesh->load(m_device, m_physicalDevice, path);
+    mesh->load(m_device, m_physicalDevice, path, keepCpuData);
     m_meshes.push_back(mesh);
     return mesh;
 }
