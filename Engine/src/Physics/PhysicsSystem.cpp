@@ -6,6 +6,7 @@
 #include <Jolt/Physics/Body/BodyActivationListener.h>
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
+#include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <thread>
 
 JPH::BodyID PhysicsSystem::createStaticMesh(const std::vector<glm::vec3>& positions,
@@ -32,6 +33,35 @@ JPH::BodyID PhysicsSystem::createStaticMesh(const std::vector<glm::vec3>& positi
         Layers::NON_MOVING);
 
     return bodyInterface().CreateAndAddBody(settings, JPH::EActivation::DontActivate);
+}
+
+JPH::BodyID PhysicsSystem::createStaticSphere(glm::vec3 position, float radius)
+{
+    JPH::SphereShapeSettings shapeSettings(radius);
+    JPH::ShapeSettings::ShapeResult shapeResult = shapeSettings.Create();
+    JPH::ShapeRefC shape = shapeResult.Get();
+
+    JPH::BodyCreationSettings settings(shape,
+        JPH::RVec3(position.x, position.y, position.z),
+        JPH::Quat::sIdentity(), JPH::EMotionType::Static, Layers::NON_MOVING);
+
+    return bodyInterface().CreateAndAddBody(settings, JPH::EActivation::DontActivate);
+}
+
+JPH::BodyID PhysicsSystem::createDynamicSphere(glm::vec3 position, float radius, float mass)
+{
+    JPH::SphereShapeSettings shapeSettings(radius);
+    JPH::ShapeSettings::ShapeResult shapeResult = shapeSettings.Create();
+    JPH::ShapeRefC shape = shapeResult.Get();
+
+    JPH::BodyCreationSettings settings(shape,
+        JPH::RVec3(position.x, position.y, position.z),
+        JPH::Quat::sIdentity(), JPH::EMotionType::Dynamic, Layers::MOVING);
+
+    settings.mMassPropertiesOverride.mMass = mass;
+    settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
+
+    return bodyInterface().CreateAndAddBody(settings, JPH::EActivation::Activate);
 }
 
 JPH::BodyID PhysicsSystem::createDynamicConvexHull(const std::vector<glm::vec3>& positions,

@@ -82,7 +82,7 @@ float calculateShadow(vec4 lightSpacePos, vec3 N, vec3 L, vec2 screenXY)
     mat2 rot = mat2(c, -s, s, c);
 
     float shadow = 0.0;
-    const int R = 2;
+    const int R = 1;
     for (int x = -R; x <= R; x++)
     {
         for (int y = -R; y <= R; y++)
@@ -95,11 +95,13 @@ float calculateShadow(vec4 lightSpacePos, vec3 N, vec3 L, vec2 screenXY)
     return shadow / samples;
 }
 
-float calculatePointShadow(vec3 fragPos, vec3 lightPos)
+float calculatePointShadow(vec3 fragPos, vec3 lightPos, vec3 N, vec2 screenXY)
 {
     vec3 toFrag = fragPos - lightPos;
     float currentDist = length(toFrag);
-    float bias = 0.05;
+    vec3 L = normalize(-toFrag);
+
+    float bias = max(0.15 * (1.0 - dot(N, L)), 0.03);
 
     const int SAMPLES = 20;
     vec3 sampleOffsets[SAMPLES] = vec3[]
@@ -111,18 +113,30 @@ float calculatePointShadow(vec3 fragPos, vec3 lightPos)
         vec3( 0,  1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0,  1, -1)
     );
 
+    float angle = interleavedGradientNoise(screenXY) * 6.2831853;
+    float s = sin(angle), c = cos(angle);
+    vec3 axis = L;
+
+    mat3 rot = mat3(
+        c + axis.x*axis.x*(1.0-c),        axis.x*axis.y*(1.0-c) - axis.z*s, axis.x*axis.z*(1.0-c) + axis.y*s,
+        axis.y*axis.x*(1.0-c) + axis.z*s, c + axis.y*axis.y*(1.0-c),        axis.y*axis.z*(1.0-c) - axis.x*s,
+        axis.z*axis.x*(1.0-c) - axis.y*s, axis.z*axis.y*(1.0-c) + axis.x*s, c + axis.z*axis.z*(1.0-c)
+    );
+
     float shadow = 0.0;
-    float diskRadius = (1.0 + (currentDist / POINT_SHADOW_FAR_PLANE)) / 25.0;
+    float diskRadius = (1.0 + (currentDist / POINT_SHADOW_FAR_PLANE)) / 15.0;
 
     for (int i = 0; i < SAMPLES; i++)
     {
-        float closestDist = texture(pointShadowMap, toFrag + sampleOffsets[i] * diskRadius).r * POINT_SHADOW_FAR_PLANE;
+        vec3 offset = rot * sampleOffsets[i];
+        float closestDist = texture(pointShadowMap, toFrag + offset * diskRadius).r * POINT_SHADOW_FAR_PLANE;
         if (currentDist - bias > closestDist)
             shadow += 1.0;
     }
 
     return shadow / float(SAMPLES);
 }
+
 void main()
 {
     vec3 albedo = pow(texture(albedoMap, fragTexCoord).rgb, vec3(2.2));
@@ -160,30 +174,37 @@ void main()
             radiance = light.color.rgb * light.color.a * atten;
 
             if (!pointShadowUsed) {
-                float pShadow = calculatePointShadow(fragWorldPos, light.position.xyz);
+                float pShadow = calculatePointShadow(fragWorldPos, light.position.xyz, N, gl_FragCoord.xy);
                 radiance *= (1.0 - pShadow);
                 pointShadowUsed = true;
             }
         }
 
-        vec3 H = normalize(V + L);
-        float D = DistributionGGX(N, H, roughness);
-        float G = GeometrySmith(N, V, L, roughness);
-        vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
-
-        vec3 specular = (D * G * F) / (4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001);
-        specular = min(specular, vec3(8.0));
-
-        vec3 kD = (1.0 - F) * (1.0 - metallic);
         float NdotL = max(dot(N, L), 0.0);
+        float NdotV = max(dot(N, V), 0.0);
 
-        float visibility = 1.0;
-    if (i == 0 && light.position.w < 0.5) {
-        vec3 geoN = normalize(fragTBN[2]);
-        visibility = calculateShadow(fragLightSpacePos, geoN, L, gl_FragCoord.xy);
-    }
+        if (NdotL > 0.0)
+        {
+            vec3 H = normalize(V + L);
+            float D = DistributionGGX(N, H, roughness);
+            float G = GeometrySmith(N, V, L, roughness);
+            vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
 
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL * visibility;
+            vec3 numerator = D * G * F;
+            float denominator = 4.0 * NdotV * NdotL + 0.0001;
+            vec3 specular = numerator / denominator;
+            specular = min(specular, vec3(8.0));
+
+            vec3 kD = (1.0 - F) * (1.0 - metallic);
+
+            float visibility = 1.0;
+            if (i == 0 && light.position.w < 0.5) {
+                vec3 geoN = normalize(fragTBN[2]);
+                visibility = calculateShadow(fragLightSpacePos, geoN, L, gl_FragCoord.xy);
+            }
+
+            Lo += (kD * albedo / PI + specular) * radiance * NdotL * visibility;
+        }
     }
 
     vec3 ambient = vec3(0.005) * albedo * ao;

@@ -47,6 +47,16 @@ struct GltfMaterial
     bool hasLightmap = false;
 };
 
+struct GltfCollider
+{
+    std::string shape;
+    std::string motion;
+    float mass = 1.0f;
+    glm::vec3 position{0.0f};
+    glm::vec3 rotationEuler{0.0f};
+    glm::vec3 size{1.0f};
+};
+
 class GltfModel
 {
 public:
@@ -59,6 +69,7 @@ public:
     const std::vector<GltfMaterial>& getMaterials() const { return m_materials; } 
     const std::vector<GltfLight>& getLights() const { return m_lights; }
     const std::vector<GltfDecal>& getDecals() const { return m_decals; }
+    const std::vector<GltfCollider>& getColliders() const { return m_colliders; }
 
 private:
     void computeTangents();
@@ -70,5 +81,6 @@ private:
     std::vector<GltfMaterial> m_materials;
     std::vector<GltfLight> m_lights;
     std::vector<GltfDecal> m_decals;
+    std::vector<GltfCollider> m_colliders;
     bool m_hasTangents = false;
 };

@@ -18,8 +18,10 @@ public:
     JPH::BodyInterface& bodyInterface() { return m_physicsSystem->GetBodyInterface(); }
 
     JPH::BodyID createStaticBox(glm::vec3 position, glm::vec3 halfExtent);
-
     JPH::BodyID createDynamicBox(glm::vec3 position, glm::vec3 halfExtent, float mass);
+
+    JPH::BodyID createStaticSphere(glm::vec3 position, float radius);
+    JPH::BodyID createDynamicSphere(glm::vec3 position, float radius, float mass);
 
     JPH::BodyID createStaticMesh(const std::vector<glm::vec3>& positions, const std::vector<uint32_t>& indices, glm::vec3 worldPosition);
     JPH::BodyID createDynamicConvexHull(const std::vector<glm::vec3>& positions, glm::vec3 worldPosition, float mass);

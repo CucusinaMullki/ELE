@@ -1,5 +1,7 @@
 #include "Core/Engine.h"
 #include "Core/Log.h"
+#include "Components/RigidBodyComponent.h"
+#include "Components/TransformComponent.h"
 
 std::vector<unsigned char> applyMRFactors(const unsigned char* src, int w, int h,
     float metallicFactor, float roughnessFactor)
@@ -251,6 +253,21 @@ GameObject& Engine::loadGltfObject(const std::string& path)
             default:
                 break;
         }
+    }
+
+    for (const auto& gc : model.getColliders())
+    {
+        auto& obj = m_scene.addObject();
+        obj.transform.position = gc.position;
+        obj.transform.rotation = gc.rotationEuler;
+
+        RigidBodyComponent::Shape shape = (gc.shape == "sphere")
+            ? RigidBodyComponent::Shape::Sphere : RigidBodyComponent::Shape::Box;
+        RigidBodyComponent::Motion motion = (gc.motion == "dynamic")
+            ? RigidBodyComponent::Motion::Dynamic : RigidBodyComponent::Motion::Static;
+
+        obj.addComponent<TransformComponent>();
+        obj.addComponent<RigidBodyComponent>(m_physics, shape, motion, nullptr, gc.size * 0.5f, gc.mass);
     }
 
     for (const auto& gd : model.getDecals())

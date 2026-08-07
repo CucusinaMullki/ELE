@@ -41,6 +41,8 @@ void GltfModel::load(const std::string& path)
     if (!warn.empty()) LOG("gltf warning: " << warn);
     if (!ok) throw std::runtime_error("failed to load glTF: " + fullpath + " " + err);
 
+    
+
     for (const auto& mesh : model.meshes)
     {
         for (const auto& primitive : mesh.primitives)
@@ -226,6 +228,46 @@ void GltfModel::load(const std::string& path)
 
     for (const auto& node : model.nodes)
     {
+        if (node.extras.Has("collision_shape"))
+        {
+            GltfCollider collider{};
+            collider.shape = node.extras.Get("collision_shape").Get<std::string>();
+
+            if (node.extras.Has("collision_motion"))
+                collider.motion = node.extras.Get("collision_motion").Get<std::string>();
+            else
+                collider.motion = "static";
+
+            if (node.extras.Has("collision_mass"))
+                collider.mass = (float)node.extras.Get("collision_mass").Get<double>();
+
+            if (!node.matrix.empty() && node.matrix.size() ==  16)
+            {
+                glm::mat4 m = glm::make_mat4(node.matrix.data());
+                glm::vec3 skew; glm::vec4 perps; glm::quat rotQ;
+                glm::decompose(m, collider.size, rotQ, collider.position, skew, perps);
+                collider.rotationEuler = glm::degrees(glm::eulerAngles(rotQ));
+            }
+            else
+            {
+                if (node.translation.size() >= 3)
+                    collider.position = glm::vec3(node.translation[0], node.translation[1], node.translation[2]);
+                if (node.rotation.size() >= 4)
+                {
+                    glm::quat q((float)node.rotation[3], (float)node.rotation[0],
+                                (float)node.rotation[1], (float)node.rotation[2]);
+                    collider.rotationEuler = glm::degrees(glm::eulerAngles(q));
+                }
+                if (node.scale.size() >= 3)
+                    collider.size = glm::vec3(node.scale[0], node.scale[1], node.scale[2]);
+            }
+
+            LOG("gltf collider: shape= " << collider.shape << " motion= " << collider.motion
+                << " pos=(" << collider.position.x << ", " << collider.position.y << ", " << collider.position.z << ")");
+
+            m_colliders.push_back(collider);
+            continue;
+        }
         if (node.extras.Has("decal_texture"))
         {
             GltfDecal decal{};

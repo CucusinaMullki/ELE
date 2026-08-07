@@ -28,14 +28,7 @@ int main()
     auto mesh = engine.loadMesh("assets/models/cube.glb");
     auto material = engine.createDefaultMaterial();
 
-    auto levelCollision = engine.loadMesh("assets/models/Level.glb", true);
-
-    auto& coll = engine.getScene().addObject();
-    coll.transform.position = glm::vec3(0, 0, 0);
-    coll.addComponent<TransformComponent>();
-    coll.addComponent<RigidBodyComponent>(engine.getPhysics(),
-        RigidBodyComponent::Shape::Mesh, RigidBodyComponent::Motion::Static, levelCollision,
-        glm::vec3(1.0f), 0.5f);
+    auto Dickmesh = engine.loadMesh("assets/models/Dick.glb", true);
 
     auto& box = engine.getScene().addObject();
     box.transform.position = glm::vec3(0, 10, 0);
@@ -46,6 +39,14 @@ int main()
         RigidBodyComponent::Shape::Box, RigidBodyComponent::Motion::Dynamic, nullptr,
         glm::vec3(1.0f), 0.5f);
 
+    auto& Dick = engine.getScene().addObject();
+    Dick.transform.position = glm::vec3(0, 20, 0);
+    Dick.setMaterial(material);
+    Dick.addComponent<MeshComponent>().setMesh(Dickmesh);
+    Dick.addComponent<TransformComponent>();
+    Dick.addComponent<RigidBodyComponent>(engine.getPhysics(),
+        RigidBodyComponent::Shape::ConvexHull, RigidBodyComponent::Motion::Dynamic, Dickmesh,
+        glm::vec3(1.0f), 1.5f);
     
     //////////////////////////////
     
