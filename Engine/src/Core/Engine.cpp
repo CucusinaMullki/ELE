@@ -267,7 +267,7 @@ GameObject& Engine::loadGltfObject(const std::string& path)
             ? RigidBodyComponent::Motion::Dynamic : RigidBodyComponent::Motion::Static;
 
         obj.addComponent<TransformComponent>();
-        obj.addComponent<RigidBodyComponent>(m_physics, shape, motion, nullptr, gc.size * 0.5f, gc.mass);
+        obj.addComponent<RigidBodyComponent>(m_physics, shape, motion, nullptr, gc.size, gc.mass);
     }
 
     for (const auto& gd : model.getDecals())

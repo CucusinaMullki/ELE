@@ -5,6 +5,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <tiny_gltf.h>
+#include <unordered_set>
 #include <stdexcept>
 #include <cstring>
 
@@ -41,10 +42,18 @@ void GltfModel::load(const std::string& path)
     if (!warn.empty()) LOG("gltf warning: " << warn);
     if (!ok) throw std::runtime_error("failed to load glTF: " + fullpath + " " + err);
 
-    
+    std::unordered_set<int> collisionOnlyMeshIndices;
+    for (const auto& node : model.nodes)
+    {
+        if (node.extras.Has("collision_shape") && node.mesh >= 0)
+            collisionOnlyMeshIndices.insert(node.mesh);
+    }    
 
     for (const auto& mesh : model.meshes)
     {
+        int meshIndex = static_cast<int>(&mesh - &model.meshes[0]);;
+        if (collisionOnlyMeshIndices.count((int)meshIndex))
+            continue;
         for (const auto& primitive : mesh.primitives)
         {
             if (primitive.indices < 0) continue;
@@ -228,24 +237,28 @@ void GltfModel::load(const std::string& path)
 
     for (const auto& node : model.nodes)
     {
+
+        if (node.extras.Has("collision_shape"))
+            LOG("found collision_shape on node, node.mesh=" << node.mesh);
+
+        if (node.extras.Has("collision_shape") && node.mesh >= 0)
+            collisionOnlyMeshIndices.insert(node.mesh);
+
         if (node.extras.Has("collision_shape"))
         {
             GltfCollider collider{};
             collider.shape = node.extras.Get("collision_shape").Get<std::string>();
-
-            if (node.extras.Has("collision_motion"))
-                collider.motion = node.extras.Get("collision_motion").Get<std::string>();
-            else
-                collider.motion = "static";
-
-            if (node.extras.Has("collision_mass"))
-                collider.mass = (float)node.extras.Get("collision_mass").Get<double>();
-
-            if (!node.matrix.empty() && node.matrix.size() ==  16)
+            collider.motion = node.extras.Has("collision_motion")
+                ? node.extras.Get("collision_motion").Get<std::string>() : "static";
+            collider.mass = node.extras.Has("collision_mass")
+                ? (float)node.extras.Get("collision_mass").Get<double>() : 1.0f;
+        
+            glm::vec3 nodeScale(1.0f);
+            if (!node.matrix.empty() && node.matrix.size() == 16)
             {
                 glm::mat4 m = glm::make_mat4(node.matrix.data());
-                glm::vec3 skew; glm::vec4 perps; glm::quat rotQ;
-                glm::decompose(m, collider.size, rotQ, collider.position, skew, perps);
+                glm::vec3 skew; glm::vec4 persp; glm::quat rotQ;
+                glm::decompose(m, nodeScale, rotQ, collider.position, skew, persp);
                 collider.rotationEuler = glm::degrees(glm::eulerAngles(rotQ));
             }
             else
@@ -259,12 +272,33 @@ void GltfModel::load(const std::string& path)
                     collider.rotationEuler = glm::degrees(glm::eulerAngles(q));
                 }
                 if (node.scale.size() >= 3)
-                    collider.size = glm::vec3(node.scale[0], node.scale[1], node.scale[2]);
+                    nodeScale = glm::vec3(node.scale[0], node.scale[1], node.scale[2]);
             }
-
-            LOG("gltf collider: shape= " << collider.shape << " motion= " << collider.motion
-                << " pos=(" << collider.position.x << ", " << collider.position.y << ", " << collider.position.z << ")");
-
+        
+            if (node.mesh >= 0 && node.mesh < (int)model.meshes.size())
+            {
+                const auto& mesh = model.meshes[node.mesh];
+                if (!mesh.primitives.empty())
+                {
+                    auto posIt = mesh.primitives[0].attributes.find("POSITION");
+                    if (posIt != mesh.primitives[0].attributes.end())
+                    {
+                        const auto& accessor = model.accessors[posIt->second];
+                        if (accessor.minValues.size() == 3 && accessor.maxValues.size() == 3)
+                        {
+                            glm::vec3 localMin((float)accessor.minValues[0], (float)accessor.minValues[1], (float)accessor.minValues[2]);
+                            glm::vec3 localMax((float)accessor.maxValues[0], (float)accessor.maxValues[1], (float)accessor.maxValues[2]);
+                            glm::vec3 halfExtent = (localMax - localMin) * 0.5f;
+                            collider.size = halfExtent * nodeScale;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                collider.size = nodeScale;
+            }
+        
             m_colliders.push_back(collider);
             continue;
         }
