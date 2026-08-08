@@ -5,6 +5,10 @@ add_executable(game
 target_link_libraries(game PRIVATE ELE)
 add_dependencies(game Shaders)
 
+target_include_directories(ELE PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
 add_custom_command(TARGET game POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_SOURCE_DIR}/Engine/assets

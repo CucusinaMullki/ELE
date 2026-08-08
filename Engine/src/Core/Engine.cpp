@@ -114,7 +114,9 @@ void Engine::updateInput(float deltaTime)
 {
     m_input.update();
 
-    m_cameraController->update(m_camera, m_input, deltaTime);
+    if (m_useCameraController)
+        m_cameraController->update(m_camera, m_input, deltaTime);
+        
     if (m_input.isActionJustPressed("Fire"))
     {
         LOG("Fire pressed!");

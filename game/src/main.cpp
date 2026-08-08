@@ -1,7 +1,24 @@
 #include "Core/Engine.h"
 #include "Components/MeshComponent.h"
+#include "PlayerComponent.h"
+#include "Components/InputComponent.h"
+#include "Components/CameraComponent.h"
 #include "Components/TransformComponent.h"
 #include "Components/RigidBodyComponent.h"
+
+
+GameObject* createCube(Engine& engine, glm::vec3 pos)
+{
+    auto& cube = engine.getScene().addObject();
+    auto material = engine.createDefaultMaterial();
+    cube.addComponent<TransformComponent>().setPosition(pos);
+    cube.setMaterial(material);
+    cube.addComponent<MeshComponent>().setMesh(engine.loadMesh("assets/models/Dick.glb"));
+    cube.addComponent<RigidBodyComponent>(engine.getPhysics(),
+        RigidBodyComponent::Shape::ConvexHull, RigidBodyComponent::Motion::Dynamic, engine.loadMesh("assets/models/Dick.glb", true),
+        glm::vec3(1.0f), 1.5f);
+    return &cube;
+}
 
 void InputInScene(Engine& engine)
 {
@@ -23,31 +40,18 @@ int main()
 
     InputInScene(engine);
 
+    auto& player = engine.getScene().addObject();
+    player.transform.position = glm::vec3(0, 0, 0);
+
+    player.addComponent<TransformComponent>();
+    player.addComponent<InputComponent>(engine.getInput());
+    player.addComponent<CharacterComponent>(engine.getPhysics(), engine.getTime(), 0.3f, 1.4f, 60.0f);
+    player.addComponent<CameraComponent>(engine.getCamera(), CameraComponent::Mode::FirstPerson);
+    player.addComponent<PlayerComponent>();
+
+    engine.setCameraControlMode(false);
+
     auto& character = engine.loadGltfObject("assets/models/Level.glb");
-
-    auto mesh = engine.loadMesh("assets/models/cube.glb");
-    auto material = engine.createDefaultMaterial();
-
-    auto Dickmesh = engine.loadMesh("assets/models/Dick.glb", true);
-
-    auto& box = engine.getScene().addObject();
-    box.transform.position = glm::vec3(0, 10, 0);
-    box.setMaterial(material);
-    box.addComponent<MeshComponent>().setMesh(mesh);
-    box.addComponent<TransformComponent>();
-    box.addComponent<RigidBodyComponent>(engine.getPhysics(),
-        RigidBodyComponent::Shape::Box, RigidBodyComponent::Motion::Dynamic, nullptr,
-        glm::vec3(1.0f), 0.5f);
-
-    auto& Dick = engine.getScene().addObject();
-    Dick.transform.position = glm::vec3(0, 20, 0);
-    Dick.setMaterial(material);
-    Dick.addComponent<MeshComponent>().setMesh(Dickmesh);
-    Dick.addComponent<TransformComponent>();
-    Dick.addComponent<RigidBodyComponent>(engine.getPhysics(),
-        RigidBodyComponent::Shape::ConvexHull, RigidBodyComponent::Motion::Dynamic, Dickmesh,
-        glm::vec3(1.0f), 1.5f);
-    
     //////////////////////////////
     
     engine.run();

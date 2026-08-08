@@ -7,6 +7,9 @@
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
+#include <Jolt/Physics/Character/CharacterVirtual.h>
+#include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
+#include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <thread>
 
 JPH::BodyID PhysicsSystem::createStaticMesh(const std::vector<glm::vec3>& positions,
@@ -33,6 +36,33 @@ JPH::BodyID PhysicsSystem::createStaticMesh(const std::vector<glm::vec3>& positi
         Layers::NON_MOVING);
 
     return bodyInterface().CreateAndAddBody(settings, JPH::EActivation::DontActivate);
+}
+
+JPH::Ref<JPH::CharacterVirtual> PhysicsSystem::createCharacterVirtual(
+    glm::vec3 position, float radius, float height, float mass)
+{
+    JPH::RefConst<JPH::Shape> capsule = new JPH::CapsuleShape(0.5f * height, radius);
+    JPH::RefConst<JPH::Shape> shape = new JPH::RotatedTranslatedShape(
+        JPH::Vec3(0, 0.5f * height + radius, 0), JPH::Quat::sIdentity(), capsule);
+
+    JPH::CharacterVirtualSettings settings;
+    settings.mShape = shape;
+    settings.mMass = mass;
+    settings.mMaxSlopeAngle = JPH::DegreesToRadians(45.0f);
+
+    auto character = new JPH::CharacterVirtual(&settings,
+        JPH::RVec3(position.x, position.y, position.z),
+        JPH::Quat::sIdentity(), 0, m_physicsSystem.get());
+
+    return character;
+}
+
+void PhysicsSystem::updateCharacter(JPH::CharacterVirtual* character, float deltaTime)
+{
+    character->Update(deltaTime, m_physicsSystem->GetGravity(),
+        m_physicsSystem->GetDefaultBroadPhaseLayerFilter(Layers::MOVING),
+        m_physicsSystem->GetDefaultLayerFilter(Layers::MOVING),
+        {}, {}, *m_tempAllocator);
 }
 
 JPH::BodyID PhysicsSystem::createStaticSphere(glm::vec3 position, float radius)
@@ -63,6 +93,8 @@ JPH::BodyID PhysicsSystem::createDynamicSphere(glm::vec3 position, float radius,
 
     return bodyInterface().CreateAndAddBody(settings, JPH::EActivation::Activate);
 }
+
+
 
 JPH::BodyID PhysicsSystem::createDynamicConvexHull(const std::vector<glm::vec3>& positions,
     glm::vec3 worldPosition, float mass)

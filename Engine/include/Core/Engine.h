@@ -57,6 +57,8 @@ public:
 
     void setAntialiasing(AAMethod method) { m_renderer.setAAMethod(method); }
 
+    void setCameraControlMode(bool useController) { }
+
     void setGodRaySettings(const GodRaySettings& settings) { m_renderer.setGodRaySettings(settings); }
 
     std::shared_ptr<ScreenSpaceDecal> addScreenSpaceDecal(const std::string& texturePath,
@@ -81,5 +83,6 @@ private:
     FogSettings m_fogSettings;
     std::unique_ptr<ICameraController> m_cameraController;
     LightData m_lights{};
+    bool m_useCameraController = true;
     PhysicsSystem m_physics;
 };

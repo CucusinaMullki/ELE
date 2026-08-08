@@ -3,6 +3,7 @@
 #include <Jolt/Core/JobSystemThreadPool.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Physics/PhysicsSystem.h>
+#include <Jolt/Physics/Character/CharacterVirtual.h>
 #include "Core/PhysicsLayers.h"
 #include <glm/gtc/quaternion.hpp> 
 #include <glm/glm.hpp>
@@ -25,6 +26,9 @@ public:
 
     JPH::BodyID createStaticMesh(const std::vector<glm::vec3>& positions, const std::vector<uint32_t>& indices, glm::vec3 worldPosition);
     JPH::BodyID createDynamicConvexHull(const std::vector<glm::vec3>& positions, glm::vec3 worldPosition, float mass);
+
+    JPH::Ref<JPH::CharacterVirtual> createCharacterVirtual(glm::vec3 position, float radius, float height, float mass = 80.0f);
+    void updateCharacter(JPH::CharacterVirtual* character, float deltaTime);
 
     glm::vec3 getBodyPosition(JPH::BodyID id) const;
     glm::quat getBodyRotation(JPH::BodyID id) const;

@@ -20,7 +20,7 @@ namespace BroadPhaseLayers
 class ObjectLayerPairFilterImpl : public JPH::ObjectLayerPairFilter
 {
 public:
-    bool ShouldCollide(JPH::ObjectLayer inObject1, JPH::ObjectLayer inObject2) const
+    bool ShouldCollide(JPH::ObjectLayer inObject1, JPH::ObjectLayer inObject2) const override
     {
         switch (inObject1)
         {
@@ -49,6 +49,18 @@ public:
     {
         return m_objectToBroadPhase[inLayer];
     }
+
+    #if defined(JPH_EXTERNAL_PROFILE) || defined(JPH_PROFILE_ENABLED)
+        virtual const char* GetBroadPhaseLayerName(JPH::BroadPhaseLayer inLayer) const override
+        {
+            switch ((JPH::BroadPhaseLayer::Type)inLayer)
+            {
+                case (JPH::BroadPhaseLayer::Type)BroadPhaseLayers::NON_MOVING: return "NON_MOVING";
+                case (JPH::BroadPhaseLayer::Type)BroadPhaseLayers::MOVING:     return "MOVING";
+                default: return "INVALID";
+            }
+        }
+    #endif
 
 private:
     JPH::BroadPhaseLayer m_objectToBroadPhase[Layers::NUM_LAYERS];

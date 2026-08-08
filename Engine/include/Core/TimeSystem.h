@@ -14,6 +14,8 @@ public:
     void setTimeScale(float scale) { m_timeScale = scale; }
     float getTimeScale() const { return m_timeScale; }
 
+    float getFixedAlpha() const { return m_accumulator / m_fixedDeltaTime; }
+
     void pause() { m_paused = true; }
     void resume() { m_paused = false; }
     bool isPaused() const { return m_paused; }
