@@ -172,8 +172,8 @@ void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
         lightmapBinding.setDescriptorCount(1);
         lightmapBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
 
-        std::array<vk::DescriptorSetLayoutBinding, 9> bindings = { 
-            uboBinding, 
+        std::array<vk::DescriptorSetLayoutBinding, 9> bindings = {
+            uboBinding,
             makeSamplerBinding(1),
             makeSamplerBinding(2),
             makeSamplerBinding(3),
@@ -189,11 +189,10 @@ void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
         m_descriptorSetLayout = device.createDescriptorSetLayoutUnique(layoutCreateInfo);
 
         std::array<vk::DescriptorPoolSize, 2> poolSizes{};
-
         poolSizes[0].setType(vk::DescriptorType::eUniformBuffer);
         poolSizes[0].setDescriptorCount(config.maxMaterials * config.frameCount * 2);
         poolSizes[1].setType(vk::DescriptorType::eCombinedImageSampler);
-        poolSizes[1].setDescriptorCount(config.maxMaterials * config.frameCount * 5);
+        poolSizes[1].setDescriptorCount(config.maxMaterials * config.frameCount * 7);
 
         vk::DescriptorPoolCreateInfo poolInfo{};
         poolInfo.setPoolSizes(poolSizes);

@@ -22,6 +22,10 @@ public:
     {
         if (!m_active) return;
 
+        LOG("applyToCamera: owner pos=" << m_owner->transform.position.x << "," 
+            << m_owner->transform.position.y << "," << m_owner->transform.position.z);
+
+
         glm::vec3 basePos = m_owner->transform.position;
         float yawRad = glm::radians(m_owner->transform.rotation.y);
         float pitchRad = glm::radians(m_pitch);
@@ -39,6 +43,9 @@ public:
         m_camera.setPosition(camPos);
         m_camera.lookAt(camPos + forward);
     }
+
+    Camera& getCamera() { return m_camera; }
+    glm::vec3 getEyeOffset() const { return m_eyeOffset; }
 
     void setActive(bool active) { m_active = active; }
     bool isActive() const { return m_active; }

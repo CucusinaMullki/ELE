@@ -11,6 +11,7 @@
 #include "Vulkan/ShadowMap.h"
 #include "Vulkan/ShadowRenderPass.h"
 #include "Vulkan/PipelineCache.h"
+#include "Vulkan/ShadowAtlas.h"
 #include "Vulkan/DepthBuffer.h"
 #include "Vulkan/ShadowMap.h"
 #include "Vulkan/HdrRenderPass.h"
@@ -70,10 +71,10 @@ public:
     vk::DescriptorPool getDescriptorPool() const { return m_pipeline.getDescriptorPool(); }
     vk::DescriptorSetLayout getDescriptorSetLayout() const { return m_pipeline.getDescriptorSetLayout(); }
     std::vector<vk::DescriptorBufferInfo> getLightInfos() const;
+    vk::Sampler getShadowAtlasSampler() const { return m_shadowAtlas.getSampler(); }
+    vk::ImageView getShadowAtlasView() const { return m_shadowAtlas.getImageView(); }
     vk::ImageView getShadowView() const { return m_shadowMap.getImageView(); }
-    vk::Sampler getShadowSampler() const { return m_shadowMap.getSampler(); }
-    vk::ImageView getPointShadowView() const { return m_pointShadowMap.getCubeView(); }
-    vk::Sampler getPointShadowSampler() const { return m_pointShadowMap.getSampler(); }
+     vk::Sampler getShadowSampler() const { return m_shadowMap.getSampler(); }
     vk::DescriptorPool getDecalDescriptorPool() const { return m_decalPipeline.getDescriptorPool(); }
     vk::DescriptorSetLayout getDecalDescriptorSetLayout() const { return m_decalPipeline.getDescriptorSetLayout(); }
     vk::ImageView getDepthView() const { return m_depthBuffer.getImageView(); }
@@ -83,6 +84,7 @@ public:
     const GodRaySettings& getGodRaySettings() const{ return m_godRaySettings; }
     uint32_t getFramesInFlight() const { return MAX_FRAMES_IN_FLIGHT; }
     float getAspect() const;
+
 
     std::vector<vk::DescriptorBufferInfo> getUboInfos() const;
 
@@ -124,16 +126,23 @@ private:
     
     LightData m_pendingLights{};
 
-    //
-    CubeShadowMap m_pointShadowMap;
+    // Point light shadows
     PointShadowRenderPass m_pointShadowRenderPass;
-    std::array<vk::UniqueFramebuffer, 6> m_pointShadowFramebuffers;
     Pipeline m_pointShadowPipeline;
-    std::array<glm::mat4, 6> m_pointLightViewProj;
     float m_pointShadowFarPlane = 25.0f;
-    void updatePointLightMatrices(glm::vec3 lightPos);
     bool m_hasPointLightShadow = false;
-    glm::vec3 m_currentPointLightPos{0.0f};
+
+    static constexpr int NUM_POINT_SHADOWS = 3;
+
+
+    ShadowAtlas m_shadowAtlas;
+    vk::UniqueFramebuffer m_shadowAtlasFramebuffer;
+
+    std::array<std::array<glm::mat4, 6>, NUM_POINT_SHADOWS> m_pointLightViewProjArr;
+    void updatePointLightMatrices(int slot, glm::vec3 lightPos);
+    int m_numActivePointShadows = 0;
+    std::array<glm::vec3, NUM_POINT_SHADOWS> m_activePointLightPos;
+    std::array<int, NUM_POINT_SHADOWS> m_activePointLightIndex;
 
     //Bloom
     BloomTarget m_brighTarget;

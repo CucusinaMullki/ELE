@@ -1,4 +1,6 @@
 #include "Core/Camera.h"
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/rotate_vector.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
 
@@ -34,7 +36,8 @@ void Camera::processMouse(float deltaX, float deltaY)
 
 glm::mat4 Camera::getViewMatrix() const
 {
-    return glm::lookAt(m_position, m_position + m_front, m_up);
+    glm::vec3 rolledUp = glm::rotate(m_up, glm::radians(m_roll), m_front);
+    return glm::lookAt(m_position, m_position + m_front, rolledUp);
 }
 
 void Camera::updateVectors()

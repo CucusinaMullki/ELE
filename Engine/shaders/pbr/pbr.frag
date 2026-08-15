@@ -28,7 +28,7 @@ layout(binding = 5) uniform LightUBO {
 } lightData;
 
 layout(binding = 6) uniform sampler2DShadow shadowMap;
-layout(binding = 7) uniform samplerCube pointShadowMap;
+layout(binding = 7) uniform sampler2D shadowAtlas;
 layout(binding = 8) uniform sampler2D lightmapMap;
 
 layout(location = 0) in vec3 fragWorldPos;
@@ -95,7 +95,47 @@ float calculateShadow(vec4 lightSpacePos, vec3 N, vec3 L, vec2 screenXY)
     return shadow / samples;
 }
 
-float calculatePointShadow(vec3 fragPos, vec3 lightPos, vec3 N, vec2 screenXY)
+vec3 sampleCubeFaceAndUV(vec3 dir)
+{
+    vec3 absDir = abs(dir);
+    float faceIndex;
+    vec2 uv;
+
+    if (absDir.x >= absDir.y && absDir.x >= absDir.z)
+    {
+        faceIndex = dir.x > 0.0 ? 0.0 : 1.0;
+        uv = (dir.x > 0.0) ? vec2(-dir.z, -dir.y) / absDir.x : vec2(dir.z, -dir.y) / absDir.x;
+    }
+    else if (absDir.y >= absDir.x && absDir.y >= absDir.z)
+    {
+        faceIndex = dir.y > 0.0 ? 2.0 : 3.0;
+        uv = (dir.y > 0.0) ? vec2(dir.x, dir.z) / absDir.y : vec2(dir.x, -dir.z) / absDir.y;
+    }
+    else
+    {
+        faceIndex = dir.z > 0.0 ? 4.0 : 5.0;
+        uv = (dir.z > 0.0) ? vec2(dir.x, -dir.y) / absDir.z : vec2(-dir.x, -dir.y) / absDir.z;
+    }
+
+    uv = uv * 0.5 + 0.5;
+    return vec3(uv, faceIndex);
+}
+
+float sampleShadowAtlas(vec3 dir, int lightSlot)
+{
+    vec3 faceUV = sampleCubeFaceAndUV(dir);
+
+    const float TILE = 1.0 / 6.0;
+    const float ROW = 1.0 / 3.0;
+
+    vec2 atlasUV;
+    atlasUV.x = (faceUV.z + faceUV.x) * TILE;
+    atlasUV.y = (float(lightSlot) + faceUV.y) * ROW;
+
+    return texture(shadowAtlas, atlasUV).r;
+}
+
+float calculatePointShadow(vec3 fragPos, vec3 lightPos, vec3 N, vec2 screenXY, int shadowSlot)
 {
     vec3 toFrag = fragPos - lightPos;
     float currentDist = length(toFrag);
@@ -129,7 +169,8 @@ float calculatePointShadow(vec3 fragPos, vec3 lightPos, vec3 N, vec2 screenXY)
     for (int i = 0; i < SAMPLES; i++)
     {
         vec3 offset = rot * sampleOffsets[i];
-        float closestDist = texture(pointShadowMap, toFrag + offset * diskRadius).r * POINT_SHADOW_FAR_PLANE;
+        float closestDist = sampleShadowAtlas(toFrag + offset * diskRadius, shadowSlot) * POINT_SHADOW_FAR_PLANE;
+
         if (currentDist - bias > closestDist)
             shadow += 1.0;
     }
@@ -154,7 +195,6 @@ void main()
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
     vec3 Lo = vec3(0.0);
-    bool pointShadowUsed = false;
 
     for (int i = 0; i < lightData.count.x; i++)
     {
@@ -173,10 +213,15 @@ void main()
             float atten = 1.0 / dist2;
             radiance = light.color.rgb * light.color.a * atten;
 
-            if (!pointShadowUsed) {
-                float pShadow = calculatePointShadow(fragWorldPos, light.position.xyz, N, gl_FragCoord.xy);
+            int shadowSlot = -1;
+            if (i == lightData.count.y) shadowSlot = 0;
+            else if (i == lightData.count.z) shadowSlot = 1;
+            else if (i == lightData.count.w) shadowSlot = 2;
+
+            if (shadowSlot >= 0)
+            {
+                float pShadow = calculatePointShadow(fragWorldPos, light.position.xyz, N, gl_FragCoord.xy, shadowSlot);
                 radiance *= (1.0 - pShadow);
-                pointShadowUsed = true;
             }
         }
 
@@ -211,7 +256,7 @@ void main()
     vec3 color = ambient + Lo;
 
     vec3 lightmapColor = texture(lightmapMap, fragLightmapUV).rgb;
-    color += lightmapColor * 0.3;
+    color += lightmapColor * 0.02 * ao;
 
     float alpha = texture(albedoMap, fragTexCoord).a;
     outColor = vec4(color, alpha);

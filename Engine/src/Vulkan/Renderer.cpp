@@ -571,21 +571,19 @@ void Renderer::initialize(GLFWwindow* window)
     shadowConfig.depthBiasSlope = 1.75f;
     m_shadowPipeline.initialize(m_context.getDevice(), shadowConfig);
 
-    m_pointShadowMap.initialize(m_context.getDevice(), m_context.getPhysicalDevice(), 1024);
-    m_pointShadowRenderPass.initialize(m_context.getDevice(), m_pointShadowMap.getFormat());
+    m_pointShadowRenderPass.initialize(m_context.getDevice(), vk::Format::eD32Sfloat);
 
-    for (uint32_t face = 0; face < 6; face++)
-    {
-        vk::ImageView faceView = m_pointShadowMap.getFaceView(face);
-        vk::FramebufferCreateInfo fbInfo{};
-        fbInfo.setRenderPass(m_pointShadowRenderPass.getRenderPass());
-        fbInfo.setAttachmentCount(1);
-        fbInfo.setPAttachments(&faceView);
-        fbInfo.setWidth(m_pointShadowMap.getSize());
-        fbInfo.setHeight(m_pointShadowMap.getSize());
-        fbInfo.setLayers(1);
-        m_pointShadowFramebuffers[face] = m_context.getDevice().createFramebufferUnique(fbInfo);
-    }
+    m_shadowAtlas.initialize(m_context.getDevice(), m_context.getPhysicalDevice());
+
+    vk::ImageView atlasView = m_shadowAtlas.getImageView();
+    vk::FramebufferCreateInfo fbInfo{};
+    fbInfo.setRenderPass(m_pointShadowRenderPass.getRenderPass());
+    fbInfo.setAttachmentCount(1);
+    fbInfo.setPAttachments(&atlasView);
+    fbInfo.setWidth(m_shadowAtlas.getWidth());
+    fbInfo.setHeight(m_shadowAtlas.getHeight());
+    fbInfo.setLayers(1);
+    m_shadowAtlasFramebuffer = m_context.getDevice().createFramebufferUnique(fbInfo);
 
     PipelineConfig pointShadowConfig{};
     pointShadowConfig.vertexShader = "point_shadow";
@@ -717,19 +715,8 @@ void Renderer::createFogDescriptorSets()
         m_context.getDevice().updateDescriptorSets(writes, nullptr);
     }
 }
-void Renderer::updatePointLightMatrices(glm::vec3 lightPos)
-{
-    float aspect = 1.0f;
-    float nearPlane = 0.1f;
-    glm::mat4 shadowProj = glm::perspective(glm::radians(90.0f), aspect, nearPlane, m_pointShadowFarPlane);
 
-    m_pointLightViewProj[0] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3( 1, 0, 0), glm::vec3(0,-1, 0));
-    m_pointLightViewProj[1] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(-1, 0, 0), glm::vec3(0,-1, 0));
-    m_pointLightViewProj[2] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3( 0, 1, 0), glm::vec3(0, 0, 1));
-    m_pointLightViewProj[3] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3( 0,-1, 0), glm::vec3(0, 0,-1));
-    m_pointLightViewProj[4] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3( 0, 0, 1), glm::vec3(0,-1, 0));
-    m_pointLightViewProj[5] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3( 0, 0,-1), glm::vec3(0,-1, 0));
-}
+
 
 std::vector<vk::DescriptorBufferInfo> Renderer::getLightInfos() const
 {
@@ -792,22 +779,44 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
     glm::mat4 lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     m_lightSpaceMatrix = lightProj * lightView;
 
-    glm::vec3 pointLightPos(0.0f);
-    bool hasPointLight = false;
+    struct LightDist { int index; float dist2; };
+    std::vector<LightDist> pointLights;
+
     for (int i = 0; i < m_pendingLights.count.x; i++)
     {
         if (m_pendingLights.lights[i].position.w >= 0.5f)
         {
-            pointLightPos = glm::vec3(m_pendingLights.lights[i].position);
-            hasPointLight = true;
-            break;
+            glm::vec3 lp = glm::vec3(m_pendingLights.lights[i].position);
+            float dist2 = glm::dot(lp - camera.getPosition(), lp - camera.getPosition());
+            pointLights.push_back({ i, dist2 });
         }
     }
-    if (hasPointLight)
-        updatePointLightMatrices(pointLightPos);
 
-    m_hasPointLightShadow = hasPointLight;
-    m_currentPointLightPos = pointLightPos;
+    std::sort(pointLights.begin(), pointLights.end(), [](const LightDist& a, const LightDist& b) {
+        return a.dist2 < b.dist2;
+    });
+
+    m_numActivePointShadows = std::min((int)pointLights.size(), NUM_POINT_SHADOWS);
+
+    for (int slot = 0; slot < m_numActivePointShadows; slot++)
+    {
+        int lightIdx = pointLights[slot].index;
+        glm::vec3 lp = glm::vec3(m_pendingLights.lights[lightIdx].position);
+        m_activePointLightPos[slot] = lp;
+        m_activePointLightIndex[slot] = lightIdx;
+        updatePointLightMatrices(slot, lp);
+    }
+
+    m_hasPointLightShadow = m_numActivePointShadows > 0;
+    
+    m_pendingLights.count.y = (m_numActivePointShadows > 0) ? m_activePointLightIndex[0] : -1;
+    m_pendingLights.count.z = (m_numActivePointShadows > 1) ? m_activePointLightIndex[1] : -1;
+    m_pendingLights.count.w = (m_numActivePointShadows > 2) ? m_activePointLightIndex[2] : -1;
+
+
+    LOG("shadow indices: y=" << m_pendingLights.count.y << " z=" << m_pendingLights.count.z 
+        << " w=" << m_pendingLights.count.w << " numActive=" << m_numActivePointShadows
+        << " camPos=(" << camera.getPosition().x << "," << camera.getPosition().y << "," << camera.getPosition().z << ")");
 
     glm::vec2 jitter = (m_aaMethod == AAMethod::TAA) ? getJitter() : glm::vec2(0.0f);
     glm::mat4 baseProj = camera.getProjectionMatrix(); 
@@ -869,6 +878,19 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
     m_frameIndex++;
     m_historyIndex = 1 - m_historyIndex;
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+void Renderer::updatePointLightMatrices(int slot, glm::vec3 lightPos)
+{
+    float aspect = 1.0f;
+    float nearPlane = 0.1f;
+    glm::mat4 shadowProj = glm::perspective(glm::radians(90.0f), aspect, nearPlane, m_pointShadowFarPlane);
+    m_pointLightViewProjArr[slot][0] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3( 1, 0, 0), glm::vec3(0,-1, 0));
+    m_pointLightViewProjArr[slot][1] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(-1, 0, 0), glm::vec3(0,-1, 0));
+    m_pointLightViewProjArr[slot][2] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3( 0, 1, 0), glm::vec3(0, 0, 1));
+    m_pointLightViewProjArr[slot][3] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3( 0,-1, 0), glm::vec3(0, 0,-1));
+    m_pointLightViewProjArr[slot][4] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3( 0, 0, 1), glm::vec3(0,-1, 0));
+    m_pointLightViewProjArr[slot][5] = shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3( 0, 0,-1), glm::vec3(0,-1, 0));
 }
 
 void Renderer::recreateSwapchain()
@@ -1278,66 +1300,78 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
         commandBuffer.endRenderPass();
     }
 
+    LOG("hasPointLightShadow=" << m_hasPointLightShadow << " numActive=" << m_numActivePointShadows);
+
     if (m_hasPointLightShadow)
     {
-        for (uint32_t face = 0; face < 6; face++)
+        vk::ClearValue shadowClear{};
+        shadowClear.setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
+
+        vk::RenderPassBeginInfo atlasPass{};
+        atlasPass.setRenderPass(m_pointShadowRenderPass.getRenderPass());
+        atlasPass.setFramebuffer(m_shadowAtlasFramebuffer.get());
+        atlasPass.setRenderArea(vk::Rect2D{ {0, 0}, { m_shadowAtlas.getWidth(), m_shadowAtlas.getHeight() } });
+        atlasPass.setClearValues(shadowClear);
+
+        commandBuffer.beginRenderPass(atlasPass, vk::SubpassContents::eInline);   // ОДИН раз, не 18
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pointShadowPipeline.getPipeline());
+
+        for (int slot = 0; slot < m_numActivePointShadows; slot++)
         {
-            vk::ClearValue shadowClear{};
-            shadowClear.setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
-
-            vk::RenderPassBeginInfo facePass{};
-            facePass.setRenderPass(m_pointShadowRenderPass.getRenderPass());
-            facePass.setFramebuffer(m_pointShadowFramebuffers[face].get());
-            facePass.setRenderArea(vk::Rect2D{ {0, 0}, { m_pointShadowMap.getSize(), m_pointShadowMap.getSize() } });
-            facePass.setClearValues(shadowClear);
-
-            commandBuffer.beginRenderPass(facePass, vk::SubpassContents::eInline);
-            commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pointShadowPipeline.getPipeline());
-
-            vk::Viewport vp{};
-            vp.setWidth((float)m_pointShadowMap.getSize()).setHeight((float)m_pointShadowMap.getSize())
-                .setMinDepth(0.0f).setMaxDepth(1.0f);
-            commandBuffer.setViewport(0, vp);
-            vk::Rect2D sc{};
-            sc.setExtent({ m_pointShadowMap.getSize(), m_pointShadowMap.getSize() });
-            commandBuffer.setScissor(0, sc);
-
-            for (const auto& obj : scene.getObjects())
+            for (uint32_t face = 0; face < 6; face++)
             {
-                if (!obj->mesh) continue;
-                obj->mesh->bind(commandBuffer);
+                vk::Rect2D tile = m_shadowAtlas.getTileRect(slot, face);
 
-                PointShadowPush psPush{};
-                psPush.lightViewProj = m_pointLightViewProj[face];
-                psPush.model = obj->transform.getMatrix();
-                psPush.lightPos = glm::vec4(m_currentPointLightPos, m_pointShadowFarPlane);
+                vk::Viewport vp{};
+                vp.setX((float)tile.offset.x).setY((float)tile.offset.y);
+                vp.setWidth((float)tile.extent.width).setHeight((float)tile.extent.height);
+                vp.setMinDepth(0.0f).setMaxDepth(1.0f);
+                commandBuffer.setViewport(0, vp);
+                commandBuffer.setScissor(0, tile);
 
-                commandBuffer.pushConstants(m_pointShadowPipeline.getLayout(),
-                    vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-                    0, sizeof(PointShadowPush), &psPush);
+                int drawnCount = 0;
 
-                for (const auto& sm : obj->mesh->getSubmeshes())
-                    obj->mesh->drawSubmesh(commandBuffer, sm);
+                for (const auto& obj : scene.getObjects())
+                {
+                    if (!obj->mesh) continue;
+                    drawnCount++;
+                    obj->mesh->bind(commandBuffer);
+
+                    PointShadowPush pspush{};
+                    pspush.lightViewProj = m_pointLightViewProjArr[slot][face];
+                    pspush.model = obj->transform.getMatrix();
+                    pspush.lightPos = glm::vec4(m_activePointLightPos[slot], m_pointShadowFarPlane);
+
+                    commandBuffer.pushConstants(m_pointShadowPipeline.getLayout(),
+                        vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                        0, sizeof(PointShadowPush), &pspush);
+
+                    for (const auto& sm : obj->mesh->getSubmeshes())
+                        obj->mesh->drawSubmesh(commandBuffer, sm);
+                }
+
+                if (slot == 0 && face == 0)
+                    LOG("atlas slot0 face0: drawn=" << drawnCount << " tile=(" << tile.offset.x << "," << tile.offset.y 
+                        << " " << tile.extent.width << "x" << tile.extent.height << ")");
+                
             }
-            commandBuffer.endRenderPass();
         }
+
+        commandBuffer.endRenderPass();
     }
     else
     {
-        for (uint32_t face = 0; face < 6; face++)
-        {
-            vk::ClearValue shadowClear{};
-            shadowClear.setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
+        vk::ClearValue shadowClear{};
+        shadowClear.setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
 
-            vk::RenderPassBeginInfo facePass{};
-            facePass.setRenderPass(m_pointShadowRenderPass.getRenderPass());
-            facePass.setFramebuffer(m_pointShadowFramebuffers[face].get());
-            facePass.setRenderArea(vk::Rect2D{ {0, 0}, { m_pointShadowMap.getSize(), m_pointShadowMap.getSize() } });
-            facePass.setClearValues(shadowClear);
+        vk::RenderPassBeginInfo atlasPass{};
+        atlasPass.setRenderPass(m_pointShadowRenderPass.getRenderPass());
+        atlasPass.setFramebuffer(m_shadowAtlasFramebuffer.get());
+        atlasPass.setRenderArea(vk::Rect2D{ {0, 0}, {m_shadowAtlas.getWidth(), m_shadowAtlas.getHeight() } });
+        atlasPass.setClearValues(shadowClear);
 
-            commandBuffer.beginRenderPass(facePass, vk::SubpassContents::eInline);
-            commandBuffer.endRenderPass();
-        }
+        commandBuffer.beginRenderPass(atlasPass, vk::SubpassContents::eInline);
+        commandBuffer.endRenderPass();
     }
 
     {
@@ -1873,6 +1907,11 @@ void Renderer::cleanup()
     m_hdrDecalFramebuffer.reset();
     m_hdrDecalRenderPass.cleanup();
 
+    m_pointShadowPipeline.cleanup();
+    m_pointShadowRenderPass.cleanup();
+    m_shadowAtlasFramebuffer.reset();
+    m_shadowAtlas.cleanup();
+
     for (auto& decal : m_screenSpaceDecals)
         decal->cleanup();
     m_screenSpaceDecals.clear();
@@ -1892,11 +1931,6 @@ void Renderer::cleanup()
 
     m_postRenderPassLoad.cleanup();
     m_postRenderPass.cleanup();
-
-    for (auto& fb : m_pointShadowFramebuffers) fb.reset();
-    m_pointShadowPipeline.cleanup();
-    m_pointShadowRenderPass.cleanup();
-    m_pointShadowMap.cleanup();
 
     m_shadowFramebuffer.reset();
     m_shadowPipeline.cleanup();

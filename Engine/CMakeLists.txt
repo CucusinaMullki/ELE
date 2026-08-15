@@ -47,6 +47,7 @@ add_library(ELE STATIC
     src/Core/FreeFlyCameraController.cpp
     src/Core/OrbitCameraController.cpp
     src/Physics/PhysicsSystem.cpp
+    src/Vulkan/ShadowAtlas.cpp
 )
 
 target_include_directories(ELE PUBLIC
@@ -78,14 +79,12 @@ file(GLOB_RECURSE GLSL_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.comp"
 )
 
-set(SPIRV "${CMAKE_BINARY_DIR}/game/shaders/${FILE_NAME}.spv")
-
 foreach(GLSL ${GLSL_FILES})
     get_filename_component(FILE_NAME ${GLSL} NAME)
-    set(SPIRV "${CMAKE_BINARY_DIR}/shaders/${FILE_NAME}.spv")
+    set(SPIRV "${CMAKE_BINARY_DIR}/game/shaders/${FILE_NAME}.spv")
     add_custom_command(
         OUTPUT ${SPIRV}
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/shaders"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/game/shaders"ss
         COMMAND ${GLSLC} -I "${CMAKE_CURRENT_SOURCE_DIR}/shaders/common" ${GLSL} -o ${SPIRV}
         DEPENDS ${GLSL}
         COMMENT "Shader compiling ${FILE_NAME}"

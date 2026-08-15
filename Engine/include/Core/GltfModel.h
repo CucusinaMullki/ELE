@@ -57,6 +57,14 @@ struct GltfCollider
     glm::vec3 size{1.0f};
 };
 
+struct GltfEntity
+{
+    std::string name;
+    glm::vec3 position{0.0f};
+    glm::vec3 rotationEuler{0.0f};
+    glm::vec3 scale{1.0f};
+};
+
 class GltfModel
 {
 public:
@@ -70,6 +78,7 @@ public:
     const std::vector<GltfLight>& getLights() const { return m_lights; }
     const std::vector<GltfDecal>& getDecals() const { return m_decals; }
     const std::vector<GltfCollider>& getColliders() const { return m_colliders; }
+    const std::vector<GltfEntity>& getEntities() const { return m_entities; }
 
 private:
     void computeTangents();
@@ -82,5 +91,6 @@ private:
     std::vector<GltfLight> m_lights;
     std::vector<GltfDecal> m_decals;
     std::vector<GltfCollider> m_colliders;
+    std::vector<GltfEntity> m_entities;
     bool m_hasTangents = false;
 };

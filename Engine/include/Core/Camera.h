@@ -12,6 +12,9 @@ public:
     void setAspect(float aspect) { m_aspect = aspect; }
     void setPosition(glm::vec3 pos) { m_position = pos; }
 
+    void setRoll(float degreesRoll) { m_roll = degreesRoll; }
+    float getRoll() const { return m_roll; }
+
     void lookAt(glm::vec3 target);
 
     glm::mat4 getViewMatrix() const;
@@ -40,4 +43,5 @@ private:
     float m_fov = 45.0f;
     float m_nearPlane = 0.1f;
     float m_farPlane = 100.0f;
+    float m_roll = 0.0f;
 };

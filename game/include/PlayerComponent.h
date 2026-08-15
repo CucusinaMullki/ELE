@@ -3,12 +3,16 @@
 #include "Scene/GameObject.h"
 #include "Components/InputComponent.h"
 #include "Components/CharacterComponent.h"
+#include "HeadBobComponent.h"
 #include "Components/CameraComponent.h"
+#include "InteractableComponent.h"
 #include <glm/glm.hpp>
 
 class PlayerComponent : public IComponent
 {
 public:
+    explicit PlayerComponent(PhysicsSystem& physics) : m_physics(physics) {}
+
     void onAttach(GameObject& owner) override
     {
         m_owner = &owner;
@@ -16,11 +20,39 @@ public:
         m_input = owner.getComponent<InputComponent>();
         m_camera = owner.getComponent<CameraComponent>();
         m_character = owner.getComponent<CharacterComponent>();
+        m_headBob = owner.getComponent<HeadBobComponent>();
     }
 
     void update(float deltaTime) override
     {
         if (!m_input) return;
+    
+        if (m_input->isFireJustPressed())
+        {
+            glm::vec3 origin = m_camera->getCamera().getPosition();
+            glm::vec3 dir = m_camera->getCamera().getFront();
+        
+            RaycastHit hit = m_physics.raycast(origin, dir, 3.0f);
+            if (hit.hit)
+            {
+                GameObject* target = m_physics.getOwner(hit.bodyId);
+                if (target)
+                {
+                    LOG("Looked at object: " << target->name << ", distance=" << hit.distance);
+                }
+                else
+                {
+                    LOG("Hit unnamed body at distance=" << hit.distance);
+                }
+            }
+            else
+            {
+                LOG("Raycast: nothing in range");
+            }
+        }
+
+        if (m_character)
+            m_character->syncTransform(deltaTime);
 
         glm::vec2 look = m_input->getLookDelta();
         m_owner->transform.rotation.y += look.x * m_lookSensitivity;
@@ -47,6 +79,39 @@ public:
                 m_character->jump(m_jumpSpeed);
         }
 
+        if (m_input->isInteractJustPressed())
+        {
+            LOG("Interact pressed!");
+        
+            glm::vec3 origin = m_camera->getCamera().getPosition();
+            glm::vec3 dir = m_camera->getCamera().getFront();
+            RaycastHit hit = m_physics.raycast(origin, dir, m_interactRange);
+        
+            LOG("Raycast hit: " << hit.hit << ", distance: " << hit.distance);
+        
+            if (hit.hit)
+            {
+                GameObject* target = m_physics.getOwner(hit.bodyId);
+                LOG("target found: " << (target != nullptr) << ", name: '" << (target ? target->name : "null") << "'");
+            
+                if (target)
+                {
+                    auto* interactable = target->getComponent<InteractableComponent>();
+                    LOG("interactable found: " << (interactable != nullptr));
+                
+                    if (interactable && interactable->onInteract)
+                        interactable->onInteract();
+                }
+            }
+            else
+            {
+                LOG("Interact: nothing in range");
+            }
+        }
+
+        if (m_headBob)
+            m_headBob->applyBob(deltaTime);
+
         if (m_camera)
             m_camera->applyToCamera();
     }
@@ -60,6 +125,10 @@ private:
     InputComponent* m_input = nullptr;
     CameraComponent* m_camera = nullptr;
     CharacterComponent* m_character = nullptr;
+    HeadBobComponent* m_headBob = nullptr;
+    PhysicsSystem& m_physics;
+
+    float m_interactRange = 3.0f;
 
     float m_pitch = 0.0f;
     float m_lookSensitivity = 0.1f;

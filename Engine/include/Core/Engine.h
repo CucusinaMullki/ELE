@@ -69,6 +69,7 @@ public:
 
 private:
     void updateInput(float deltaTime);
+    void createMaterialDescriptorSet(std::shared_ptr<Material> material);
 
     GLFWwindow* m_window = nullptr;
     bool m_cleaned = false;

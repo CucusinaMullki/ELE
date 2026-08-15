@@ -27,8 +27,8 @@ public:
 
     glm::vec2 getLookDelta() const
     {
-        float gamepadYaw = m_input.gamepad().getAxis(GamepadAxis::RightX) * m_gamepadLookSpeed;
-        float gamepadPitch = -m_input.gamepad().getAxis(GamepadAxis::RightY) * m_gamepadLookSpeed;
+        float gamepadYaw = m_input.gamepad().getAxis(GamepadAxis::RightX) * m_gamepadLookSpeed * 0.05;
+        float gamepadPitch = -m_input.gamepad().getAxis(GamepadAxis::RightY) * m_gamepadLookSpeed * 0.05;
 
         return glm::vec2(m_input.getMouseDeltaX() + gamepadYaw, m_input.getMouseDeltaY() + gamepadPitch);
     }
@@ -36,6 +36,7 @@ public:
     bool isJumpJustPressed() const { return m_input.isActionJustPressed("Up"); }
     bool isFirePressed() const { return m_input.isActionPressed("Fire"); }
     bool isFireJustPressed() const { return m_input.isActionJustPressed("Fire"); }
+    bool isInteractJustPressed() const { return m_input.isActionJustPressed("Interact"); }
 
     void setGamepadLookSpeed(float speed) { m_gamepadLookSpeed = speed; }
 

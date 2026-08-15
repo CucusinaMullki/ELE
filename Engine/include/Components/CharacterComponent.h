@@ -21,6 +21,12 @@ public:
         m_previousPosition = m_currentPosition = owner.transform.position;
     }
 
+    void syncTransform(float deltaTime)
+    {
+        float alpha = glm::clamp(m_time.getFixedAlpha(), 0.0f, 1.0f);
+        m_owner->transform.position = glm::mix(m_previousPosition, m_currentPosition, alpha);
+    }
+
     void fixedUpdate(float fixedDeltaTime) override
     {
         m_previousPosition = m_currentPosition;
@@ -35,13 +41,31 @@ public:
             m_verticalVelocity -= 9.81f * fixedDeltaTime;
 
         m_currentPosition = rawPosition();
+    
+        std::vector<JPH::BodyID> overlapping = m_physics.queryOverlappingBodies(rawPosition(), m_radius);
+
+        std::vector<JPH::BodyID> currentTriggers;
+        for (auto id : overlapping)
+            if (m_physics.isSensor(id))
+                currentTriggers.push_back(id);
+
+        for (auto id : currentTriggers)
+        {
+            bool wasInside = std::find(m_previousTriggers.begin(), m_previousTriggers.end(), id) != m_previousTriggers.end();
+            if (!wasInside)
+                m_physics.getContactListener().notifyEnter(id, m_bodyIdPlaceholder);
+        }
+        for (auto id : m_previousTriggers)
+        {
+            bool stillInside = std::find(currentTriggers.begin(), currentTriggers.end(), id) != currentTriggers.end();
+            if (!stillInside)
+                m_physics.getContactListener().notifyExit(id, m_bodyIdPlaceholder);
+        }
+
+        m_previousTriggers = currentTriggers;
     }
 
-    void update(float deltaTime) override
-    {
-        float alpha = glm::clamp(m_time.getFixedAlpha(), 0.0f, 1.0f);
-        m_owner->transform.position = glm::mix(m_previousPosition, m_currentPosition, alpha);
-    }
+    glm::vec3 getVelocity() const { return glm::vec3(m_moveInput.x, m_verticalVelocity, m_moveInput.z); }
 
     void setMoveInput(glm::vec3 worldSpaceHorizontal) { m_moveInput = worldSpaceHorizontal; }
 
@@ -64,6 +88,9 @@ private:
         JPH::RVec3 pos = m_character->GetPosition();
         return glm::vec3(pos.GetX(), pos.GetY(), pos.GetZ());
     }
+
+    std::vector<JPH::BodyID> m_previousTriggers;
+    JPH::BodyID m_bodyIdPlaceholder;
 
     PhysicsSystem& m_physics;
     TimeSystem& m_time;

@@ -71,14 +71,19 @@ std::shared_ptr<Material> Engine::loadMaterial(const std::string& albedo, const 
 {
     auto material = m_resources.loadMaterial(albedo, normal, metallic, roughness);
 
+    createMaterialDescriptorSet(material);
+
+    return material;
+}
+
+void Engine::createMaterialDescriptorSet(std::shared_ptr<Material> material)
+{
     material->createDescriptorSet(m_renderer.getDevice(),
         m_renderer.getDescriptorPool(), m_renderer.getDescriptorSetLayout(),
         m_renderer.getUboInfos(), m_renderer.getLightInfos(),
         m_renderer.getShadowView(), m_renderer.getShadowSampler(),
-        m_renderer.getPointShadowView(), m_renderer.getPointShadowSampler(),
+        m_renderer.getShadowAtlasView(), m_renderer.getShadowAtlasSampler(),
         m_renderer.getFramesInFlight());
-
-    return material;
 }
 
 std::shared_ptr<Material> Engine::createDefaultMaterial()
@@ -93,12 +98,7 @@ std::shared_ptr<Material> Engine::createDefaultMaterial()
         m_renderer.getCommandPool(), m_renderer.getGraphicsQueue(),
         white, 1, 1, normalPx, 1, 1, white, 1, 1, white, 1, 1, black, 1, 1, false);
 
-    mat->createDescriptorSet(m_renderer.getDevice(),
-        m_renderer.getDescriptorPool(), m_renderer.getDescriptorSetLayout(),
-        m_renderer.getUboInfos(), m_renderer.getLightInfos(),
-        m_renderer.getShadowView(), m_renderer.getShadowSampler(),
-        m_renderer.getPointShadowView(), m_renderer.getPointShadowSampler(),
-        m_renderer.getFramesInFlight());
+    createMaterialDescriptorSet(mat);
 
     m_resources.registerMaterial(mat);
     return mat;
@@ -125,6 +125,9 @@ void Engine::updateInput(float deltaTime)
 
 void Engine::run()
 {
+    float fpsTimer = 0.0f;
+    int frameCount = 0;
+    
     while (!glfwWindowShouldClose(m_window))
     {
         glfwPollEvents();
@@ -149,6 +152,15 @@ void Engine::run()
 
         updateInput(m_time.deltaTime());
         m_scene.updateComponents(m_time.deltaTime());
+
+        fpsTimer += m_time.deltaTime();
+        frameCount++;
+        if (fpsTimer >= 1.0f)
+        {
+            LOG("FPS: " << frameCount);
+            frameCount = 0;
+            fpsTimer = 0.0f;
+        }
 
         m_renderer.setLights(m_lights);
         m_renderer.setTotalTime((float)m_time.totalTime());
@@ -231,12 +243,7 @@ GameObject& Engine::loadGltfObject(const std::string& path)
             aPx, aw, ah, nPx, nw, nh, mPx, mw, mh, oPx, ow, oh,
             lPx, lw, lh, gm.hasLightmap);
 
-        mat->createDescriptorSet(m_renderer.getDevice(),
-            m_renderer.getDescriptorPool(), m_renderer.getDescriptorSetLayout(),
-            m_renderer.getUboInfos(), m_renderer.getLightInfos(),
-            m_renderer.getShadowView(), m_renderer.getShadowSampler(),
-            m_renderer.getPointShadowView(), m_renderer.getPointShadowSampler(),
-            m_renderer.getFramesInFlight());
+        createMaterialDescriptorSet(mat);
 
         m_resources.registerMaterial(mat);
         materials.push_back(mat);
@@ -280,18 +287,23 @@ GameObject& Engine::loadGltfObject(const std::string& path)
         decal->roughness = gd.roughness;
     }
 
+    for (const auto& ge : model.getEntities())
+    {
+        auto& obj = m_scene.addObject();
+        obj.name = ge.name;
+        obj.transform.position = ge.position;
+        obj.transform.rotation = ge.rotationEuler;
+        obj.transform.scale = ge.scale;
+        obj.addComponent<TransformComponent>();
+    }
+
     if (materials.empty())
     {
         auto mat = std::make_shared<Material>();
         mat->loadFromPixels(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
             m_renderer.getCommandPool(), m_renderer.getGraphicsQueue(),
             white, 1, 1, normalPx, 1, 1, white, 1, 1, white, 1, 1, black, 1, 1, false);
-        mat->createDescriptorSet(m_renderer.getDevice(),
-            m_renderer.getDescriptorPool(), m_renderer.getDescriptorSetLayout(),
-            m_renderer.getUboInfos(), m_renderer.getLightInfos(),
-            m_renderer.getShadowView(), m_renderer.getShadowSampler(),
-            m_renderer.getPointShadowView(), m_renderer.getPointShadowSampler(),
-            m_renderer.getFramesInFlight());
+        createMaterialDescriptorSet(mat);
         m_resources.registerMaterial(mat);
         materials.push_back(mat);
     }

@@ -302,6 +302,39 @@ void GltfModel::load(const std::string& path)
             m_colliders.push_back(collider);
             continue;
         }
+
+        if (node.extras.Has("entity_name"))
+        {
+            GltfEntity entity{};
+            entity.name = node.extras.Get("entity_name").Get<std::string>();
+
+            if (!node.matrix.empty() && node.matrix.size() == 16)
+            {
+                glm::mat4 m  = glm::make_mat4(node.matrix.data());
+                glm::vec3 skew; glm::vec4 perps; glm::quat rotQ;
+                glm::decompose(m, entity.scale, rotQ, entity.position, skew, perps);
+                entity.rotationEuler = glm::degrees(glm::eulerAngles(rotQ));
+            }
+            else
+            {
+                if (node.translation.size() >= 3)
+                    entity.position = glm::vec3(node.translation[0], node.translation[1], node.translation[2]);
+                if (node.rotation.size() >= 4)
+                {
+                    glm::quat q((float)node.rotation[3], (float)node.rotation[0],
+                                (float)node.rotation[1], (float)node.rotation[2]);
+                    entity.rotationEuler = glm::degrees(glm::eulerAngles(q));
+                }
+                if (node.scale.size() >= 3)
+                    entity.scale = glm::vec3(node.scale[0], node.scale[1], node.scale[2]);
+            }
+
+            LOG("gltf entity: name= " << entity.name << " pos=(" << entity.position.x << "," << entity.position.y << "," << entity.position.z << ")");
+
+            m_entities.push_back(entity);
+            continue;
+        }
+
         if (node.extras.Has("decal_texture"))
         {
             GltfDecal decal{};

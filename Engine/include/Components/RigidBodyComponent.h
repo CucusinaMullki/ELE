@@ -34,7 +34,13 @@ public:
                     ? m_physics.createStaticBox(startPos, m_size)
                     : m_physics.createDynamicBox(startPos, m_size, m_mass);
                 break;
-        
+
+            case Shape::Sphere:
+                m_bodyId = (m_motion == Motion::Static)
+                    ? m_physics.createStaticSphere(startPos, m_size.x)
+                    : m_physics.createDynamicSphere(startPos, m_size.x, m_mass);
+                break;
+            
             case Shape::Mesh:
             {
                 std::vector<glm::vec3> positions;
@@ -57,6 +63,8 @@ public:
         
             default: break;
         }
+
+        m_physics.registerBody(m_bodyId, &owner);
     }
 
     void update(float deltaTime) override
