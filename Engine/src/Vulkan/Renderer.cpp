@@ -1331,23 +1331,31 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
 
                 int drawnCount = 0;
 
+                auto facePlanes = extractFrustumPlanes(m_pointLightViewProjArr[slot][face]);
+
                 for (const auto& obj : scene.getObjects())
                 {
                     if (!obj->mesh) continue;
-                    drawnCount++;
                     obj->mesh->bind(commandBuffer);
-
+                
+                    glm::mat4 modelMatrix = obj->transform.getMatrix();
+                
                     PointShadowPush pspush{};
                     pspush.lightViewProj = m_pointLightViewProjArr[slot][face];
-                    pspush.model = obj->transform.getMatrix();
+                    pspush.model = modelMatrix;
                     pspush.lightPos = glm::vec4(m_activePointLightPos[slot], m_pointShadowFarPlane);
-
+                
                     commandBuffer.pushConstants(m_pointShadowPipeline.getLayout(),
                         vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
                         0, sizeof(PointShadowPush), &pspush);
-
+                
                     for (const auto& sm : obj->mesh->getSubmeshes())
+                    {
+                        if (!isSubmeshVisible(modelMatrix, sm, facePlanes))
+                            continue;
+                    
                         obj->mesh->drawSubmesh(commandBuffer, sm);
+                    }
                 }
 
                 if (slot == 0 && face == 0)
@@ -1399,10 +1407,17 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
 
         commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.getPipeline());
 
+        auto frustumPlanes = extractFrustumPlanes(camera.getProjectionMatrix() * camera.getViewMatrix());
+
+        int visibleCount = 0;
+        int totalCount = 0; 
+        
         for (const auto& obj : scene.getObjects())
         {
             if (!obj->mesh) continue;
             obj->mesh->bind(commandBuffer);
+
+            glm::mat4 modelMatrix = obj->transform.getMatrix();
 
             PushConstant pc{};
             pc.model = obj->transform.getMatrix();
@@ -1413,6 +1428,13 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
 
             for (const auto& sm : obj->mesh->getSubmeshes())
             {
+                totalCount++;
+
+                if (!isSubmeshVisible(modelMatrix, sm, frustumPlanes))
+                    continue;
+
+                visibleCount++;
+
                 auto mat = obj->getMaterial(sm.materialIndex);
                 if (!mat) continue;
                 commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
@@ -1420,6 +1442,8 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
                 obj->mesh->drawSubmesh(commandBuffer, sm);
             }
         }
+
+        LOG("visible submeshes: " << visibleCount << " / " << totalCount);
 
         commandBuffer.endRenderPass();
     }
@@ -1843,6 +1867,116 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
     }
 
     commandBuffer.end();
+}
+
+std::array<glm::vec4, 6> Renderer::extractFrustumPlanes(const glm::mat4& viewProj) const
+{
+    std::array<glm::vec4, 6> planes;
+    glm::mat4 m = glm::transpose(viewProj);
+
+    planes[0] = m[3] + m[0];
+    planes[1] = m[3] - m[0];
+    planes[2] = m[3] + m[1];
+    planes[3] = m[3] - m[1];
+    planes[4] = m[3] + m[2];
+    planes[5] = m[3] - m[2];
+
+    for (auto& p : planes)
+        p /= glm::length(glm::vec3(p));
+
+    return planes;
+}
+
+bool Renderer::isVisible(const GameObject& obj, const std::array<glm::vec4, 6>& planes) const
+{
+    if (!obj.mesh) return false;
+
+    glm::vec3 worldCentre = glm::vec3(obj.transform.getMatrix() * glm::vec4(obj.mesh->getLocalBoundCentre(), 1.0f));
+
+    float maxScale = glm::max(obj.transform.scale.x, glm::max(obj.transform.scale.y, obj.transform.scale.z));
+    float worldRadius = obj.mesh->getLocalBoundsRadius() * maxScale;
+
+    for (const auto& plane : planes)
+    {
+        float dist = glm::dot(glm::vec3(plane), worldCentre) + plane.w;
+
+        if (dist < -worldRadius)
+            return false;
+    }
+
+    return true;
+}
+
+bool Renderer::isSubmeshVisible(const glm::mat4& modelMatrix, const Submesh& sm, const std::array<glm::vec4, 6>& planes) const
+{
+    glm::vec3 corners[8] = {
+        { sm.boundsMin.x, sm.boundsMin.y, sm.boundsMin.z },
+        { sm.boundsMax.x, sm.boundsMin.y, sm.boundsMin.z },
+        { sm.boundsMin.x, sm.boundsMax.y, sm.boundsMin.z },
+        { sm.boundsMax.x, sm.boundsMax.y, sm.boundsMin.z },
+        { sm.boundsMin.x, sm.boundsMin.y, sm.boundsMax.z },
+        { sm.boundsMax.x, sm.boundsMin.y, sm.boundsMax.z },
+        { sm.boundsMin.x, sm.boundsMax.y, sm.boundsMax.z },
+        { sm.boundsMax.x, sm.boundsMax.y, sm.boundsMax.z }
+    };
+
+    glm::vec3 worldCorners[8];
+    for (int i = 0; i < 8; i++)
+        worldCorners[i] = glm::vec3(modelMatrix * glm::vec4(corners[i], 1.0f));
+
+    for (const auto& plane : planes)
+    {
+        int outsideCount = 0;
+        for (int i = 0; i < 8; i++)
+        {
+            float dist = glm::dot(glm::vec3(plane), worldCorners[i]) + plane.w;
+            if (dist < 0.0f)
+                outsideCount++;
+        }
+        if (outsideCount == 8)
+            return false;
+    }
+
+    return true;
+}
+
+std::vector<const GameObject*> Renderer::parallelCull(const Scene& scene, const std::array<glm::vec4, 6>& planes) const
+{
+    const auto& objects = scene.getObjects();
+    size_t total = objects.size();
+
+    unsigned int numThreads = std::max(1u, std::thread::hardware_concurrency());
+    numThreads = std::min((size_t)numThreads, total > 0 ? total : 1);
+
+    size_t chunkSize = (total + numThreads - 1) / numThreads;
+
+    std::vector<std::future<std::vector<const GameObject*>>> futures;
+
+    for (unsigned int t = 0; t < numThreads; t++)
+    {
+        size_t start = t * chunkSize;
+        size_t end = std::min(start + chunkSize, total);
+        if (start >= end) continue;
+
+        futures.push_back(std::async(std::launch::async, [this, &objects, &planes, start, end]() {
+            std::vector<const GameObject*> localVisible;
+            for (size_t i = start; i < end; i++)
+            {
+                if (isVisible(*objects[i], planes))
+                    localVisible.push_back(objects[i].get());
+            }
+            return localVisible;
+        }));
+    }
+
+    std::vector<const GameObject*> visible;
+    for (auto& f : futures)
+    {
+        auto chunk = f.get();
+        visible.insert(visible.end(), chunk.begin(), chunk.end());
+    }
+    
+    return visible;
 }
 
 void Renderer::setAAMethod(AAMethod method)

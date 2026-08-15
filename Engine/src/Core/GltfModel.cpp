@@ -6,6 +6,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <tiny_gltf.h>
 #include <unordered_set>
+#include <cfloat>
 #include <stdexcept>
 #include <cstring>
 
@@ -161,6 +162,17 @@ void GltfModel::load(const std::string& path)
             }
         
             sm.indexCount = static_cast<uint32_t>(idxCount);
+
+            glm::vec3 minB(FLT_MAX), maxB(-FLT_MAX);
+            for (uint32_t k = sm.firstIndex; k < sm.firstIndex + sm.indexCount; k++)
+            {
+                const glm::vec3& pos = m_vertices[m_indices[k]].pos;
+                minB = glm::min(minB, pos);
+                maxB = glm::max(maxB, pos);
+            }
+            sm.boundsMin = minB;
+            sm.boundsMax = maxB;
+
             m_submesh.push_back(sm);
         }
     }

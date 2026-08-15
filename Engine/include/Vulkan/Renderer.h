@@ -39,6 +39,8 @@
 #include "Scene/ScreenSpaceDecal.h"
 #include "Core/Camera.h"
 #include <GLFW/glfw3.h>
+#include <future>
+#include <thread>
 
 class Renderer
 {
@@ -85,6 +87,9 @@ public:
     uint32_t getFramesInFlight() const { return MAX_FRAMES_IN_FLIGHT; }
     float getAspect() const;
 
+    std::vector<const GameObject*> parallelCull(const Scene& scene, const std::array<glm::vec4, 6>& planes) const;
+
+    bool isVisible(const GameObject& obj, const std::array<glm::vec4, 6>& planes) const;
 
     std::vector<vk::DescriptorBufferInfo> getUboInfos() const;
 
@@ -246,4 +251,7 @@ private:
     GodRaySettings m_godRaySettings;
 
     glm::mat4 m_prevViewProj = glm::mat4(1.0f);
+
+    std::array<glm::vec4, 6> extractFrustumPlanes(const glm::mat4& viewProj) const;
+    bool isSubmeshVisible(const glm::mat4& modelMatrix, const Submesh& sm, const std::array<glm::vec4, 6>& planes) const;
 };

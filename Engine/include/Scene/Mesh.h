@@ -23,10 +23,18 @@ public:
     const std::vector<Submesh>& getSubmeshes() const { return m_submeshes; }
 
     bool hasCpuData() const { return !m_cpuVertices.empty(); }
+
     const std::vector<Vertex>& getCpuVertices() const { return m_cpuVertices; }
     const std::vector<uint32_t>& getCpuIndices() const { return m_cpuIndices; }
 
+    glm::vec3 getLocalBoundCentre() const { return m_boundsCenter;}
+    float getLocalBoundsRadius() const { return m_boundRadius; }
+
 private:
+    glm::vec3 m_boundsCenter{0.0f};
+    float m_boundRadius = 0.0f;
+    void computeBounds(const std::vector<Vertex>& vertices);
+
     VertexBuffer m_vertexBuffer;
     IndexBuffer  m_indexBuffer;
     std::vector<Submesh> m_submeshes;
