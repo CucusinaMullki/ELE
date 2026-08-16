@@ -63,11 +63,17 @@ int main()
     Engine engine;
     engine.initialize(800, 600, "ELE Game");
     engine.setAntialiasing(AAMethod::TAA);
-
+    engine.setExposure(0.5);
     InputInScene(engine);
 
     auto& character = engine.loadGltfObject("assets/models/Level.glb");
     engine.getScene().flush();
+
+
+    engine.getAudio().loadSound("music", "audio/yebimenya.wav");
+    engine.getAudio().loadSound("test", "audio/test.wav");
+    engine.getAudio().playSound("music", 0.5f);
+
 
     auto& player = engine.getScene().addObject();
 
@@ -89,6 +95,7 @@ int main()
 
     createInteractableCube(engine, glm::vec3(2.0f, 1.0f, 2.0f), [&engine]()
     {
+        engine.getAudio().playSound3D("test", glm::vec3(2.0f, 1.0f, 2.0f), 0.5f);
         createCube(engine, glm::vec3(0.0f, 10.0f, 0.0f));
     });
     engine.setCameraControlMode(false);

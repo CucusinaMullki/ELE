@@ -48,6 +48,8 @@ add_library(ELE STATIC
     src/Core/OrbitCameraController.cpp
     src/Physics/PhysicsSystem.cpp
     src/Vulkan/ShadowAtlas.cpp
+    src/Audio/AudioSystem.cpp
+    src/Core/miniaudio_impl.cpp
 )
 
 target_include_directories(ELE PUBLIC
@@ -56,6 +58,7 @@ target_include_directories(ELE PUBLIC
     ${CMAKE_SOURCE_DIR}/external/stb
     ${CMAKE_SOURCE_DIR}/external/tinygltf
     ${CMAKE_SOURCE_DIR}/external/Jolt
+    ${miniaudio_SOURCE_DIR}
 )
 
 target_link_libraries(ELE PUBLIC

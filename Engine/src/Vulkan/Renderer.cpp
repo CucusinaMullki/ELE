@@ -655,6 +655,20 @@ void Renderer::initialize(GLFWwindow* window)
         beginInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
         cmd->begin(beginInfo);
 
+        {
+            std::array<vk::ClearValue, 3> hdrClear{};
+            hdrClear[0].setColor(vk::ClearColorValue{ std::array<float,4>{ 0.0f, 0.0f, 0.0f, 1.0f } });
+            hdrClear[1].setColor(vk::ClearColorValue{ std::array<float,4>{ 0.0f, 0.0f, 0.0f, 1.0f } });
+            hdrClear[2].setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
+            vk::RenderPassBeginInfo hdrPass{};
+            hdrPass.setRenderPass(m_hdrRenderPass.getRenderPass());
+            hdrPass.setFramebuffer(m_hdrFramebuffer.get());
+            hdrPass.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
+            hdrPass.setClearValues(hdrClear);
+            cmd->beginRenderPass(hdrPass, vk::SubpassContents::eInline);
+            cmd->endRenderPass();
+        }
+
         for (uint32_t slot = 0; slot < 2; slot++)
         {
             vk::ClearValue clear{};
@@ -667,6 +681,41 @@ void Renderer::initialize(GLFWwindow* window)
             pass.setClearValues(clear);
 
             cmd->beginRenderPass(pass, vk::SubpassContents::eInline);
+            cmd->endRenderPass();
+        }
+
+        {
+            vk::ClearValue shadowClear{};
+            shadowClear.setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
+            
+            vk::RenderPassBeginInfo atlasPass{};
+            atlasPass.setRenderPass(m_pointShadowRenderPass.getRenderPass());
+            atlasPass.setFramebuffer(m_shadowAtlasFramebuffer.get());
+            atlasPass.setRenderArea(vk::Rect2D{ {0, 0}, { m_shadowAtlas.getWidth(), m_shadowAtlas.getHeight() } });
+            atlasPass.setClearValues(shadowClear);
+
+            cmd->beginRenderPass(atlasPass, vk::SubpassContents::eInline);
+            cmd->endRenderPass();
+        }
+
+        {
+            vk::ClearValue clear{};
+            clear.setColor(vk::ClearColorValue{ std::array<float, 4>{0.0f, 0.0f, 0.0f, 0.0f} });
+
+            vk::RenderPassBeginInfo maskPass{};
+            maskPass.setRenderPass(m_postRenderPass.getRenderPass());
+            maskPass.setFramebuffer(m_godRayMaskFramebuffer.get());
+            maskPass.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
+            maskPass.setClearValues(clear);
+            cmd->beginRenderPass(maskPass, vk::SubpassContents::eInline);
+            cmd->endRenderPass();
+
+            vk::RenderPassBeginInfo blurPass{};
+            blurPass.setRenderPass(m_postRenderPass.getRenderPass());
+            blurPass.setFramebuffer(m_godRayBlurFramebuffer.get());
+            blurPass.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
+            blurPass.setClearValues(clear);
+            cmd->beginRenderPass(blurPass, vk::SubpassContents::eInline);
             cmd->endRenderPass();
         }
 

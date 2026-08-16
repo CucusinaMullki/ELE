@@ -38,6 +38,7 @@ void Engine::initialize(int width, int height, const std::string& title)
     m_window = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
 
     m_physics.initialize();
+    m_audio.initialize();
 
     glfwSetWindowUserPointer(m_window, this);
     glfwSetFramebufferSizeCallback(m_window, [](GLFWwindow* win, int, int) {
@@ -141,6 +142,8 @@ void Engine::run()
         float rawDeltaTime = now - m_lastFrameTime;
         m_lastFrameTime = now;
 
+        m_audio.setListenerPosition(m_camera.getPosition(), m_camera.getFront(), m_camera.getUp());
+
         m_time.update(rawDeltaTime);
 
         int fixedSteps = m_time.consumeFixedSteps();
@@ -185,6 +188,7 @@ void Engine::shutdown()
     m_resources.cleanup();
     m_renderer.cleanup();
     m_physics.cleanup();
+    m_audio.cleanup();
 
     if (m_window) glfwDestroyWindow(m_window);
     glfwTerminate();

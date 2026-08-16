@@ -29,6 +29,15 @@ set(JPH_USE_MTL OFF CACHE BOOL "" FORCE)
 set(JPH_USE_CPU_COMPUTE OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
+include(FetchContent)
+
+FetchContent_Declare(
+    miniaudio
+    GIT_REPOSITORY https://github.com/mackron/miniaudio.git
+    GIT_TAG 0.11.21
+)
+FetchContent_MakeAvailable(miniaudio)
+
 add_subdirectory(external/jolt/Build)
 
 if(USE_SYSTEM_GLFW)

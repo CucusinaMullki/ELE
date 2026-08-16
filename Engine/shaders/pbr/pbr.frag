@@ -252,7 +252,7 @@ void main()
         }
     }
 
-    vec3 ambient = vec3(0.005) * albedo * ao;
+    vec3 ambient = vec3(0.03) * albedo * ao;
     vec3 color = ambient + Lo;
 
     vec3 lightmapColor = texture(lightmapMap, fragLightmapUV).rgb;

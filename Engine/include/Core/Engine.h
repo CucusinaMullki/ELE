@@ -10,6 +10,7 @@
 #include "Core/ICameraController.h"
 #include "Core/FreeFlyCameraController.h"
 #include "Core/TimeSystem.h"
+#include "Audio/AudioSystem.h"
 #include "Core/GltfModel.h"
 #include <GLFW/glfw3.h>
 #include <memory>
@@ -45,6 +46,8 @@ public:
     Input& getInput() { return m_input; }
     PhysicsSystem& getPhysics() { return m_physics; }
 
+    AudioSystem& getAudio() { return m_audio; }
+
     void pause() { m_time.pause(); }
     void resume() { m_time.resume(); }
     void setTimeScale(float scale) { m_time.setTimeScale(scale); }
@@ -75,6 +78,7 @@ private:
     bool m_cleaned = false;
     float m_lastFrameTime = 0.0f;
 
+    AudioSystem m_audio;
     TimeSystem m_time;
     Renderer        m_renderer;
     ResourceManager m_resources;
