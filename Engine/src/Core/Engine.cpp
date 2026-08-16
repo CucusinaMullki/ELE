@@ -143,6 +143,7 @@ void Engine::run()
         m_lastFrameTime = now;
 
         m_audio.setListenerPosition(m_camera.getPosition(), m_camera.getFront(), m_camera.getUp());
+        m_audio.setListenerWorldPosition(m_camera.getPosition());
 
         m_time.update(rawDeltaTime);
 

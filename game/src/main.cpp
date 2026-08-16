@@ -17,12 +17,17 @@ GameObject* createCube(Engine& engine, glm::vec3 pos)
     auto& cube = engine.getScene().addObject();
     auto material = engine.createDefaultMaterial();
 
+    engine.getAudio().loadSound("test", "audio/test.wav");
+
     cube.addComponent<TransformComponent>().setPosition(pos);
     cube.setMaterial(material);
     cube.addComponent<MeshComponent>().setMesh(engine.loadMesh("assets/models/Dick.glb"));
     cube.addComponent<RigidBodyComponent>(engine.getPhysics(),
         RigidBodyComponent::Shape::ConvexHull, RigidBodyComponent::Motion::Dynamic, engine.loadMesh("assets/models/Dick.glb", true),
         glm::vec3(1.0f), 1.5f);
+    auto& audioComp = cube.addComponent<AudioComponent>(engine.getAudio(), engine.getPhysics(), "test");
+    audioComp.play();
+
     return &cube;
 }
 
@@ -98,7 +103,7 @@ GameObject* createDoor(Engine& engine, glm::vec3 pos, glm::vec3 rot, std::functi
     doorComp.setOpenAngle(100.0f);
     doorComp.setOpenSpeed(3.0f);
 
-    auto& audioComp = door.addComponent<AudioComponent>(engine.getAudio(), "door_creak");
+    auto& audioComp = door.addComponent<AudioComponent>(engine.getAudio(), engine.getPhysics(), "door_creak");
 
     auto& interact = door.addComponent<InteractableComponent>();
     interact.onInteract = [&doorComp, &audioComp, onInteractExtra]()
@@ -123,7 +128,6 @@ int main()
 
 
     engine.getAudio().loadSound("music", "audio/yebimenya.wav");
-    engine.getAudio().loadSound("test", "audio/test.wav");
     engine.getAudio().playSound("music", 0.5f);
 
 
@@ -165,7 +169,6 @@ int main()
 
     createInteractableCube(engine, glm::vec3(2.0f, 1.0f, 2.0f), [&engine]()
     {
-        engine.getAudio().playSound3D("test", glm::vec3(2.0f, 1.0f, 2.0f), 0.5f);
         createCube(engine, glm::vec3(0.0f, 10.0f, 0.0f));
     });
     engine.setCameraControlMode(false);

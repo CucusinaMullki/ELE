@@ -40,6 +40,9 @@ void AudioSystem::cleanup()
 
 bool AudioSystem::loadSound(const std::string& name, const std::string& path)
 {
+    if (m_sounds.find(name) != m_sounds.end())
+        return true;
+    
     std::string fullPath = (Paths::assetDir() / "assets" / path).string();
 
     auto sound = std::make_unique<ma_sound>();
@@ -88,6 +91,21 @@ void AudioSystem::stopSound(const std::string& name)
     auto it = m_sounds.find(name);
     if (it == m_sounds.end()) return;
     ma_sound_stop(it->second.get());
+}
+
+void AudioSystem::setOcclusion(const std::string& name, float occlusionFactor)
+{
+    auto it = m_sounds.find(name);
+    if (it == m_sounds.end()) return;
+
+    float volumeMultiplier = 1.0f - occlusionFactor * 0.7f;
+    ma_sound_set_volume(it->second.get(), volumeMultiplier);
+
+    if (occlusionFactor > 0.01f)
+    {
+        double cutoffFrequency = 8000.0 - occlusionFactor * 6500.0;
+        ma_lpf_node_config lpfConfig = ma_lpf_node_config_init(1, m_engine.sampleRate, cutoffFrequency, 2);
+    }
 }
 
 void AudioSystem::setListenerPosition(glm::vec3 position, glm::vec3 forward, glm::vec3 up)
