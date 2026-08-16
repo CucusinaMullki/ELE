@@ -2,11 +2,13 @@
 #include "Core/Log.h"
 #include "Components/MeshComponent.h"
 #include "PlayerComponent.h"
+#include "DoorComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/CameraComponent.h"
 #include "Components/TransformComponent.h"
 #include "Components/RigidBodyComponent.h"
 #include "Components/CharacterComponent.h"
+#include "Components/AudioComponent.h"
 #include "Components/TriggerComponent.h"
 
 
@@ -14,6 +16,7 @@ GameObject* createCube(Engine& engine, glm::vec3 pos)
 {
     auto& cube = engine.getScene().addObject();
     auto material = engine.createDefaultMaterial();
+
     cube.addComponent<TransformComponent>().setPosition(pos);
     cube.setMaterial(material);
     cube.addComponent<MeshComponent>().setMesh(engine.loadMesh("assets/models/Dick.glb"));
@@ -58,12 +61,61 @@ GameObject* createInteractableCube(Engine& engine, glm::vec3 pos, std::function<
     return &cube;
 }
 
+GameObject* createDoor(Engine& engine, glm::vec3 pos, glm::vec3 rot, std::function<void()> onInteractExtra = nullptr)
+{
+    static bool soundLoaded = false;
+    if (!soundLoaded)
+    {
+        engine.getAudio().loadSound("door_creak", "audio/door_creak.wav");
+        soundLoaded = true;
+    }
+
+    auto& door = engine.getScene().addObject();
+    door.name = "Door";
+    door.transform.position = pos;
+    door.transform.rotation = rot;
+    door.transform.scale = glm::vec3(1.0f, 1.0f, 1.0f);
+
+
+    auto material = engine.loadMaterial(
+        "assets/textures/door/Door_1_BaseColor.png",
+        "assets/textures/door/Door_1_Normal.png",
+        "assets/textures/door/Door_1_Metallic.png",
+        "assets/textures/door/Door_1_Roughness.png"
+    );
+
+    auto doorMesh = engine.loadMesh("assets/models/Door.glb");
+
+    door.addComponent<TransformComponent>();
+    door.setMaterial(material);
+    door.addComponent<MeshComponent>().setMesh(doorMesh);
+
+    door.addComponent<RigidBodyComponent>(engine.getPhysics(),
+        RigidBodyComponent::Shape::ConvexHull, RigidBodyComponent::Motion::Kinematic, engine.loadMesh("assets/models/Door.glb", true),
+        glm::vec3(1.0f), 0.0f);
+
+    auto& doorComp = door.addComponent<DoorComponent>();
+    doorComp.setOpenAngle(100.0f);
+    doorComp.setOpenSpeed(3.0f);
+
+    auto& audioComp = door.addComponent<AudioComponent>(engine.getAudio(), "door_creak");
+
+    auto& interact = door.addComponent<InteractableComponent>();
+    interact.onInteract = [&doorComp, &audioComp, onInteractExtra]()
+    {
+        doorComp.toggle();
+        audioComp.play(0.6f);
+        if (onInteractExtra) onInteractExtra();
+    };
+
+    return &door;
+}
+
 int main()
 {
     Engine engine;
     engine.initialize(800, 600, "ELE Game");
     engine.setAntialiasing(AAMethod::TAA);
-    engine.setExposure(0.5);
     InputInScene(engine);
 
     auto& character = engine.loadGltfObject("assets/models/Level.glb");
@@ -84,6 +136,24 @@ int main()
         player.transform.position = spawnPoint->transform.position;
         LOG("player spawned at: " << player.transform.position.x << "," 
             << player.transform.position.y << "," << player.transform.position.z);
+    }
+
+    GameObject* spawnDoor = engine.getScene().findByName("Door");
+    GameObject* spawnDoor2 = engine.getScene().findByName("Door2");
+    GameObject* spawnDoor3 = engine.getScene().findByName("Door3");
+    if (spawnDoor)
+    {
+        createDoor(engine, spawnDoor->transform.position, spawnDoor->transform.rotation);
+    }
+
+    if (spawnDoor2)
+    {
+        createDoor(engine, spawnDoor2->transform.position, spawnDoor2->transform.rotation);
+    }
+
+    if (spawnDoor3)
+    {
+        createDoor(engine, spawnDoor3->transform.position, spawnDoor3->transform.rotation);
     }
 
     player.addComponent<TransformComponent>();

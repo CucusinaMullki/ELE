@@ -58,13 +58,8 @@ bool AudioSystem::loadSound(const std::string& name, const std::string& path)
 void AudioSystem::playSound(const std::string& name, float volume)
 {
     auto it = m_sounds.find(name);
-    if (it == m_sounds.end())
-    {
-        LOG("playSound: sound '" << name << "' not found!");
-        return;
-    }
+    if (it == m_sounds.end()) return;
 
-    LOG("playSound: playing '" << name << "'");
     ma_sound_set_volume(it->second.get(), volume);
     ma_sound_seek_to_pcm_frame(it->second.get(), 0);
     ma_sound_start(it->second.get());
@@ -79,6 +74,20 @@ void AudioSystem::playSound3D(const std::string& name, glm::vec3 position, float
     ma_sound_set_volume(it->second.get(), volume);
     ma_sound_seek_to_pcm_frame(it->second.get(), 0);
     ma_sound_start(it->second.get());
+}
+
+void AudioSystem::updateSoundPosition(const std::string& name, glm::vec3 position)
+{
+    auto it = m_sounds.find(name);
+    if (it == m_sounds.end()) return;
+    ma_sound_set_position(it->second.get(), position.x, position.y, position.z);
+}
+
+void AudioSystem::stopSound(const std::string& name)
+{
+    auto it = m_sounds.find(name);
+    if (it == m_sounds.end()) return;
+    ma_sound_stop(it->second.get());
 }
 
 void AudioSystem::setListenerPosition(glm::vec3 position, glm::vec3 forward, glm::vec3 up)

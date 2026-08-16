@@ -13,7 +13,7 @@ class RigidBodyComponent : public IComponent
 {
 public:
     enum class Shape { Box, Sphere, Mesh, ConvexHull };
-    enum class Motion { Static, Dynamic };
+    enum class Motion { Static, Dynamic, Kinematic };
 
     RigidBodyComponent(PhysicsSystem& physics, Shape shape, Motion motion,
         std::shared_ptr<Mesh> collisionMesh = nullptr,
@@ -30,9 +30,12 @@ public:
         switch (m_shape)
         {
             case Shape::Box:
-                m_bodyId = (m_motion == Motion::Static)
-                    ? m_physics.createStaticBox(startPos, m_size)
-                    : m_physics.createDynamicBox(startPos, m_size, m_mass);
+                switch (m_motion)
+                {
+                    case Motion::Static: m_bodyId = m_physics.createStaticBox(startPos, m_size); break;
+                    case Motion::Kinematic: m_bodyId = m_physics.createKinematicBox(startPos, m_size); break;
+                    case Motion::Dynamic: m_bodyId = m_physics.createDynamicBox(startPos, m_size, m_mass); break;
+                }
                 break;
 
             case Shape::Sphere:
@@ -56,8 +59,12 @@ public:
                 std::vector<glm::vec3> positions;
                 for (const auto& v : m_collisionMesh->getCpuVertices())
                     positions.push_back(v.pos);
-            
-                m_bodyId = m_physics.createDynamicConvexHull(positions, startPos, m_mass);
+                        
+                if (m_motion == Motion::Kinematic)
+                    m_bodyId = m_physics.createKinematicConvexHull(positions, startPos);
+                else
+                    m_bodyId = m_physics.createDynamicConvexHull(positions, startPos, m_mass);
+                        
                 break;
             }
         
@@ -65,6 +72,11 @@ public:
         }
 
         m_physics.registerBody(m_bodyId, &owner);
+    }
+
+    void setTransform(glm::vec3 position, glm::quat rotation)
+    {
+        m_physics.setBodyTransform(m_bodyId, position, rotation);
     }
 
     void update(float deltaTime) override

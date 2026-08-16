@@ -70,6 +70,10 @@ public:
     JPH::BodyID createStaticMesh(const std::vector<glm::vec3>& positions, const std::vector<uint32_t>& indices, glm::vec3 worldPosition);
     JPH::BodyID createDynamicConvexHull(const std::vector<glm::vec3>& positions, glm::vec3 worldPosition, float mass);
 
+    JPH::BodyID createKinematicBox(glm::vec3 position, glm::vec3 halfExtent);
+
+    JPH::BodyID createKinematicConvexHull(const std::vector<glm::vec3>& positions, glm::vec3 worldPosition);
+
     JPH::BodyID createTriggerBox(glm::vec3 position, glm::vec3 halfExtent);
 
     JPH::Ref<JPH::CharacterVirtual> createCharacterVirtual(glm::vec3 position, float radius, float height, float mass = 80.0f);
@@ -85,6 +89,8 @@ public:
         auto it = m_bodyOwners.find(id.GetIndexAndSequenceNumber());
         return (it != m_bodyOwners.end()) ? it->second : nullptr;
     }
+
+    void setBodyTransform(JPH::BodyID id, glm::vec3 position, glm::quat rotation);
 
     RaycastHit raycast(glm::vec3 origin, glm::vec3 direction, float maxDistance);
 

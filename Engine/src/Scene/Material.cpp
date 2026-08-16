@@ -11,6 +11,9 @@ void Material::load(vk::Device device, vk::PhysicalDevice physicalDevice,
     m_normal.initialize(device, physicalDevice, pool, queue, normalPath);
     m_metallicRoughness.initialize(device, physicalDevice, pool, queue, metallicPath, false);
     m_ao.initialize(device, physicalDevice, pool, queue, roughnessPath);
+
+    static const unsigned char black[4] = { 0, 0, 0, 255 };
+    m_lightmap.initializeFromMemory(device, physicalDevice, pool, queue, black, 1, 1, false);
 }
 
 void Material::cleanup()

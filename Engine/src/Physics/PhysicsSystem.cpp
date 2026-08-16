@@ -284,3 +284,47 @@ void PhysicsSystem::cleanup()
     delete JPH::Factory::sInstance;
     JPH::Factory::sInstance = nullptr;
 }
+
+void PhysicsSystem::setBodyTransform(JPH::BodyID id, glm::vec3 position, glm::quat rotation)
+{
+    JPH::RVec3 jPos(position.x, position.y, position.z);
+    JPH::Quat jRot(rotation.x, rotation.y, rotation.z, rotation.w);
+
+    bodyInterface().SetPosition(id, jPos, JPH::EActivation::Activate);
+    bodyInterface().SetRotation(id, jRot, JPH::EActivation::Activate);
+}
+
+JPH::BodyID PhysicsSystem::createKinematicConvexHull(const std::vector<glm::vec3>& positions, glm::vec3 worldPosition)
+{
+    JPH::Array<JPH::Vec3> points;
+    points.reserve(positions.size());
+    for (const auto& p : positions)
+        points.push_back(JPH::Vec3(p.x, p.y, p.z));
+
+    JPH::ConvexHullShapeSettings shapeSettings(points);
+    JPH::ShapeSettings::ShapeResult shapeResult = shapeSettings.Create();
+    JPH::ShapeRefC shape = shapeResult.Get();
+
+    JPH::BodyCreationSettings settings(shape,
+        JPH::RVec3(worldPosition.x, worldPosition.y, worldPosition.z),
+        JPH::Quat::sIdentity(),
+        JPH::EMotionType::Kinematic,
+        Layers::MOVING);
+
+    return bodyInterface().CreateAndAddBody(settings, JPH::EActivation::Activate);
+}
+
+JPH::BodyID PhysicsSystem::createKinematicBox(glm::vec3 position, glm::vec3 halfExtent)
+{
+    JPH::BoxShapeSettings shapeSettings(JPH::Vec3(halfExtent.x, halfExtent.y, halfExtent.z));
+    JPH::ShapeSettings::ShapeResult shapeResult = shapeSettings.Create();
+    JPH::ShapeRefC shape = shapeResult.Get();
+
+    JPH::BodyCreationSettings settings(shape,
+        JPH::RVec3(position.x, position.y, position.z),
+        JPH::Quat::sIdentity(),
+        JPH::EMotionType::Kinematic,
+        Layers::MOVING);
+
+    return bodyInterface().CreateAndAddBody(settings, JPH::EActivation::Activate);
+}

@@ -18,6 +18,9 @@ public:
 
     void setListenerPosition(glm::vec3 position, glm::vec3 forwarwd, glm::vec3 up);
 
+    void updateSoundPosition(const std::string& name, glm::vec3 position);
+    void stopSound(const std::string& name);
+
 private:
     ma_context m_context;
     ma_engine m_engine;
