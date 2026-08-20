@@ -8,6 +8,7 @@
 #include "Scene/ScreenSpaceDecal.h"
 #include "Core/FogSettings.h"
 #include "Core/ICameraController.h"
+#include "Nav/NavMesh.h"
 #include "Core/FreeFlyCameraController.h"
 #include "Core/TimeSystem.h"
 #include "Audio/AudioSystem.h"
@@ -37,16 +38,15 @@ public:
 
     void setFogEnabled(bool enabled);
     void setFogSettings(const FogSettings& settings);
+    
     const FogSettings& getFogSettings() const;
-
     Scene& getScene()   { return m_scene; }
     Camera& getCamera() { return m_camera; }
     TimeSystem& getTime() { return m_time; }
-
     Input& getInput() { return m_input; }
     PhysicsSystem& getPhysics() { return m_physics; }
-
     AudioSystem& getAudio() { return m_audio; }
+    NavMesh& getNavMesh() { return m_navMesh; }
 
     void pause() { m_time.pause(); }
     void resume() { m_time.resume(); }
@@ -90,4 +90,6 @@ private:
     LightData m_lights{};
     bool m_useCameraController = true;
     PhysicsSystem m_physics;
+    NavMesh m_navMesh;
+
 };

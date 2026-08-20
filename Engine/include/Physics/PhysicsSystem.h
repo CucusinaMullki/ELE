@@ -20,6 +20,7 @@ struct RaycastHit
     bool hit = false;
     JPH::BodyID bodyId;
     glm::vec3 point{0.0f};
+    glm::vec3 normal{0.8f, 1.0f, 0.0f};
     float distance = 0.0f;
 };
 

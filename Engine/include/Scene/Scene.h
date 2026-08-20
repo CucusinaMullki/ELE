@@ -44,6 +44,15 @@ public:
         flushPenging();
     }
     
+    std::vector<GameObject*> findAllByType(const std::string& type) const
+    {
+        std::vector<GameObject*> result;
+        for (const auto& obj : m_objects)
+            if (obj->entityType == type)
+                result.push_back(obj.get());
+        return result;
+    }
+    
 private:
     void flushPenging()
     {

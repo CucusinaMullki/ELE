@@ -1,13 +1,15 @@
 #include "Core/Engine.h"
 #include "Core/Log.h"
 #include "Components/MeshComponent.h"
-#include "PlayerComponent.h"
-#include "DoorComponent.h"
+#include "Components/DoorComponent.h"
+#include "Components/PlayerComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/CameraComponent.h"
 #include "Components/TransformComponent.h"
 #include "Components/RigidBodyComponent.h"
 #include "Components/CharacterComponent.h"
+#include "AI/AIController.h"
+#include "AI/EnemyBehaviorCommand.h"
 #include "Components/AudioComponent.h"
 #include "Components/TriggerComponent.h"
 
@@ -133,9 +135,8 @@ int main()
 
     auto& player = engine.getScene().addObject();
 
-    GameObject* spawnPoint = engine.getScene().findByName("PlayerSpawn");
-    LOG("spawnPoint found: " << (spawnPoint != nullptr));
-    if (spawnPoint)
+    
+    for (GameObject* spawnPoint : engine.getScene().findAllByType("PlayerSpawn"))
     {
         player.transform.position = spawnPoint->transform.position;
         LOG("player spawned at: " << player.transform.position.x << "," 
@@ -166,6 +167,31 @@ int main()
     player.addComponent<CameraComponent>(engine.getCamera(), CameraComponent::Mode::FirstPerson);
     player.addComponent<HeadBobComponent>(glm::vec3(0.0f, 1.6f, 0.0f));
     player.addComponent<PlayerComponent>(engine.getPhysics());
+
+    auto& enemy = engine.getScene().addObject();
+    enemy.transform.position = glm::vec3(0.0f, 1.0f, 0.0f);
+    enemy.addComponent<TransformComponent>();
+
+    auto enemyMaterial = engine.createDefaultMaterial();
+    auto enemyMesh = engine.loadMesh("assets/models/Enemy.glb");
+    enemy.setMaterial(enemyMaterial);
+    enemy.addComponent<MeshComponent>().setMesh(enemyMesh);
+
+    enemy.addComponent<CharacterComponent>(engine.getPhysics(), engine.getTime(), 0.3f, 1.4f, 60.0f);
+
+    auto& ai = enemy.addComponent<AIController>(engine.getPhysics());
+    ai.setVisionTarget(&player);
+    ai.setVisionRange(15.0f);
+    ai.setVisionFOV(100.0f);
+
+    std::vector<glm::vec3> patrolPoints;
+
+    for (GameObject* spawnPoints : engine.getScene().findAllByType("ai_point"))
+    {
+        patrolPoints.push_back(spawnPoints->transform.position);
+    }
+
+    ai.pushCommand(std::make_unique<EnemyBehaviorCommand>(engine.getNavMesh(), patrolPoints, &player));
 
     createInteractableCube(engine, glm::vec3(2.0f, 1.0f, 2.0f), [&engine]()
     {

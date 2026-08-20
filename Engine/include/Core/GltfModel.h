@@ -13,6 +13,13 @@ struct GltfLight
     glm::vec3 direction{0.0f, -1.0f, 0.0f};
 };
 
+struct GltfNavVolume
+{
+    glm::vec3 position{0.0f};
+    glm::vec3 rotationEuler{0.0f};
+    glm::vec3 size{1.0f};
+    float cellSize = 0.75f;
+};
 
 struct GltfImage
 {
@@ -60,6 +67,7 @@ struct GltfCollider
 struct GltfEntity
 {
     std::string name;
+    std::string entityType;
     glm::vec3 position{0.0f};
     glm::vec3 rotationEuler{0.0f};
     glm::vec3 scale{1.0f};
@@ -79,6 +87,7 @@ public:
     const std::vector<GltfDecal>& getDecals() const { return m_decals; }
     const std::vector<GltfCollider>& getColliders() const { return m_colliders; }
     const std::vector<GltfEntity>& getEntities() const { return m_entities; }
+    const std::vector<GltfNavVolume>& getNavVolumes() const { return m_navVolumes; }
 
 private:
     void computeTangents();
@@ -91,6 +100,7 @@ private:
     std::vector<GltfLight> m_lights;
     std::vector<GltfDecal> m_decals;
     std::vector<GltfCollider> m_colliders;
-    std::vector<GltfEntity> m_entities;
+    std::vector<GltfEntity> m_entities;  
+    std::vector<GltfNavVolume> m_navVolumes;
     bool m_hasTangents = false;
 };

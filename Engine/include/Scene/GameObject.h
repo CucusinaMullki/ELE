@@ -11,6 +11,7 @@ class GameObject
 {
 public:
     std::string name;
+    std::string entityType;
     Transform transform;
     std::shared_ptr<Mesh> mesh;
     std::vector<std::shared_ptr<Material>> materials;

@@ -1,5 +1,6 @@
 #include "Core/Engine.h"
 #include "Core/Log.h"
+#include "Nav/SimpleNavMeshBuilder.h"
 #include "Components/RigidBodyComponent.h"
 #include "Components/TransformComponent.h"
 
@@ -296,10 +297,23 @@ GameObject& Engine::loadGltfObject(const std::string& path)
     {
         auto& obj = m_scene.addObject();
         obj.name = ge.name;
+        obj.entityType = ge.entityType;
         obj.transform.position = ge.position;
         obj.transform.rotation = ge.rotationEuler;
         obj.transform.scale = ge.scale;
         obj.addComponent<TransformComponent>();
+    }
+
+    for (const auto& nv : model.getNavVolumes())
+    {
+
+        LOG("Building navmesh: volume size=(" << nv.size.x << "," << nv.size.y << "," << nv.size.z 
+            << ") cellSize=" << nv.cellSize);
+        glm::vec3 volumeMin = nv.position - nv.size;
+        glm::vec3 volumeMax = nv.position + nv.size;
+
+        SimpleNavMeshBuilder builder;
+        m_navMesh = builder.build(m_physics, volumeMin, volumeMax, nv.cellSize);
     }
 
     if (materials.empty())

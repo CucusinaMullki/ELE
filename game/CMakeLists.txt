@@ -1,5 +1,8 @@
 add_executable(game
     src/main.cpp
+    src/AI/EnemyBehaviorCommand.cpp
+    src/AI/MoveToCommand.cpp
+    src/AI/PatrolCommand.cpp
 )
 
 target_link_libraries(game PRIVATE ELE)

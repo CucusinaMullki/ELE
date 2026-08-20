@@ -102,6 +102,14 @@ RaycastHit PhysicsSystem::raycast(glm::vec3 origin, glm::vec3 direction, float m
 
         JPH::RVec3 hitPoint = rOrigin + rDirection * hit.mFraction;
         result.point = glm::vec3(hitPoint.GetX(), hitPoint.GetY(), hitPoint.GetZ());
+
+        JPH::BodyLockRead lock(m_physicsSystem->GetBodyLockInterface(), hit.mBodyID);
+        if (lock.Succeeded())
+        {
+            const JPH::Body& body = lock.GetBody();
+            JPH::Vec3 normal = body.GetWorldSpaceSurfaceNormal(hit.mSubShapeID2, hitPoint);
+            result.normal = glm::vec3(normal.GetX(), normal.GetY(), normal.GetZ());
+        }
     }
 
     return result;

@@ -50,6 +50,10 @@ add_library(ELE STATIC
     src/Vulkan/ShadowAtlas.cpp
     src/Audio/AudioSystem.cpp
     src/Core/miniaudio_impl.cpp
+    src/Nav/NavMesh.cpp
+    src/Nav/GeometryParser.cpp
+    src/AI/AIController.cpp
+    src/Nav/SimpleNavMeshBuilder.cpp
 )
 
 target_include_directories(ELE PUBLIC

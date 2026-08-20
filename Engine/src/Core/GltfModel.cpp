@@ -253,7 +253,7 @@ void GltfModel::load(const std::string& path)
         if (node.extras.Has("collision_shape"))
             LOG("found collision_shape on node, node.mesh=" << node.mesh);
 
-        if (node.extras.Has("collision_shape") && node.mesh >= 0)
+        if ((node.extras.Has("collision_shape") || node.extras.Has("nav_volume")) && node.mesh >= 0)
             collisionOnlyMeshIndices.insert(node.mesh);
 
         if (node.extras.Has("collision_shape"))
@@ -315,9 +315,70 @@ void GltfModel::load(const std::string& path)
             continue;
         }
 
-        if (node.extras.Has("entity_name"))
+        if (node.extras.Has("nav_volume"))
+        {
+            GltfNavVolume volume{};
+
+            glm::vec3 nodeScale(1.0f);
+            if (!node.matrix.empty() && node.matrix.size() == 16)
+            {
+                glm::mat4 m = glm::make_mat4(node.matrix.data());
+                glm::vec3 skew; glm::vec4 persp; glm::quat rotQ;
+                glm::decompose(m, nodeScale, rotQ, volume.position, skew, persp);
+                volume.rotationEuler = glm::degrees(glm::eulerAngles(rotQ));
+            }
+            else
+            {
+                if (node.translation.size() >= 3)
+                    volume.position = glm::vec3(node.translation[0], node.translation[1], node.translation[2]);
+                if (node.rotation.size() >= 4)
+                {
+                    glm::quat q((float)node.rotation[3], (float)node.rotation[0],
+                                (float)node.rotation[1], (float)node.rotation[2]);
+                    volume.rotationEuler = glm::degrees(glm::eulerAngles(q));
+                }
+                if (node.scale.size() >= 3)
+                    nodeScale = glm::vec3(node.scale[0], node.scale[1], node.scale[2]);
+            }
+
+            if (node.mesh >= 0 && node.mesh < (int)model.meshes.size())
+            {
+                const auto& mesh = model.meshes[node.mesh];
+                if (!mesh.primitives.empty())
+                {
+                    auto posIt = mesh.primitives[0].attributes.find("POSITION");
+                    if (posIt != mesh.primitives[0].attributes.end())
+                    {
+                        const auto& accessor = model.accessors[posIt->second];
+                        if (accessor.minValues.size() == 3 && accessor.maxValues.size() == 3)
+                        {
+                            glm::vec3 localMin((float)accessor.minValues[0], (float)accessor.minValues[1], (float)accessor.minValues[2]);
+                            glm::vec3 localMax((float)accessor.maxValues[0], (float)accessor.maxValues[1], (float)accessor.maxValues[2]);
+                            glm::vec3 halfExtent = (localMax - localMin) * 0.5f;
+                            volume.size = halfExtent * nodeScale;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                volume.size = nodeScale;
+            }
+
+            if (node.extras.Has("cell_size"))
+                volume.cellSize = (float)node.extras.Get("cell_size").Get<double>();
+
+            LOG("gltf nav volume: pos=(" << volume.position.x << "," << volume.position.y << "," << volume.position.z
+                << ") size=(" << volume.size.x << "," << volume.size.y << "," << volume.size.z << ")");
+            
+            m_navVolumes.push_back(volume);
+            continue;
+        }
+
+        if (node.extras.Has("entity_type"))
         {
             GltfEntity entity{};
+            entity.entityType = node.extras.Get("entity_type").Get<std::string>();
             entity.name = node.extras.Get("entity_name").Get<std::string>();
 
             if (!node.matrix.empty() && node.matrix.size() == 16)
