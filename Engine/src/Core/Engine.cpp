@@ -47,6 +47,7 @@ void Engine::initialize(int width, int height, const std::string& title)
     });
 
     m_renderer.initialize(m_window);
+    m_renderer.initImGui(m_window);
 
     m_resources.initialize(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
         m_renderer.getCommandPool(), m_renderer.getGraphicsQueue());
@@ -133,6 +134,12 @@ void Engine::run()
     while (!glfwWindowShouldClose(m_window))
     {
         glfwPollEvents();
+        m_renderer.beginImGuiFrame();
+
+        ImGui::Begin("Debug");
+        ImGui::Text("FPS: %.1f", 1.0f / m_time.deltaTime());
+        ImGui::Text("Player pos: %.2f, %.2f, %.2f", m_camera.getPosition().x, m_camera.getPosition().y, m_camera.getPosition().z);
+        ImGui::End();
 
         int fbWidth, fbHeight;
         glfwGetFramebufferSize(m_window, &fbWidth, &fbHeight);

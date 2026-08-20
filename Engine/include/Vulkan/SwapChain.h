@@ -19,6 +19,7 @@ public:
     vk::Extent2D getExtent() const { return m_extent; }
     const std::vector<vk::UniqueImageView>& getImageViews() const { return m_imageViews; }
     vk::Format getImageFormat() const { return m_imageFormat; }
+    uint32_t getImageCount() const { return (uint32_t)m_images.size(); }
 
 private:
     //Values

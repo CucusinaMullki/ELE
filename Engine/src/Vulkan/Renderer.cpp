@@ -27,6 +27,74 @@ glm::vec2 Renderer::getJitter() const
     return glm::vec2(x, y);
 }
 
+void Renderer::initImGui(GLFWwindow* window)
+{
+    std::array<vk::DescriptorPoolSize, 11> poolSizes = {{
+        { vk::DescriptorType::eSampler, 1000 },
+        { vk::DescriptorType::eCombinedImageSampler, 1000 },
+        { vk::DescriptorType::eSampledImage, 1000 },
+        { vk::DescriptorType::eStorageImage, 1000 },
+        { vk::DescriptorType::eUniformTexelBuffer, 1000 },
+        { vk::DescriptorType::eStorageTexelBuffer, 1000 },
+        { vk::DescriptorType::eUniformBuffer, 1000 },
+        { vk::DescriptorType::eStorageBuffer, 1000 },
+        { vk::DescriptorType::eUniformBufferDynamic, 1000 },
+        { vk::DescriptorType::eUniformBufferDynamic, 1000 },
+        { vk::DescriptorType::eInputAttachment, 1000 }
+    }};
+
+    vk::DescriptorPoolCreateInfo poolInfo{};
+    poolInfo.setFlags(vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet);
+    poolInfo.setMaxSets(1000);
+    poolInfo.setPoolSizes(poolSizes);
+    m_imguiDescriptorPool = m_context.getDevice().createDescriptorPoolUnique(poolInfo);
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplGlfw_InitForVulkan(window, true);
+
+    uint32_t swapchianImageCount = m_swapchain.getImageCount();
+
+    ImGui_ImplVulkan_InitInfo initInfo{};
+    initInfo.Instance = m_context.getInstance();
+    initInfo.PhysicalDevice = m_context.getPhysicalDevice();
+    initInfo.Device = m_context.getDevice();
+    initInfo.QueueFamily = m_context.getGraphicQueueFamily();
+    initInfo.Queue = m_context.getGraphicQueue();
+    initInfo.DescriptorPool = m_imguiDescriptorPool.get();
+    initInfo.RenderPass = m_renderPass.getRenderPass();
+    initInfo.MinImageCount = swapchianImageCount;
+    initInfo.ImageCount = swapchianImageCount;
+    initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+
+    ImGui_ImplVulkan_Init(&initInfo);
+}
+
+void Renderer::beginImGuiFrame()
+{
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+}
+
+void Renderer::renderImGui(vk::CommandBuffer commandBuffer)
+{
+    ImGui::Render();
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+}
+
+void Renderer::cleanupImGui()
+{
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+}
+
 void Renderer::initialize(GLFWwindow* window)
 {
     m_window = window;
@@ -1912,6 +1980,8 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
 
         m_fxaa.apply(commandBuffer, m_currentFrame, m_ldrTarget.getColorView(), m_ldrTarget.getSampler());
 
+        renderImGui(commandBuffer);
+
         commandBuffer.endRenderPass();
     }
 
@@ -2049,6 +2119,9 @@ void Renderer::cleanup()
 {
     if (m_cleaned) return;
     m_cleaned = true;
+
+    cleanupImGui();
+    m_imguiDescriptorPool.reset();
 
     m_context.getDevice().waitIdle();
 

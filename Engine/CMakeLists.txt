@@ -56,6 +56,16 @@ add_library(ELE STATIC
     src/Nav/SimpleNavMeshBuilder.cpp
 )
 
+target_sources(ELE PRIVATE
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+)
+
 target_include_directories(ELE PUBLIC
     ${Vulkan_INCLUDE_DIRS}
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -63,6 +73,8 @@ target_include_directories(ELE PUBLIC
     ${CMAKE_SOURCE_DIR}/external/tinygltf
     ${CMAKE_SOURCE_DIR}/external/Jolt
     ${miniaudio_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}/backends
 )
 
 target_link_libraries(ELE PUBLIC

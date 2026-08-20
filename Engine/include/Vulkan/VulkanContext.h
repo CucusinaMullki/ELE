@@ -44,7 +44,14 @@ public:
     vk::Queue getGraphicQueue() const { return m_graphicQueue; }
     vk::SurfaceKHR getSurface() const { return m_surface.get(); }
     vk::PhysicalDevice getPhysicalDevice() const { return physicalDevice; }
+    vk::Instance getInstance() const { return m_instance.get(); }
     QueueFamilyIndices GetQueueFamilyIndices() const { return m_queueIndices; }
+    
+    uint32_t getGraphicQueueFamily() const
+    {
+        QueueFamilyIndices indices = const_cast<VulkanContext*>(this)->findQueueFamilies(physicalDevice);
+        return indices.graphicFamily.value();
+    }
 
 private:
     //Values

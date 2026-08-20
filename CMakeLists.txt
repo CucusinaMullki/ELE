@@ -38,6 +38,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(miniaudio)
 
+FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.91.5
+)
+FetchContent_MakeAvailable(imgui)
+
 add_subdirectory(external/jolt/Build)
 
 if(USE_SYSTEM_GLFW)

@@ -5,7 +5,11 @@ void AIController::updateVision()
 {
     m_canSeeTarget = false;
 
-    if (!!m_visionTarget) return;
+    if (!m_visionTarget)
+    {
+        LOG("updateVision: no vision target set!");
+        return;
+    }
 
     glm::vec3 eyePos = m_owner->transform.position + m_eyeOffset;
     glm::vec3 targetPos = m_visionTarget->transform.position;
@@ -13,7 +17,11 @@ void AIController::updateVision()
     glm::vec3 toTarget = targetPos - eyePos;
     float distance = glm::length(toTarget);
 
-    if (distance > m_visionRange) return;
+    if (distance > m_visionRange)
+    {
+        LOG("updateVision: target too far, distance=" << distance << " range=" << m_visionRange);
+        return;
+    }
 
     glm::vec3 direction = toTarget / distance;
 
@@ -21,11 +29,18 @@ void AIController::updateVision()
     glm::vec3 forward(sin(yawRad), 0.0f, -cos(yawRad));
 
     float facingDot = glm::dot(glm::normalize(glm::vec3(direction.x, 0.0f, direction.z)), forward);
-    if (facingDot < m_visionFOVCos) return;
+    if (facingDot < m_visionFOVCos)
+    {
+        LOG("updateVision: target outside FOV, dot=" << facingDot << " required=" << m_visionFOVCos);
+        return;
+    }
 
     RaycastHit hit = m_physics.raycast(eyePos, direction, distance);
+    bool blocked = hit.hit && hit.distance < distance - 0.2f;
 
-    if (!hit.hit)
+    LOG("updateVision: distance=" << distance << " facingDot=" << facingDot << " blocked=" << blocked);
+
+    if (!blocked)
     {
         m_canSeeTarget = true;
         m_lastKnowTargetPos = targetPos;

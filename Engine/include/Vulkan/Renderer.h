@@ -1,5 +1,8 @@
 #pragma once
 
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_vulkan.h"
 #include "Vulkan/VulkanContext.h"
 #include "Vulkan/SwapChain.h"
 #include "Vulkan/RenderPass.h"
@@ -64,6 +67,11 @@ public:
     void setTotalTime(float t) { m_totalTime = t; }
 
     void addScreenSpaceDecal(std::shared_ptr<ScreenSpaceDecal> decal) { m_screenSpaceDecals.push_back(decal); }
+
+    void initImGui(GLFWwindow* window);
+    void beginImGuiFrame();
+    void renderImGui(vk::CommandBuffer commandBuffer);
+    void cleanupImGui();
 
     vk::Device getDevice() const { return m_context.getDevice(); }
     const FogSettings& getFogSettings() const { return m_fogSettings;}
@@ -254,4 +262,6 @@ private:
 
     std::array<glm::vec4, 6> extractFrustumPlanes(const glm::mat4& viewProj) const;
     bool isSubmeshVisible(const glm::mat4& modelMatrix, const Submesh& sm, const std::array<glm::vec4, 6>& planes) const;
+
+    vk::UniqueDescriptorPool m_imguiDescriptorPool;
 };

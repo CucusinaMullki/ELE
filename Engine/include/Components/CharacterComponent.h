@@ -5,6 +5,7 @@
 #include "Core/TimeSystem.h"
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <glm/glm.hpp>
+#include <algorithm>
 
 class CharacterComponent : public IComponent
 {
@@ -14,11 +15,18 @@ public:
         : m_physics(physics), m_time(time), m_radius(radius), m_height(height), m_mass(mass)
     {}
 
+    ~CharacterComponent()
+    {
+        s_allCharacters.erase(std::remove(s_allCharacters.begin(), s_allCharacters.end(), this), s_allCharacters.end());
+    }
+
     void onAttach(GameObject& owner) override
     {
         m_owner = &owner;
         m_character = m_physics.createCharacterVirtual(owner.transform.position, m_radius, m_height, m_mass);
         m_previousPosition = m_currentPosition = owner.transform.position;
+
+        s_allCharacters.push_back(this);
     }
 
     void syncTransform(float deltaTime)
@@ -41,6 +49,8 @@ public:
             m_verticalVelocity -= 9.81f * fixedDeltaTime;
 
         m_currentPosition = rawPosition();
+
+        resolveCharacterOverlap();
     
         std::vector<JPH::BodyID> overlapping = m_physics.queryOverlappingBodies(rawPosition(), m_radius);
 
@@ -88,6 +98,31 @@ private:
         JPH::RVec3 pos = m_character->GetPosition();
         return glm::vec3(pos.GetX(), pos.GetY(), pos.GetZ());
     }
+
+    void resolveCharacterOverlap()
+    {
+        for (CharacterComponent* other : s_allCharacters)
+        {
+            if (other == this) continue;
+
+            glm::vec3 toOther = other->m_currentPosition - m_currentPosition;
+            toOther.y = 0.0f;
+
+            float distance = glm::length(toOther);
+            float combinedRadius = m_radius + other->m_radius;
+
+            if (distance < combinedRadius && distance > 0.001f)
+            {
+                glm::vec3 pushDir = toOther / distance;
+                float overlap = combinedRadius - distance;
+
+                m_currentPosition -= pushDir * overlap * 0.5f;
+                other->m_currentPosition += pushDir * overlap * 0.5f;
+            }
+        }
+    }
+
+    static inline std::vector<CharacterComponent*> s_allCharacters;
 
     std::vector<JPH::BodyID> m_previousTriggers;
     JPH::BodyID m_bodyIdPlaceholder;

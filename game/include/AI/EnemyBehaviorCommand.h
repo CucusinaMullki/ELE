@@ -22,8 +22,10 @@ private:
     std::unique_ptr<PatrolCommand> m_patrolState;
     std::unique_ptr<MoveToCommand> m_chaseMove;
 
-    float m_ptarolSpeed = 2.5f;
-    float m_chaseSpeed = 4.5f;
+    float m_ptarolSpeed = 1.5f;
+    float m_chaseSpeed = 2.5f;
     float m_repathInterval = 0.5f;
     float m_repathTimer = 0.0f;
+    float m_loseVisionTimer = 0.0f;
+    float m_loseVisionGracePeriod = 1.0f;
 };
