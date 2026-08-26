@@ -36,6 +36,8 @@ struct PipelineConfig
 
     bool postProcess = false;
 
+    bool skinnedLayout = false;
+
     bool depthBiasEnable = false;
     float depthBiasConstant = 0.0f;
     float depthBiasSlope = 0.0f;

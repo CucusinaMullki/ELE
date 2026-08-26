@@ -1,6 +1,7 @@
 #include "Core/Engine.h"
 #include "Core/Log.h"
 #include "Components/MeshComponent.h"
+#include "UI/TextWidget.h"
 #include "Components/DoorComponent.h"
 #include "Components/PlayerComponent.h"
 #include "Components/InputComponent.h"
@@ -12,6 +13,8 @@
 #include "AI/EnemyBehaviorCommand.h"
 #include "Components/AudioComponent.h"
 #include "Components/TriggerComponent.h"
+#include "UI/DebugConsoleWidget.h"
+#include "DebugConsoleController.h"
 
 
 GameObject* createCube(Engine& engine, glm::vec3 pos)
@@ -35,6 +38,8 @@ GameObject* createCube(Engine& engine, glm::vec3 pos)
 
 void InputInScene(Engine& engine)
 {
+    engine.getInput().bindAction("ToggleConsole", InputBinding::fromKey(Key::GraveAccent));
+
     engine.getInput().bindAction("Up", InputBinding::fromKey(Key::Space));
     engine.getInput().bindAction("Up", InputBinding::fromGamepad(GamepadButton::RightBumper));
 
@@ -132,10 +137,15 @@ int main()
     engine.getAudio().loadSound("music", "audio/yebimenya.wav");
     engine.getAudio().playSound("music", 0.5f);
 
+    auto& console = engine.getUI().addWidget<DebugConsoleWidget>();
+    console.setPosition(glm::vec2(10, 10));
+    console.setSize(glm::vec2(600, 400));
+    console.setVisible(false);
 
     auto& player = engine.getScene().addObject();
 
-    
+    player.addComponent<DebugConsoleController>(engine.getInput(), console);
+
     for (GameObject* spawnPoint : engine.getScene().findAllByType("PlayerSpawn"))
     {
         player.transform.position = spawnPoint->transform.position;
@@ -147,7 +157,7 @@ int main()
     GameObject* spawnDoor2 = engine.getScene().findByName("Door2");
     GameObject* spawnDoor3 = engine.getScene().findByName("Door3");
     if (spawnDoor)
-    {
+    { 
         createDoor(engine, spawnDoor->transform.position, spawnDoor->transform.rotation);
     }
 
@@ -168,14 +178,17 @@ int main()
     player.addComponent<HeadBobComponent>(glm::vec3(0.0f, 1.6f, 0.0f));
     player.addComponent<PlayerComponent>(engine.getPhysics());
 
-    auto& enemy = engine.getScene().addObject();
+    auto& testText = engine.getUI().addWidget<TextWidget>("Penis");
+    testText.setFontScale(10.0f);
+
+    auto& enemy = engine.loadSkeletalGltfObject("assets/models/testAnimModel.glb");
     enemy.transform.position = glm::vec3(0.0f, 1.0f, 0.0f);
-    enemy.addComponent<TransformComponent>();
 
     auto enemyMaterial = engine.createDefaultMaterial();
-    auto enemyMesh = engine.loadMesh("assets/models/Enemy.glb");
     enemy.setMaterial(enemyMaterial);
-    enemy.addComponent<MeshComponent>().setMesh(enemyMesh);
+
+    auto* skeletalComp = enemy.getComponent<SkeletalMeshComponent>();
+    engine.createSkinnedMaterialDescriptorSet(enemyMaterial, *skeletalComp);
 
     enemy.addComponent<CharacterComponent>(engine.getPhysics(), engine.getTime(), 0.3f, 1.4f, 60.0f);
 
@@ -183,6 +196,8 @@ int main()
     ai.setVisionTarget(&player);
     ai.setVisionRange(15.0f);
     ai.setVisionFOV(100.0f);
+    
+    skeletalComp->playAnimationByName(enemy, "Test", true);
 
     std::vector<glm::vec3> patrolPoints;
 

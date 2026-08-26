@@ -1,4 +1,5 @@
 #include "Vulkan/Renderer.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Vulkan/PushConstant.h"
 #include <vector>
 #include "Core/Log.h"
@@ -580,6 +581,18 @@ void Renderer::initialize(GLFWwindow* window)
     pbrConfig.cullMode = vk::CullModeFlagBits::eBack;
     pbrConfig.pushConstantSize = sizeof(glm::mat4) * 3;
     m_pipeline.initialize(m_context.getDevice(), pbrConfig);
+
+    PipelineConfig skinnedConfig{};
+    skinnedConfig.vertexShader = "skinned";
+    skinnedConfig.fragmentShader = "skinned";
+    skinnedConfig.renderPass = m_hdrRenderPass.getRenderPass();
+    skinnedConfig.cache = m_pipelineCache.get();
+    skinnedConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
+    skinnedConfig.skinnedLayout = true;
+    skinnedConfig.colorAttachmentCount = 2;
+    skinnedConfig.cullMode = vk::CullModeFlagBits::eBack;
+    skinnedConfig.pushConstantSize = sizeof(glm::mat4) * 3;
+    m_skinnedPipeline.initialize(m_context.getDevice(), skinnedConfig);
 
     PipelineConfig decalConfig{};
     decalConfig.vertexShader = "decal_box";
@@ -1499,48 +1512,96 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
         commandBuffer.endRenderPass();
     }
 
+{
+    std::array<vk::ClearValue, 3> clearValues{};
+    clearValues[0].setColor(vk::ClearColorValue{ std::array<float,4>{ 0.0f, 0.0f, 0.0f, 1.0f } });
+    clearValues[1].setColor(vk::ClearColorValue{ std::array<float,4>{ 0.0f, 0.0f, 0.0f, 1.0f } });
+    clearValues[2].setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
+
+    vk::RenderPassBeginInfo hdrPass{};
+    hdrPass.setRenderPass(m_hdrRenderPass.getRenderPass());
+    hdrPass.setFramebuffer(m_hdrFramebuffer.get());
+    hdrPass.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
+    hdrPass.setClearValues(clearValues);
+
+    commandBuffer.beginRenderPass(hdrPass, vk::SubpassContents::eInline);
+
+    vk::Viewport viewport{};
+    viewport.setWidth((float)m_swapchain.getExtent().width)
+            .setHeight((float)m_swapchain.getExtent().height)
+            .setMinDepth(0.0f).setMaxDepth(1.0f);
+    commandBuffer.setViewport(0, viewport);
+    vk::Rect2D scissor{};
+    scissor.setExtent(m_swapchain.getExtent());
+    commandBuffer.setScissor(0, scissor);
+
+    auto frustumPlanes = extractFrustumPlanes(camera.getProjectionMatrix() * camera.getViewMatrix());
+
+    int visibleCount = 0;
+    int totalCount = 0;
+
+    vk::Pipeline currentBoundPipeline = nullptr;
+
+    for (const auto& obj : scene.getObjects())
     {
-        std::array<vk::ClearValue, 3> clearValues{};
-        clearValues[0].setColor(vk::ClearColorValue{ std::array<float,4>{ 0.0f, 0.0f, 0.0f, 1.0f } });
-        clearValues[1].setColor(vk::ClearColorValue{ std::array<float,4>{ 0.0f, 0.0f, 0.0f, 1.0f } });
-        clearValues[2].setDepthStencil(vk::ClearDepthStencilValue{ 1.0f, 0 });
+        auto* skeletal = obj->getComponent<SkeletalMeshComponent>();
 
-        vk::RenderPassBeginInfo hdrPass{};
-        hdrPass.setRenderPass(m_hdrRenderPass.getRenderPass());
-        hdrPass.setFramebuffer(m_hdrFramebuffer.get());
-        hdrPass.setRenderArea(vk::Rect2D{ {0, 0}, m_swapchain.getExtent() });
-        hdrPass.setClearValues(clearValues);
+        if (!obj->mesh && !skeletal) continue;
 
-        commandBuffer.beginRenderPass(hdrPass, vk::SubpassContents::eInline);
+        glm::mat4 modelMatrix = obj->transform.getMatrix();
 
-        vk::Viewport viewport{};
-        viewport.setWidth((float)m_swapchain.getExtent().width)
-                .setHeight((float)m_swapchain.getExtent().height)
-                .setMinDepth(0.0f).setMaxDepth(1.0f);
-        commandBuffer.setViewport(0, viewport);
-        vk::Rect2D scissor{};
-        scissor.setExtent(m_swapchain.getExtent());
-        commandBuffer.setScissor(0, scissor);
+        PushConstant pc{};
+        pc.model = modelMatrix;
+        pc.normalMatrix = obj->transform.getNormalMatrix();
+        pc.prevModel = modelMatrix;
 
-        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.getPipeline());
+        vk::PipelineLayout activeLayout = skeletal ? m_skinnedPipeline.getLayout() : m_pipeline.getLayout();
 
-        auto frustumPlanes = extractFrustumPlanes(camera.getProjectionMatrix() * camera.getViewMatrix());
+        if (skeletal)
+        {
+            auto skeletalMesh = skeletal->getSkeletalMesh();
+            if (!skeletalMesh) continue;
 
-        int visibleCount = 0;
-        int totalCount = 0; 
-        
-        for (const auto& obj : scene.getObjects())
+            skeletal->uploadBoneMatrices(m_currentFrame);
+
+            if (currentBoundPipeline != m_skinnedPipeline.getPipeline())
+            {
+                commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_skinnedPipeline.getPipeline());
+                currentBoundPipeline = m_skinnedPipeline.getPipeline();
+            }
+
+            skeletalMesh->bind(commandBuffer);
+
+            commandBuffer.pushConstants(activeLayout,
+                vk::ShaderStageFlagBits::eVertex, 0, sizeof(PushConstant), &pc);
+
+            for (const auto& sm : skeletalMesh->getSubmeshes())
+            {
+                totalCount++;
+                visibleCount++;
+
+                auto mat = obj->getMaterial(sm.materialIndex);
+                if (!mat) continue;
+
+                commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                    activeLayout, 0, mat->getDescriptorSet(m_currentFrame), nullptr);
+
+                skeletalMesh->drawSubmesh(commandBuffer, sm);
+            }
+        }
+        else
         {
             if (!obj->mesh) continue;
+
+            if (currentBoundPipeline != m_pipeline.getPipeline())
+            {
+                commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.getPipeline());
+                currentBoundPipeline = m_pipeline.getPipeline();
+            }
+
             obj->mesh->bind(commandBuffer);
 
-            glm::mat4 modelMatrix = obj->transform.getMatrix();
-
-            PushConstant pc{};
-            pc.model = obj->transform.getMatrix();
-            pc.normalMatrix = obj->transform.getNormalMatrix();
-            pc.prevModel = obj->transform.getMatrix();
-            commandBuffer.pushConstants(m_pipeline.getLayout(),
+            commandBuffer.pushConstants(activeLayout,
                 vk::ShaderStageFlagBits::eVertex, 0, sizeof(PushConstant), &pc);
 
             for (const auto& sm : obj->mesh->getSubmeshes())
@@ -1554,14 +1615,17 @@ void Renderer::recordCommandBuffer(vk::CommandBuffer commandBuffer, uint32_t ima
 
                 auto mat = obj->getMaterial(sm.materialIndex);
                 if (!mat) continue;
+
                 commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
-                    m_pipeline.getLayout(), 0, mat->getDescriptorSet(m_currentFrame), nullptr);
+                    activeLayout, 0, mat->getDescriptorSet(m_currentFrame), nullptr);
+
                 obj->mesh->drawSubmesh(commandBuffer, sm);
             }
         }
-
+    }
+    
         LOG("visible submeshes: " << visibleCount << " / " << totalCount);
-
+    
         commandBuffer.endRenderPass();
     }
 
@@ -2124,6 +2188,8 @@ void Renderer::cleanup()
     m_imguiDescriptorPool.reset();
 
     m_context.getDevice().waitIdle();
+
+    m_skinnedPipeline.cleanup();
 
     m_godRayMaskPipeline.cleanup();
     m_godRayBlurPipeline.cleanup();

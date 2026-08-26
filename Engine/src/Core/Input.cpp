@@ -60,6 +60,7 @@ int Input::toGLFWKey(Key key) const
         case Key::F3:           return GLFW_KEY_F3;
         case Key::F4:           return GLFW_KEY_F4;
         case Key::F5:           return GLFW_KEY_F5;
+        case Key::GraveAccent:   return GLFW_KEY_GRAVE_ACCENT;
         default:                return GLFW_KEY_UNKNOWN;
     }
 }

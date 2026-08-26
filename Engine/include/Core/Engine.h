@@ -7,9 +7,11 @@
 #include "Physics/PhysicsSystem.h"
 #include "Scene/ScreenSpaceDecal.h"
 #include "Core/FogSettings.h"
+#include "UI/UISystem.h"
 #include "Core/ICameraController.h"
 #include "Nav/NavMesh.h"
 #include "Core/FreeFlyCameraController.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Core/TimeSystem.h"
 #include "Audio/AudioSystem.h"
 #include "Core/GltfModel.h"
@@ -36,6 +38,8 @@ public:
 
     void setCameraController(std::unique_ptr<ICameraController> controller);
 
+    void createSkinnedMaterialDescriptorSet(std::shared_ptr<Material> material, SkeletalMeshComponent& skeletal);
+
     void setFogEnabled(bool enabled);
     void setFogSettings(const FogSettings& settings);
     
@@ -47,12 +51,14 @@ public:
     PhysicsSystem& getPhysics() { return m_physics; }
     AudioSystem& getAudio() { return m_audio; }
     NavMesh& getNavMesh() { return m_navMesh; }
+    UISystem& getUI() { return m_ui; }
 
     void pause() { m_time.pause(); }
     void resume() { m_time.resume(); }
     void setTimeScale(float scale) { m_time.setTimeScale(scale); }
 
     GameObject& loadGltfObject(const std::string& path);
+    GameObject& loadSkeletalGltfObject(const std::string& path);
 
     void onFramebufferResize();
 
@@ -86,6 +92,7 @@ private:
     Camera          m_camera;
     Scene           m_scene;
     FogSettings m_fogSettings;
+    UISystem m_ui;
     std::unique_ptr<ICameraController> m_cameraController;
     LightData m_lights{};
     bool m_useCameraController = true;

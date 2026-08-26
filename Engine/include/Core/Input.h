@@ -13,6 +13,7 @@ enum class Key
     Escape, Tab, Enter,
     Num1, Num2, Num3, Num4, Num5,
     F1, F2, F3, F4, F5,
+    GraveAccent,
     Unknown
 };
 

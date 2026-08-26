@@ -38,7 +38,16 @@ public:
         vk::ImageView shadowView, vk::Sampler shadowSampler,
         vk::ImageView shadowAtlasView, vk::Sampler shadowAtlasSampler,
         uint32_t frameCount);
-    
+
+    void createSkinnedDescriptorSet(vk::Device device, vk::DescriptorPool pool,
+        vk::DescriptorSetLayout layout,
+        const std::vector<vk::DescriptorBufferInfo>& uboInfos,
+        const std::vector<vk::DescriptorBufferInfo>& lightInfos,
+        vk::ImageView shadowView, vk::Sampler shadowSampler,
+        vk::ImageView shadowAtlasView, vk::Sampler shadowAtlasSampler,
+        const std::vector<vk::DescriptorBufferInfo>& boneInfos,
+        uint32_t frameCount);
+        
     vk::DescriptorSet getDescriptorSet(uint32_t frame) const { return m_descriptorSets[frame]; }
 
     void cleanup();

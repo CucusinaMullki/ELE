@@ -93,6 +93,8 @@ public:
     const DecalCameraBuffer& getDecalCameraBuffer() const { return m_decalCameraBuffer; }
     const GodRaySettings& getGodRaySettings() const{ return m_godRaySettings; }
     uint32_t getFramesInFlight() const { return MAX_FRAMES_IN_FLIGHT; }
+    vk::DescriptorSetLayout getSkinnedDescriptorSetLayout() const { return m_skinnedPipeline.getDescriptorSetLayout(); }
+    vk::DescriptorPool getSkinnedDescriptorPool() const { return m_skinnedPipeline.getDescriptorPool(); }
     float getAspect() const;
 
     std::vector<const GameObject*> parallelCull(const Scene& scene, const std::array<glm::vec4, 6>& planes) const;
@@ -126,6 +128,8 @@ private:
     DepthBuffer m_depthBuffer;
 
     PipelineCache m_pipelineCache;
+
+    Pipeline m_skinnedPipeline;
 
     //Shadows
     ShadowMap m_shadowMap;

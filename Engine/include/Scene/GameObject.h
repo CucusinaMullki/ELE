@@ -6,6 +6,8 @@
 #include <memory>
 #include <vector>
 #include <typeindex>
+#include "Scene/Animation.h"
+#include <unordered_map>
 
 class GameObject
 {
@@ -15,6 +17,7 @@ public:
     Transform transform;
     std::shared_ptr<Mesh> mesh;
     std::vector<std::shared_ptr<Material>> materials;
+    std::unordered_map<std::string, std::shared_ptr<Animation>> animations;
     bool isDecal = false;
     bool isDynamic = false;
 

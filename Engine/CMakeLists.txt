@@ -54,6 +54,11 @@ add_library(ELE STATIC
     src/Nav/GeometryParser.cpp
     src/AI/AIController.cpp
     src/Nav/SimpleNavMeshBuilder.cpp
+    src/Vulkan/BoneMatrixBuffer.cpp
+    src/Scene/SkeletalGltfLoader.cpp
+    src/Vulkan/SkinnedVertexBuffer.cpp
+    src/Scene/SkeletalMesh.cpp
+    src/Scene/Animation.cpp
 )
 
 target_sources(ELE PRIVATE

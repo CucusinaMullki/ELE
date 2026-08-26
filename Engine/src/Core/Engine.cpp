@@ -1,6 +1,7 @@
 #include "Core/Engine.h"
 #include "Core/Log.h"
 #include "Nav/SimpleNavMeshBuilder.h"
+#include "Scene/SkeletalGltfLoader.h"
 #include "Components/RigidBodyComponent.h"
 #include "Components/TransformComponent.h"
 
@@ -126,6 +127,21 @@ void Engine::updateInput(float deltaTime)
     }
 }
 
+void Engine::createSkinnedMaterialDescriptorSet(std::shared_ptr<Material> material, SkeletalMeshComponent& skeletal)
+{
+    std::vector<vk::DescriptorBufferInfo> boneInfos;
+    for (uint32_t i = 0; i < m_renderer.getFramesInFlight(); i++)
+        boneInfos.push_back(skeletal.getBoneDescriptorInfo(i));
+
+    material->createSkinnedDescriptorSet(m_renderer.getDevice(),
+        m_renderer.getDescriptorPool(), m_renderer.getSkinnedDescriptorSetLayout(),
+        m_renderer.getUboInfos(), m_renderer.getLightInfos(),
+        m_renderer.getShadowView(), m_renderer.getShadowSampler(),
+        m_renderer.getShadowAtlasView(), m_renderer.getShadowAtlasSampler(),
+        boneInfos,
+        m_renderer.getFramesInFlight());
+}
+
 void Engine::run()
 {
     float fpsTimer = 0.0f;
@@ -135,11 +151,7 @@ void Engine::run()
     {
         glfwPollEvents();
         m_renderer.beginImGuiFrame();
-
-        ImGui::Begin("Debug");
-        ImGui::Text("FPS: %.1f", 1.0f / m_time.deltaTime());
-        ImGui::Text("Player pos: %.2f, %.2f, %.2f", m_camera.getPosition().x, m_camera.getPosition().y, m_camera.getPosition().z);
-        ImGui::End();
+        m_ui.draw();
 
         int fbWidth, fbHeight;
         glfwGetFramebufferSize(m_window, &fbWidth, &fbHeight);
@@ -201,6 +213,40 @@ void Engine::shutdown()
 
     if (m_window) glfwDestroyWindow(m_window);
     glfwTerminate();
+}
+
+GameObject& Engine::loadSkeletalGltfObject(const std::string& path)
+{
+    SkeletalGltfResult loaded = SkeletalGltfLoader::load(path);
+
+    auto skeletalMesh = std::make_shared<SkeletalMesh>();
+
+    Submesh sm{};
+    sm.firstIndex = 0;
+    sm.indexCount = (uint32_t)loaded.indices.size();
+    sm.materialIndex = 0;
+
+    skeletalMesh->loadFromData(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
+        loaded.vertices, loaded.indices, { sm });
+    skeletalMesh->setSkeleton(loaded.skeleton);
+
+    auto& obj = m_scene.addObject();
+
+    for (auto& anim : loaded.animations)
+        obj.animations[anim->name] = anim;
+
+    auto& skeletalComp = obj.addComponent<SkeletalMeshComponent>(
+        m_renderer.getDevice(), m_renderer.getPhysicalDevice(), m_renderer.getFramesInFlight());
+    skeletalComp.setSkeletalMesh(skeletalMesh);
+
+    if (!loaded.animations.empty())
+        skeletalComp.play(loaded.animations[0], true);
+
+    LOG("loadSkeletalGltfObject: loaded '" << path << "' with " << obj.animations.size() << " animations:");
+    for (auto& [name, anim] : obj.animations)
+        LOG("  - " << name << " (duration=" << anim->duration << "s)");
+
+    return obj;
 }
 
 GameObject& Engine::loadGltfObject(const std::string& path)

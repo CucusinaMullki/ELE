@@ -1,5 +1,6 @@
 #include "Vulkan/Pipeline.h"
 #include "Vulkan/Shader.h"
+#include "Vulkan/SkinnedVertex.h"
 #include "Vulkan/Vertex.h"
 #include <glm/glm.hpp>
 #include "Core/Log.h"
@@ -107,6 +108,81 @@ void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
         poolInfo.setMaxSets(config.frameCount * 32);
         m_descriptorPool = device.createDescriptorPoolUnique(poolInfo);
     }
+    else if (config.skinnedLayout)
+    {
+        vk::DescriptorSetLayoutBinding uboBinding{};
+        uboBinding.setBinding(0);
+        uboBinding.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+        uboBinding.setDescriptorCount(1);
+        uboBinding.setStageFlags(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment);
+
+        auto makeSamplerBinding = [](uint32_t bind) {
+            vk::DescriptorSetLayoutBinding b{};
+            b.setBinding(bind);
+            b.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+            b.setDescriptorCount(1);
+            b.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+            return b;
+        };
+
+        vk::DescriptorSetLayoutBinding lightBinding{};
+        lightBinding.setBinding(5);
+        lightBinding.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+        lightBinding.setDescriptorCount(1);
+        lightBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+
+        vk::DescriptorSetLayoutBinding shadowBinding{};
+        shadowBinding.setBinding(6);
+        shadowBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        shadowBinding.setDescriptorCount(1);
+        shadowBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+
+        vk::DescriptorSetLayoutBinding pointShadowBinding{};
+        pointShadowBinding.setBinding(7);
+        pointShadowBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        pointShadowBinding.setDescriptorCount(1);
+        pointShadowBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+
+        vk::DescriptorSetLayoutBinding lightmapBinding{};
+        lightmapBinding.setBinding(8);
+        lightmapBinding.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        lightmapBinding.setDescriptorCount(1);
+        lightmapBinding.setStageFlags(vk::ShaderStageFlagBits::eFragment);
+
+        vk::DescriptorSetLayoutBinding boneBinding{};
+        boneBinding.setBinding(9);
+        boneBinding.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+        boneBinding.setDescriptorCount(1);
+        boneBinding.setStageFlags(vk::ShaderStageFlagBits::eVertex);
+
+        std::array<vk::DescriptorSetLayoutBinding, 10> bindings = {
+            uboBinding,
+            makeSamplerBinding(1),
+            makeSamplerBinding(2),
+            makeSamplerBinding(3),
+            makeSamplerBinding(4),
+            lightBinding,
+            shadowBinding,
+            pointShadowBinding,
+            lightmapBinding,
+            boneBinding
+        };
+
+        vk::DescriptorSetLayoutCreateInfo layoutCreateInfo{};
+        layoutCreateInfo.setBindings(bindings);
+        m_descriptorSetLayout = device.createDescriptorSetLayoutUnique(layoutCreateInfo);
+
+        std::array<vk::DescriptorPoolSize, 2> poolSizes{};
+        poolSizes[0].setType(vk::DescriptorType::eUniformBuffer);
+        poolSizes[0].setDescriptorCount(config.maxMaterials * config.frameCount * 3);
+        poolSizes[1].setType(vk::DescriptorType::eCombinedImageSampler);
+        poolSizes[1].setDescriptorCount(config.maxMaterials * config.frameCount * 7);
+
+        vk::DescriptorPoolCreateInfo poolInfo{};
+        poolInfo.setPoolSizes(poolSizes);
+        poolInfo.setMaxSets(config.maxMaterials * config.frameCount);
+        m_descriptorPool = device.createDescriptorPoolUnique(poolInfo);
+    }
     else if (config.postProcess)
     {
         std::array<vk::DescriptorSetLayoutBinding, 3> postBindings{};
@@ -212,7 +288,7 @@ void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
     pushRange.setSize(config.pushConstantSize);
 
     std::vector<vk::DescriptorSetLayout> setLayouts;
-    if (config.useDescriptors || config.postProcess || config.decalLayout || config.fogLayout)
+    if (config.useDescriptors || config.postProcess || config.decalLayout || config.fogLayout || config.skinnedLayout)
         setLayouts.push_back(m_descriptorSetLayout.get());
 
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo{};
@@ -232,8 +308,21 @@ void Pipeline::initialize(vk::Device device, const PipelineConfig& config)
         shaderStages.push_back(fragShader.getStageInfo());
     }
 
-    auto bindingDescription = Vertex::getBindingDescriptor();
-    auto attributeDescription = Vertex::getAttributeDescriptions();
+    vk::VertexInputBindingDescription bindingDescription;
+    std::vector<vk::VertexInputAttributeDescription> attributeDescription;
+
+    if (config.skinnedLayout)
+    {
+        bindingDescription = SkinnedVertex::getBindingDescriptor();
+        auto arr = SkinnedVertex::getAttributeDescriptions();
+        attributeDescription.assign(arr.begin(), arr.end());
+    }
+    else
+    {
+        bindingDescription = Vertex::getBindingDescriptor();
+        auto arr = Vertex::getAttributeDescriptions();
+        attributeDescription.assign(arr.begin(), arr.end());
+    }
 
     vk::PipelineVertexInputStateCreateInfo vertexInput{};
     if (config.useVertexInput)

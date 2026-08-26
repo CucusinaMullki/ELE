@@ -57,7 +57,7 @@ void Material::createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
         auto lightmapInfo = makeImageInfo(m_lightmap.getImageView(), m_lightmap.getSampler());
         auto shadowAtlasInfo = makeImageInfo(shadowAtlasView, shadowAtlasSampler);
 
-        std::array<vk::WriteDescriptorSet, 9> writes{};   // было 11
+        std::array<vk::WriteDescriptorSet, 9> writes{};   // 9, БЕЗ костей
 
         writes[0].setDstSet(m_descriptorSets[i]);
         writes[0].setDstBinding(0);
@@ -99,6 +99,92 @@ void Material::createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
         writes[8].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
         writes[8].setDescriptorCount(1);
         writes[8].setImageInfo(lightmapInfo);
+
+        device.updateDescriptorSets(writes, nullptr);
+    }
+}
+
+void Material::createSkinnedDescriptorSet(vk::Device device, vk::DescriptorPool pool,
+    vk::DescriptorSetLayout layout,
+    const std::vector<vk::DescriptorBufferInfo>& uboInfos,
+    const std::vector<vk::DescriptorBufferInfo>& lightInfos,
+    vk::ImageView shadowView, vk::Sampler shadowSampler,
+    vk::ImageView shadowAtlasView, vk::Sampler shadowAtlasSampler,
+    const std::vector<vk::DescriptorBufferInfo>& boneInfos,
+    uint32_t frameCount)
+{
+    std::vector<vk::DescriptorSetLayout> layouts(frameCount, layout);
+    vk::DescriptorSetAllocateInfo allocInfo{};
+    allocInfo.setDescriptorPool(pool);
+    allocInfo.setSetLayouts(layouts);
+    m_descriptorSets = device.allocateDescriptorSets(allocInfo);
+
+    for (uint32_t i = 0; i < frameCount; i++)
+    {
+        auto makeImageInfo = [](vk::ImageView view, vk::Sampler sampler) {
+            vk::DescriptorImageInfo info{};
+            info.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+            info.setImageView(view);
+            info.setSampler(sampler);
+            return info;
+        };
+
+        auto albedoInfo = makeImageInfo(m_albedo.getImageView(), m_albedo.getSampler());
+        auto normalInfo = makeImageInfo(m_normal.getImageView(), m_normal.getSampler());
+        auto mrInfo     = makeImageInfo(m_metallicRoughness.getImageView(), m_metallicRoughness.getSampler());
+        auto aoInfo     = makeImageInfo(m_ao.getImageView(), m_ao.getSampler());
+        auto shadowInfo = makeImageInfo(shadowView, shadowSampler);
+        auto lightmapInfo = makeImageInfo(m_lightmap.getImageView(), m_lightmap.getSampler());
+        auto shadowAtlasInfo = makeImageInfo(shadowAtlasView, shadowAtlasSampler);
+
+        std::array<vk::WriteDescriptorSet, 10> writes{};
+
+        writes[0].setDstSet(m_descriptorSets[i]);
+        writes[0].setDstBinding(0);
+        writes[0].setDescriptorType(vk::DescriptorType::eUniformBuffer);
+        writes[0].setDescriptorCount(1);
+        writes[0].setBufferInfo(uboInfos[i]);
+
+        auto makeImgWrite = [&](uint32_t bind, vk::DescriptorImageInfo& info) {
+            vk::WriteDescriptorSet w{};
+            w.setDstSet(m_descriptorSets[i]);
+            w.setDstBinding(bind);
+            w.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+            w.setDescriptorCount(1);
+            w.setImageInfo(info);
+            return w;
+        };
+
+        writes[1] = makeImgWrite(1, albedoInfo);
+        writes[2] = makeImgWrite(2, normalInfo);
+        writes[3] = makeImgWrite(3, mrInfo);
+        writes[4] = makeImgWrite(4, aoInfo);
+
+        writes[5].setDstSet(m_descriptorSets[i]);
+        writes[5].setDstBinding(5);
+        writes[5].setDescriptorType(vk::DescriptorType::eUniformBuffer);
+        writes[5].setDescriptorCount(1);
+        writes[5].setBufferInfo(lightInfos[i]);
+
+        writes[6].setDstSet(m_descriptorSets[i]);
+        writes[6].setDstBinding(6);
+        writes[6].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        writes[6].setDescriptorCount(1);
+        writes[6].setImageInfo(shadowInfo);
+
+        writes[7] = makeImgWrite(7, shadowAtlasInfo);
+
+        writes[8].setDstSet(m_descriptorSets[i]);
+        writes[8].setDstBinding(8);
+        writes[8].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
+        writes[8].setDescriptorCount(1);
+        writes[8].setImageInfo(lightmapInfo);
+
+        writes[9].setDstSet(m_descriptorSets[i]);
+        writes[9].setDstBinding(9);
+        writes[9].setDescriptorType(vk::DescriptorType::eUniformBuffer);
+        writes[9].setDescriptorCount(1);
+        writes[9].setBufferInfo(boneInfos[i]);
 
         device.updateDescriptorSets(writes, nullptr);
     }
