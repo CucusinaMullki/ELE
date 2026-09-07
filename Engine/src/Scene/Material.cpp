@@ -1,19 +1,60 @@
 #include "Scene/Material.h"
+#include <array>
 
-void Material::load(vk::Device device, vk::PhysicalDevice physicalDevice,
-        vk::CommandPool pool, vk::Queue queue,
-        const std::string& albedoPath,
-        const std::string& normalPath,
-        const std::string& metallicPath,
-        const std::string& roughnessPath)
+void Material::load(ASH::Device* device,
+    const std::string& albedoPath,
+    const std::string& normalPath,
+    const std::string& metallicPath,
+    const std::string& roughnessPath)
 {
-    m_albedo.initialize(device, physicalDevice, pool, queue, albedoPath);
-    m_normal.initialize(device, physicalDevice, pool, queue, normalPath);
-    m_metallicRoughness.initialize(device, physicalDevice, pool, queue, metallicPath, false);
-    m_ao.initialize(device, physicalDevice, pool, queue, roughnessPath);
+    m_albedo.initialize(device, albedoPath);
+    m_normal.initialize(device, normalPath, false);
+    m_metallicRoughness.initialize(device, metallicPath, false);
+    m_ao.initialize(device, roughnessPath, false);
 
     static const unsigned char black[4] = { 0, 0, 0, 255 };
-    m_lightmap.initializeFromMemory(device, physicalDevice, pool, queue, black, 1, 1, false);
+    m_lightmap.initializeFromMemory(device, black, 1, 1, false);
+}
+
+void Material::createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout* layout,
+    const std::vector<ASH::Buffer*>& uboBuffers,
+    const std::vector<ASH::Buffer*>& lightBuffers,
+    ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
+    ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
+    uint32_t frameCount)
+{
+    m_descriptorSets.clear();
+    m_descriptorSets.resize(frameCount);
+
+    for (uint32_t i = 0; i < frameCount; i++)
+    {
+        m_descriptorSets[i] = device->createDescriptorSet(layout);
+
+        ASH::DescriptorBufferInfo uboInfo{ uboBuffers[i], 0, uboBuffers[i]->getSize() };
+        ASH::DescriptorBufferInfo lightInfo{ lightBuffers[i], 0, lightBuffers[i]->getSize() };
+
+        ASH::DescriptorImageInfo albedoInfo{ m_albedo.getTexture(), m_albedo.getSampler() };
+        ASH::DescriptorImageInfo normalInfo{ m_normal.getTexture(), m_normal.getSampler() };
+        ASH::DescriptorImageInfo mrInfo{ m_metallicRoughness.getTexture(), m_metallicRoughness.getSampler() };
+        ASH::DescriptorImageInfo aoInfo{ m_ao.getTexture(), m_ao.getSampler() };
+        ASH::DescriptorImageInfo shadowInfo{ shadowTexture, shadowSampler };
+        ASH::DescriptorImageInfo lightmapInfo{ m_lightmap.getTexture(), m_lightmap.getSampler() };
+        ASH::DescriptorImageInfo shadowAtlasInfo{ shadowAtlasTexture, shadowAtlasSampler };
+
+        std::array<ASH::DescriptorWrite, 9> writes{};
+
+        writes[0] = { 0, ASH::DescriptorType::UniformBuffer, 0, &uboInfo, nullptr };
+        writes[1] = { 1, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &albedoInfo };
+        writes[2] = { 2, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &normalInfo };
+        writes[3] = { 3, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &mrInfo };
+        writes[4] = { 4, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &aoInfo };
+        writes[5] = { 5, ASH::DescriptorType::UniformBuffer, 0, &lightInfo, nullptr };
+        writes[6] = { 6, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &shadowInfo };
+        writes[7] = { 7, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &shadowAtlasInfo };
+        writes[8] = { 8, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &lightmapInfo };
+
+        m_descriptorSets[i]->update(writes.data(), (uint32_t)writes.size());
+    }
 }
 
 void Material::cleanup()
@@ -25,182 +66,61 @@ void Material::cleanup()
     m_lightmap.cleanup();
 }
 
-void Material::createDescriptorSet(vk::Device device, vk::DescriptorPool pool,
-    vk::DescriptorSetLayout layout,
-    const std::vector<vk::DescriptorBufferInfo>& uboInfos,
-    const std::vector<vk::DescriptorBufferInfo>& lightInfos,
-    vk::ImageView shadowView, vk::Sampler shadowSampler,
-    vk::ImageView shadowAtlasView, vk::Sampler shadowAtlasSampler,
-    uint32_t frameCount)
-{
-    std::vector<vk::DescriptorSetLayout> layouts(frameCount, layout);
-    vk::DescriptorSetAllocateInfo allocInfo{};
-    allocInfo.setDescriptorPool(pool);
-    allocInfo.setSetLayouts(layouts);
-    m_descriptorSets = device.allocateDescriptorSets(allocInfo);
-
-    for (uint32_t i = 0; i < frameCount; i++)
-    {
-        auto makeImageInfo = [](vk::ImageView view, vk::Sampler sampler) {
-            vk::DescriptorImageInfo info{};
-            info.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
-            info.setImageView(view);
-            info.setSampler(sampler);
-            return info;
-        };
-
-        auto albedoInfo = makeImageInfo(m_albedo.getImageView(), m_albedo.getSampler());
-        auto normalInfo = makeImageInfo(m_normal.getImageView(), m_normal.getSampler());
-        auto mrInfo     = makeImageInfo(m_metallicRoughness.getImageView(), m_metallicRoughness.getSampler());
-        auto aoInfo     = makeImageInfo(m_ao.getImageView(), m_ao.getSampler());
-        auto shadowInfo = makeImageInfo(shadowView, shadowSampler);
-        auto lightmapInfo = makeImageInfo(m_lightmap.getImageView(), m_lightmap.getSampler());
-        auto shadowAtlasInfo = makeImageInfo(shadowAtlasView, shadowAtlasSampler);
-
-        std::array<vk::WriteDescriptorSet, 9> writes{};   // 9, БЕЗ костей
-
-        writes[0].setDstSet(m_descriptorSets[i]);
-        writes[0].setDstBinding(0);
-        writes[0].setDescriptorType(vk::DescriptorType::eUniformBuffer);
-        writes[0].setDescriptorCount(1);
-        writes[0].setBufferInfo(uboInfos[i]);
-
-        auto makeImgWrite = [&](uint32_t bind, vk::DescriptorImageInfo& info) {
-            vk::WriteDescriptorSet w{};
-            w.setDstSet(m_descriptorSets[i]);
-            w.setDstBinding(bind);
-            w.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-            w.setDescriptorCount(1);
-            w.setImageInfo(info);
-            return w;
-        };
-
-        writes[1] = makeImgWrite(1, albedoInfo);
-        writes[2] = makeImgWrite(2, normalInfo);
-        writes[3] = makeImgWrite(3, mrInfo);
-        writes[4] = makeImgWrite(4, aoInfo);
-
-        writes[5].setDstSet(m_descriptorSets[i]);
-        writes[5].setDstBinding(5);
-        writes[5].setDescriptorType(vk::DescriptorType::eUniformBuffer);
-        writes[5].setDescriptorCount(1);
-        writes[5].setBufferInfo(lightInfos[i]);
-
-        writes[6].setDstSet(m_descriptorSets[i]);
-        writes[6].setDstBinding(6);
-        writes[6].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-        writes[6].setDescriptorCount(1);
-        writes[6].setImageInfo(shadowInfo);
-
-        writes[7] = makeImgWrite(7, shadowAtlasInfo);
-
-        writes[8].setDstSet(m_descriptorSets[i]);
-        writes[8].setDstBinding(8);
-        writes[8].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-        writes[8].setDescriptorCount(1);
-        writes[8].setImageInfo(lightmapInfo);
-
-        device.updateDescriptorSets(writes, nullptr);
-    }
-}
-
-void Material::createSkinnedDescriptorSet(vk::Device device, vk::DescriptorPool pool,
-    vk::DescriptorSetLayout layout,
-    const std::vector<vk::DescriptorBufferInfo>& uboInfos,
-    const std::vector<vk::DescriptorBufferInfo>& lightInfos,
-    vk::ImageView shadowView, vk::Sampler shadowSampler,
-    vk::ImageView shadowAtlasView, vk::Sampler shadowAtlasSampler,
-    const std::vector<vk::DescriptorBufferInfo>& boneInfos,
-    uint32_t frameCount)
-{
-    std::vector<vk::DescriptorSetLayout> layouts(frameCount, layout);
-    vk::DescriptorSetAllocateInfo allocInfo{};
-    allocInfo.setDescriptorPool(pool);
-    allocInfo.setSetLayouts(layouts);
-    m_descriptorSets = device.allocateDescriptorSets(allocInfo);
-
-    for (uint32_t i = 0; i < frameCount; i++)
-    {
-        auto makeImageInfo = [](vk::ImageView view, vk::Sampler sampler) {
-            vk::DescriptorImageInfo info{};
-            info.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
-            info.setImageView(view);
-            info.setSampler(sampler);
-            return info;
-        };
-
-        auto albedoInfo = makeImageInfo(m_albedo.getImageView(), m_albedo.getSampler());
-        auto normalInfo = makeImageInfo(m_normal.getImageView(), m_normal.getSampler());
-        auto mrInfo     = makeImageInfo(m_metallicRoughness.getImageView(), m_metallicRoughness.getSampler());
-        auto aoInfo     = makeImageInfo(m_ao.getImageView(), m_ao.getSampler());
-        auto shadowInfo = makeImageInfo(shadowView, shadowSampler);
-        auto lightmapInfo = makeImageInfo(m_lightmap.getImageView(), m_lightmap.getSampler());
-        auto shadowAtlasInfo = makeImageInfo(shadowAtlasView, shadowAtlasSampler);
-
-        std::array<vk::WriteDescriptorSet, 10> writes{};
-
-        writes[0].setDstSet(m_descriptorSets[i]);
-        writes[0].setDstBinding(0);
-        writes[0].setDescriptorType(vk::DescriptorType::eUniformBuffer);
-        writes[0].setDescriptorCount(1);
-        writes[0].setBufferInfo(uboInfos[i]);
-
-        auto makeImgWrite = [&](uint32_t bind, vk::DescriptorImageInfo& info) {
-            vk::WriteDescriptorSet w{};
-            w.setDstSet(m_descriptorSets[i]);
-            w.setDstBinding(bind);
-            w.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-            w.setDescriptorCount(1);
-            w.setImageInfo(info);
-            return w;
-        };
-
-        writes[1] = makeImgWrite(1, albedoInfo);
-        writes[2] = makeImgWrite(2, normalInfo);
-        writes[3] = makeImgWrite(3, mrInfo);
-        writes[4] = makeImgWrite(4, aoInfo);
-
-        writes[5].setDstSet(m_descriptorSets[i]);
-        writes[5].setDstBinding(5);
-        writes[5].setDescriptorType(vk::DescriptorType::eUniformBuffer);
-        writes[5].setDescriptorCount(1);
-        writes[5].setBufferInfo(lightInfos[i]);
-
-        writes[6].setDstSet(m_descriptorSets[i]);
-        writes[6].setDstBinding(6);
-        writes[6].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-        writes[6].setDescriptorCount(1);
-        writes[6].setImageInfo(shadowInfo);
-
-        writes[7] = makeImgWrite(7, shadowAtlasInfo);
-
-        writes[8].setDstSet(m_descriptorSets[i]);
-        writes[8].setDstBinding(8);
-        writes[8].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-        writes[8].setDescriptorCount(1);
-        writes[8].setImageInfo(lightmapInfo);
-
-        writes[9].setDstSet(m_descriptorSets[i]);
-        writes[9].setDstBinding(9);
-        writes[9].setDescriptorType(vk::DescriptorType::eUniformBuffer);
-        writes[9].setDescriptorCount(1);
-        writes[9].setBufferInfo(boneInfos[i]);
-
-        device.updateDescriptorSets(writes, nullptr);
-    }
-}
-
-void Material::loadFromPixels(vk::Device device, vk::PhysicalDevice physicalDevice,
-    vk::CommandPool pool, vk::Queue queue,
+void Material::loadFromPixels(ASH::Device* device,
     const unsigned char* albedoPx, int aw, int ah,
     const unsigned char* normalPx, int nw, int nh,
     const unsigned char* mrPx, int mw, int mh,
     const unsigned char* aoPx, int ow, int oh,
     const unsigned char* lightmapPx, int lw, int lh, bool hasLightmap)
 {
-    m_albedo.initializeFromMemory(device, physicalDevice, pool, queue, albedoPx, aw, ah, true);
-    m_normal.initializeFromMemory(device, physicalDevice, pool, queue, normalPx, nw, nh, false);
-    m_metallicRoughness.initializeFromMemory(device, physicalDevice, pool, queue, mrPx, mw, mh, false);
-    m_ao.initializeFromMemory(device, physicalDevice, pool, queue, aoPx, ow, oh, false);
-    m_lightmap.initializeFromMemory(device, physicalDevice, pool, queue, lightmapPx, lw, lh, true);
+    m_albedo.initializeFromMemory(device, albedoPx, aw, ah, true);
+    m_normal.initializeFromMemory(device, normalPx, nw, nh, false);
+    m_metallicRoughness.initializeFromMemory(device, mrPx, mw, mh, false);
+    m_ao.initializeFromMemory(device, aoPx, ow, oh, false);
+    m_lightmap.initializeFromMemory(device, lightmapPx, lw, lh, true);
+    m_hasLightmap = hasLightmap;
+}
+
+void Material::createSkinnedDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout* layout,
+    const std::vector<ASH::Buffer*>& uboBuffers,
+    const std::vector<ASH::Buffer*>& lightBuffers,
+    ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
+    ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
+    const std::vector<ASH::Buffer*>& boneBuffers,
+    uint32_t frameCount)
+{
+    m_descriptorSets.clear();
+    m_descriptorSets.resize(frameCount);
+
+    for (uint32_t i = 0; i < frameCount; i++)
+    {
+        m_descriptorSets[i] = device->createDescriptorSet(layout);
+
+        ASH::DescriptorBufferInfo uboInfo{ uboBuffers[i], 0, uboBuffers[i]->getSize() };
+        ASH::DescriptorBufferInfo lightInfo{ lightBuffers[i], 0, lightBuffers[i]->getSize() };
+        ASH::DescriptorBufferInfo boneInfo{ boneBuffers[i], 0, boneBuffers[i]->getSize() };
+
+        ASH::DescriptorImageInfo albedoInfo{ m_albedo.getTexture(), m_albedo.getSampler() };
+        ASH::DescriptorImageInfo normalInfo{ m_normal.getTexture(), m_normal.getSampler() };
+        ASH::DescriptorImageInfo mrInfo{ m_metallicRoughness.getTexture(), m_metallicRoughness.getSampler() };
+        ASH::DescriptorImageInfo aoInfo{ m_ao.getTexture(), m_ao.getSampler() };
+        ASH::DescriptorImageInfo shadowInfo{ shadowTexture, shadowSampler };
+        ASH::DescriptorImageInfo lightmapInfo{ m_lightmap.getTexture(), m_lightmap.getSampler() };
+        ASH::DescriptorImageInfo shadowAtlasInfo{ shadowAtlasTexture, shadowAtlasSampler };
+
+        std::array<ASH::DescriptorWrite, 10> writes{};
+
+        writes[0] = { 0, ASH::DescriptorType::UniformBuffer, 0, &uboInfo, nullptr };
+        writes[1] = { 1, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &albedoInfo };
+        writes[2] = { 2, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &normalInfo };
+        writes[3] = { 3, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &mrInfo };
+        writes[4] = { 4, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &aoInfo };
+        writes[5] = { 5, ASH::DescriptorType::UniformBuffer, 0, &lightInfo, nullptr };
+        writes[6] = { 6, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &shadowInfo };
+        writes[7] = { 7, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &shadowAtlasInfo };
+        writes[8] = { 8, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &lightmapInfo };
+        writes[9] = { 9, ASH::DescriptorType::UniformBuffer, 0, &boneInfo, nullptr };
+
+        m_descriptorSets[i]->update(writes.data(), (uint32_t)writes.size());
+    }
 }

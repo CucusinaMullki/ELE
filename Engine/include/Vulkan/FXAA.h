@@ -16,8 +16,7 @@ public:
         vk::ImageView srcView, vk::Sampler srcSampler) override;
     AAMethod getMethod() const override { return AAMethod::FXAA; }
 
-    vk::Pipeline getPipeline() const { return m_pipeline.getPipeline(); }
-    vk::PipelineLayout getLayout() const { return m_pipeline.getLayout(); }
+    ASH::Pipeline* getPipeline() const { return m_pipeline.getPipeline(); }
 
     void updateDescriptorSet(vk::Device device, uint32_t frameIndex, vk::ImageView srcView, vk::Sampler srcSampler);
 

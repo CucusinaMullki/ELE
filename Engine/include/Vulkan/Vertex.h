@@ -1,5 +1,5 @@
 #pragma once
-#include <vulkan/vulkan.hpp>
+#include "ASH/ASH.h"
 #include <glm/glm.hpp>
 #include <array>
 
@@ -18,48 +18,42 @@ struct Vertex
             texCoord == other.texCoord && normal == other.normal;
     }
 
-    static vk::VertexInputBindingDescription getBindingDescriptor()
+    static ASH::VertexBindingDesc getBindingDescriptorASH()
     {
-        vk::VertexInputBindingDescription binding{};
-        binding.setBinding(0);
-        binding.setStride(sizeof(Vertex));
-        binding.setInputRate(vk::VertexInputRate::eVertex);
+        ASH::VertexBindingDesc binding{};
+        binding.binding = 0;
+        binding.stride = sizeof(Vertex);
+        binding.perInstance = false;
         return binding;
     }
 
-    static std::array<vk::VertexInputAttributeDescription, 6> getAttributeDescriptions()
+    static std::array<ASH::VertexAttributeDesc, 6> getAttributeDescriptionsASH()
     {
-        std::array<vk::VertexInputAttributeDescription, 6> attributes{};
+        std::array<ASH::VertexAttributeDesc, 6> attributes{};
 
-        attributes[0].setBinding(0);
-        attributes[0].setLocation(0);
-        attributes[0].setFormat(vk::Format::eR32G32B32Sfloat);
-        attributes[0].setOffset(offsetof(Vertex, pos));
+        attributes[0].binding = 0; attributes[0].location = 0;
+        attributes[0].format = ASH::Format::R32G32B32_Float;
+        attributes[0].offset = offsetof(Vertex, pos);
 
-        attributes[1].setBinding(0);
-        attributes[1].setLocation(1);
-        attributes[1].setFormat(vk::Format::eR32G32B32Sfloat);
-        attributes[1].setOffset(offsetof(Vertex, color));
+        attributes[1].binding = 0; attributes[1].location = 1;
+        attributes[1].format = ASH::Format::R32G32B32_Float;
+        attributes[1].offset = offsetof(Vertex, color);
 
-        attributes[2].setBinding(0);
-        attributes[2].setLocation(2);
-        attributes[2].setFormat(vk::Format::eR32G32Sfloat);
-        attributes[2].setOffset(offsetof(Vertex, texCoord));
+        attributes[2].binding = 0; attributes[2].location = 2;
+        attributes[2].format = ASH::Format::R32G32_Float;
+        attributes[2].offset = offsetof(Vertex, texCoord);
 
-        attributes[3].setBinding(0);
-        attributes[3].setLocation(3);
-        attributes[3].setFormat(vk::Format::eR32G32B32Sfloat);
-        attributes[3].setOffset(offsetof(Vertex, normal));
+        attributes[3].binding = 0; attributes[3].location = 3;
+        attributes[3].format = ASH::Format::R32G32B32_Float;
+        attributes[3].offset = offsetof(Vertex, normal);
 
-        attributes[4].setBinding(0);
-        attributes[4].setLocation(4);
-        attributes[4].setFormat(vk::Format::eR32G32B32Sfloat);
-        attributes[4].setOffset(offsetof(Vertex, tangent));
+        attributes[4].binding = 0; attributes[4].location = 4;
+        attributes[4].format = ASH::Format::R32G32B32_Float;
+        attributes[4].offset = offsetof(Vertex, tangent);
 
-        attributes[5].setBinding(0);
-        attributes[5].setLocation(5);
-        attributes[5].setFormat(vk::Format::eR32G32Sfloat);
-        attributes[5].setOffset(offsetof(Vertex, lightmapUV));
+        attributes[5].binding = 0; attributes[5].location = 5;
+        attributes[5].format = ASH::Format::R32G32_Float;
+        attributes[5].offset = offsetof(Vertex, lightmapUV);
 
         return attributes;
     }

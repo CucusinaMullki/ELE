@@ -73,34 +73,27 @@ public:
     void renderImGui(vk::CommandBuffer commandBuffer);
     void cleanupImGui();
 
-    vk::Device getDevice() const { return m_context.getDevice(); }
-    const FogSettings& getFogSettings() const { return m_fogSettings;}
-    vk::PhysicalDevice getPhysicalDevice() const { return m_context.getPhysicalDevice(); }
+    ASH::Device* getDevice() const { return m_context.getDevice(); }
+    const FogSettings& getFogSettings() const { return m_fogSettings; }
     vk::CommandPool getCommandPool() const { return m_commandManager.getCommandPool(); }
-    vk::Queue getGraphicsQueue() const { return m_context.getGraphicQueue(); }
-    vk::DescriptorPool getDescriptorPool() const { return m_pipeline.getDescriptorPool(); }
-    vk::DescriptorSetLayout getDescriptorSetLayout() const { return m_pipeline.getDescriptorSetLayout(); }
+    ASH::DescriptorSetLayout* getDescriptorSetLayout() const { return m_pipeline.getDescriptorSetLayout(); }
     std::vector<vk::DescriptorBufferInfo> getLightInfos() const;
-    vk::Sampler getShadowAtlasSampler() const { return m_shadowAtlas.getSampler(); }
-    vk::ImageView getShadowAtlasView() const { return m_shadowAtlas.getImageView(); }
-    vk::ImageView getShadowView() const { return m_shadowMap.getImageView(); }
-     vk::Sampler getShadowSampler() const { return m_shadowMap.getSampler(); }
-    vk::DescriptorPool getDecalDescriptorPool() const { return m_decalPipeline.getDescriptorPool(); }
-    vk::DescriptorSetLayout getDecalDescriptorSetLayout() const { return m_decalPipeline.getDescriptorSetLayout(); }
-    vk::ImageView getDepthView() const { return m_depthBuffer.getImageView(); }
-    vk::Sampler getDepthSampler() const { return m_depthBuffer.getSampler(); }
+    ASH::Sampler* getShadowAtlasSampler() const { return m_shadowAtlas.getSampler(); }
+    ASH::Texture* getShadowAtlasView() const { return m_shadowAtlas.getTexture(); }
+    ASH::Texture* getShadowView() const { return m_shadowMap.getTexture(); }
+    ASH::Sampler* getShadowSampler() const { return m_shadowMap.getSampler(); }
+    ASH::DescriptorSetLayout* getDecalDescriptorSetLayout() const { return m_decalPipeline.getDescriptorSetLayout(); }
+    ASH::Texture* getDepthView() const { return m_depthBuffer.getTexture(); }
+    ASH::Sampler* getDepthSampler() const { return m_depthBuffer.getSampler(); }
     const LightBuffer& getLightBuffer() const { return m_lightBuffer; }
     const DecalCameraBuffer& getDecalCameraBuffer() const { return m_decalCameraBuffer; }
-    const GodRaySettings& getGodRaySettings() const{ return m_godRaySettings; }
+    const GodRaySettings& getGodRaySettings() const { return m_godRaySettings; }
     uint32_t getFramesInFlight() const { return MAX_FRAMES_IN_FLIGHT; }
-    vk::DescriptorSetLayout getSkinnedDescriptorSetLayout() const { return m_skinnedPipeline.getDescriptorSetLayout(); }
-    vk::DescriptorPool getSkinnedDescriptorPool() const { return m_skinnedPipeline.getDescriptorPool(); }
+    ASH::DescriptorSetLayout* getSkinnedDescriptorSetLayout() const { return m_skinnedPipeline.getDescriptorSetLayout(); }
     float getAspect() const;
 
     std::vector<const GameObject*> parallelCull(const Scene& scene, const std::array<glm::vec4, 6>& planes) const;
-
     bool isVisible(const GameObject& obj, const std::array<glm::vec4, 6>& planes) const;
-
     std::vector<vk::DescriptorBufferInfo> getUboInfos() const;
 
 private:

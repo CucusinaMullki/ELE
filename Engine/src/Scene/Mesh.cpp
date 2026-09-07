@@ -59,7 +59,7 @@ void Mesh::loadFromData(vk::Device device, vk::PhysicalDevice physicalDevice,
         const std::vector<Submesh>& submeshes,
         bool keepCpuData)
 {
-    m_vertexBuffer.initialize(device, physicalDevice, vertices);
+    m_vertexBuffer.initialize(device, vertices);
     m_indexBuffer.initialize(device, physicalDevice, indices);
     m_submeshes = submeshes;
 

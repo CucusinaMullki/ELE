@@ -10,7 +10,7 @@ public:
     vk::ImageView getColorView() const { return m_colorView.get(); }
     vk::Sampler getSampler() const { return m_sampler.get(); }
     vk::Format getColorFormat() const { return m_colorFormat; }
-    vk::Extent2D getExtent() const { return m_extent;}
+    vk::Extent2D getExtent() const { return m_extent; }
 
 private:
     uint32_t findMemoryType(vk::PhysicalDevice physicalDevice, uint32_t typeFilter, vk::MemoryPropertyFlags properties);

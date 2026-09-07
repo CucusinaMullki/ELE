@@ -38,6 +38,21 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(miniaudio)
 
+if(POLICY CMP0169)
+    cmake_policy(SET CMP0169 OLD)
+endif()
+
+set(RHI_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(RHI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(ASH_BUILD_TEST OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    ash_rhi
+    GIT_REPOSITORY https://github.com/CucusinaMullki/ASH-RHI
+    GIT_TAG main
+)
+FetchContent_MakeAvailable(ash_rhi)
+
 FetchContent_Declare(
     imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git

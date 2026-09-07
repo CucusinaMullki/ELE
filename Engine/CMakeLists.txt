@@ -76,8 +76,10 @@ target_include_directories(ELE PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/external/stb
     ${CMAKE_SOURCE_DIR}/external/tinygltf
-    ${CMAKE_SOURCE_DIR}/external/Jolt
+    ${joltphysics_SOURCE_DIR}
     ${miniaudio_SOURCE_DIR}
+    ${ash_rhi_SOURCE_DIR}/include
+    ${ash_rhi_SOURCE_DIR}/src
     ${imgui_SOURCE_DIR}
     ${imgui_SOURCE_DIR}/backends
 )
@@ -86,7 +88,8 @@ target_link_libraries(ELE PUBLIC
     Vulkan::Vulkan
     glfw
     glm::glm
-    Jolt    
+    Jolt
+    rhi
 )
 
 target_compile_definitions(ELE PUBLIC
