@@ -1,61 +1,26 @@
 #include "Vulkan/RenderPass.h"
 
-void RenderPass::initialize(vk::Device device, vk::Format swapChainFormat, vk::Format depthFormat)
+void RenderPass::initialize(ASH::Device* device, ASH::Format swapchainFormat, ASH::Format depthFormat)
 {
-    vk::AttachmentDescription colorAttachment{};
-    colorAttachment.setFormat(swapChainFormat);
-    colorAttachment.setSamples(vk::SampleCountFlagBits::e1);
-    colorAttachment.setLoadOp(vk::AttachmentLoadOp::eClear);
-    colorAttachment.setStoreOp(vk::AttachmentStoreOp::eStore);
-    colorAttachment.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
-    colorAttachment.setInitialLayout(vk::ImageLayout::eUndefined);
-    colorAttachment.setFinalLayout(vk::ImageLayout::ePresentSrcKHR);
+    ASH::AttachmentDesc colorAttachment{};
+    colorAttachment.format = swapchainFormat;
+    colorAttachment.sampleCount = 1;
+    colorAttachment.loadOp = ASH::LoadOp::Clear;
+    colorAttachment.storeOp = ASH::StoreOp::Store;
+    colorAttachment.stencilLoadOp = ASH::LoadOp::DontCare;
+    colorAttachment.stencilStoreOp = ASH::StoreOp::DontCare;
 
-    vk::AttachmentDescription depthAttachment{};
-    depthAttachment.setFormat(depthFormat);
-    depthAttachment.setSamples(vk::SampleCountFlagBits::e1);
-    depthAttachment.setLoadOp(vk::AttachmentLoadOp::eClear);
-    depthAttachment.setStoreOp(vk::AttachmentStoreOp::eDontCare);
-    depthAttachment.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
-    depthAttachment.setStencilStoreOp(vk::AttachmentStoreOp::eDontCare);
-    depthAttachment.setInitialLayout(vk::ImageLayout::eUndefined);
-    depthAttachment.setFinalLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
+    ASH::RenderPassDesc desc{};
+    desc.colorAttachments.push_back(colorAttachment);
+    desc.hasDepthStencil = true;
+    desc.depthStencilAttachment.format = depthFormat;
+    desc.depthStencilAttachment.sampleCount = 1;
+    desc.depthStencilAttachment.loadOp = ASH::LoadOp::Clear;
+    desc.depthStencilAttachment.storeOp = ASH::StoreOp::DontCare;
+    desc.depthStencilAttachment.stencilLoadOp = ASH::LoadOp::DontCare;
+    desc.depthStencilAttachment.stencilStoreOp = ASH::StoreOp::DontCare;
 
-     vk::AttachmentReference colorAttachmentRef{};
-    colorAttachmentRef.setAttachment(0);
-    colorAttachmentRef.setLayout(vk::ImageLayout::eColorAttachmentOptimal);
-
-    vk::AttachmentReference depthAttachmentRef{};
-    depthAttachmentRef.setAttachment(1);
-    depthAttachmentRef.setLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
-
-    vk::SubpassDescription subpass{};
-    subpass.setPipelineBindPoint(vk::PipelineBindPoint::eGraphics);
-    subpass.setColorAttachments(colorAttachmentRef);
-    subpass.setPDepthStencilAttachment(&depthAttachmentRef);
-
-    vk::SubpassDependency dependency{};
-    dependency.setSrcSubpass(VK_SUBPASS_EXTERNAL);
-    dependency.setDstSubpass(0);
-    dependency.setSrcStageMask(
-        vk::PipelineStageFlagBits::eColorAttachmentOutput |
-        vk::PipelineStageFlagBits::eEarlyFragmentTests);
-    dependency.setSrcAccessMask(vk::AccessFlagBits::eNone);
-    dependency.setDstStageMask(
-        vk::PipelineStageFlagBits::eColorAttachmentOutput |
-        vk::PipelineStageFlagBits::eEarlyFragmentTests);
-    dependency.setDstAccessMask(
-        vk::AccessFlagBits::eColorAttachmentWrite |
-        vk::AccessFlagBits::eDepthStencilAttachmentWrite);
-
-    std::array<vk::AttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
-
-    vk::RenderPassCreateInfo renderPassInfo{};
-    renderPassInfo.setAttachments(attachments);
-    renderPassInfo.setSubpasses(subpass);
-    renderPassInfo.setDependencies(dependency);
-
-    m_renderPass = device.createRenderPassUnique(renderPassInfo);
+    m_renderPass = device->createRenderPass(desc);
 }
 
 void RenderPass::cleanup()

@@ -1,5 +1,4 @@
 #include "Vulkan/Pipeline.h"
-#include "Vulkan/Shader.h"
 #include "Vulkan/SkinnedVertex.h"
 #include "Vulkan/Vertex.h"
 #include "Vulkan/ShaderLoader.h"
@@ -88,6 +87,7 @@ void Pipeline::initialize(ASH::Device* device, const PipelineConfig& config)
     vertStage.stage = ASH::ShaderStage::Vertex;
     vertStage.spirvCode = vertCode.data();
     vertStage.spirvSize = vertCode.size() * sizeof(uint32_t);
+    desc.stages.push_back(vertStage);
 
     std::vector<uint32_t> fragCode;
     if (!config.fragmentShader.empty())
@@ -117,10 +117,50 @@ void Pipeline::initialize(ASH::Device* device, const PipelineConfig& config)
             desc.vertexInput.attributes.assign(arr.begin(), arr.end());
         }
     }
+
+    desc.topology = ASH::PrimitiveTopology::TriangleList;
+
+    desc.rasterization.polygonMode = ASH::PolygonMode::Fill;
+    desc.rasterization.cullMode = config.cullMode;
+    desc.rasterization.frontFace = ASH::FrontFace::CounterClockwise;
+    desc.rasterization.lineWidth = 1.0f;
+    desc.rasterization.depthBiasEnable = config.depthBiasEnable;
+    desc.rasterization.depthBiasConstantFactor = config.depthBiasConstant;
+    desc.rasterization.depthBiasSlopeFactor = config.depthBiasSlope;
+
+    desc.depthStencil.depthTestEnable = config.depthTest;
+    desc.depthStencil.depthWriteEnable = config.depthWrite;
+    desc.depthStencil.depthCompareOp = ASH::CompareOp::Less;
+
+    for (uint32_t i = 0; i < config.colorAttachmentCount; i++)
+    {
+        ASH::ColorBlendAttachmentState cba{};
+        cba.blendEnable = config.blendEnable;
+        cba.srcColorFactor = config.blendSrcFactor;
+        cba.dstColorFactor = config.blendDstFactor;
+        cba.colorBlendOp = config.blendOp;
+        cba.srcAlphaFactor = ASH::BlendFactor::One;
+        cba.dstAlphaFactor = ASH::BlendFactor::Zero;
+        cba.alphaBlendOp = ASH::BlendOp::Add;
+        desc.colorBlend.attachments.push_back(cba);
+    }
+
+    desc.renderPass = config.renderPass;
+
+    if (m_descriptorSetLayout)
+        desc.descriptorSetLayouts.push_back(m_descriptorSetLayout.get());
+
+    ASH::PushConstantRange pcRange{};
+    pcRange.stageFlags = config.pushStage;
+    pcRange.offset = 0;
+    pcRange.size = config.pushConstantSize;
+    desc.pushConstantRanges.push_back(pcRange);
+
+    m_pipeline = device->createGraphicsPipeline(desc);
 }
 
 void Pipeline::cleanup()
 {
-    m_descriptorSetLayout.reset();
     m_pipeline.reset();
+    m_descriptorSetLayout.reset();
 }

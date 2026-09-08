@@ -1,52 +1,19 @@
 #include "Vulkan/PostRenderPass.h"
 
-void PostRenderPass::initialize(vk::Device device, vk::Format colorFormat, vk::AttachmentLoadOp loadOp)
+void PostRenderPass::initialize(ASH::Device* device, ASH::Format colorFormat, ASH::LoadOp loadOp)
 {
-    vk::AttachmentDescription colorAttachment{};
-    colorAttachment.setFormat(colorFormat);
-    colorAttachment.setSamples(vk::SampleCountFlagBits::e1);
-    colorAttachment.setLoadOp(loadOp); 
-    colorAttachment.setStoreOp(vk::AttachmentStoreOp::eStore);
-    colorAttachment.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
-    colorAttachment.setStencilStoreOp(vk::AttachmentStoreOp::eDontCare);
-    colorAttachment.setInitialLayout(
-        loadOp == vk::AttachmentLoadOp::eLoad
-            ? vk::ImageLayout::eShaderReadOnlyOptimal
-            : vk::ImageLayout::eUndefined
-    );
-    colorAttachment.setFinalLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+    ASH::AttachmentDesc colorAttachment{};
+    colorAttachment.format = colorFormat;
+    colorAttachment.sampleCount = 1;
+    colorAttachment.loadOp = loadOp;
+    colorAttachment.storeOp = ASH::StoreOp::Store;
+    colorAttachment.stencilLoadOp = ASH::LoadOp::DontCare;
+    colorAttachment.stencilStoreOp = ASH::StoreOp::DontCare;
 
-    vk::AttachmentReference colorRef{};
-    colorRef.setAttachment(0);
-    colorRef.setLayout(vk::ImageLayout::eColorAttachmentOptimal);
+    ASH::RenderPassDesc desc{};
+    desc.colorAttachments.push_back(colorAttachment);
 
-    vk::SubpassDescription subpass{};
-    subpass.setPipelineBindPoint(vk::PipelineBindPoint::eGraphics);
-    subpass.setColorAttachments(colorRef);
-
-    std::array<vk::SubpassDependency, 2> dependencies{};
-    dependencies[0].setSrcSubpass(VK_SUBPASS_EXTERNAL);
-    dependencies[0].setDstSubpass(0);
-    dependencies[0].setSrcStageMask(vk::PipelineStageFlagBits::eFragmentShader);
-    dependencies[0].setDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
-    dependencies[0].setSrcAccessMask(vk::AccessFlagBits::eShaderRead);
-    dependencies[0].setDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite);
-    dependencies[0].setDependencyFlags(vk::DependencyFlagBits::eByRegion);
-
-    dependencies[1].setSrcSubpass(0);
-    dependencies[1].setDstSubpass(VK_SUBPASS_EXTERNAL);
-    dependencies[1].setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
-    dependencies[1].setDstStageMask(vk::PipelineStageFlagBits::eFragmentShader);
-    dependencies[1].setSrcAccessMask(vk::AccessFlagBits::eColorAttachmentWrite);
-    dependencies[1].setDstAccessMask(vk::AccessFlagBits::eShaderRead);
-    dependencies[1].setDependencyFlags(vk::DependencyFlagBits::eByRegion);
-
-    vk::RenderPassCreateInfo renderPassInfo{};
-    renderPassInfo.setAttachments(colorAttachment);
-    renderPassInfo.setSubpasses(subpass);
-    renderPassInfo.setDependencies(dependencies);
-
-    m_renderPass = device.createRenderPassUnique(renderPassInfo);
+    m_renderPass = device->createRenderPass(desc);
 }
 
 void PostRenderPass::cleanup()

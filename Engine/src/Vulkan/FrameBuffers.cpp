@@ -1,27 +1,22 @@
 #include "Vulkan/FrameBuffers.h"
 
-void Framebuffers::initialize(vk::Device device, const SwapChain& swapChain, vk::RenderPass renderPass, vk::ImageView depthImageView)
+void Framebuffers::initialize(ASH::Device* device, const SwapChain& swapChain, ASH::RenderPass* renderPass, ASH::Texture* depthTexture)
 {
-    const auto& imageViews = swapChain.getImageViews();
-    vk::Extent2D extent = swapChain.getExtent();
+    uint32_t imageCount = swapChain.getImageCount();
+    ASH::Extent2D extent = swapChain.getExtent();
 
-    m_framebuffers.resize(swapChain.getImageViews().size());
+    m_framebuffers.resize(imageCount);
 
-    for (size_t i = 0; i < imageViews.size(); i++)
+    for (uint32_t i = 0; i < imageCount; i++)
     {
-        std::array<vk::ImageView, 2> attachments = {
-            imageViews[i].get(),
-            depthImageView
-        };
+        ASH::FramebufferDesc desc{};
+        desc.renderPass = renderPass;
+        desc.colorAttachments.push_back(swapChain.getImage(i));
+        desc.depthStencilAttachment = depthTexture;
+        desc.extent = extent;
+        desc.layers = 1;
 
-        vk::FramebufferCreateInfo framebufferInfo{};
-        framebufferInfo.setRenderPass(renderPass);
-        framebufferInfo.setAttachments(attachments);
-        framebufferInfo.setWidth(extent.width);
-        framebufferInfo.setHeight(extent.height);
-        framebufferInfo.setLayers(1);
-
-        m_framebuffers[i] = device.createFramebufferUnique(framebufferInfo);
+        m_framebuffers[i] = device->createFramebuffer(desc);
     }
 }
 

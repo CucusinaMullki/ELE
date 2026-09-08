@@ -38,21 +38,15 @@ void Engine::initialize(int width, int height, const std::string& title)
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     m_window = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
-
     m_physics.initialize();
     m_audio.initialize();
-
     glfwSetWindowUserPointer(m_window, this);
     glfwSetFramebufferSizeCallback(m_window, [](GLFWwindow* win, int, int) {
         static_cast<Engine*>(glfwGetWindowUserPointer(win))->onFramebufferResize();
     });
-
     m_renderer.initialize(m_window);
     m_renderer.initImGui(m_window);
-
-    m_resources.initialize(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
-        m_renderer.getCommandPool(), m_renderer.getGraphicsQueue());
-
+    m_resources.initialize(m_renderer.getDevice());
     m_cameraController = std::make_unique<FreeFlyCameraController>();
     m_input.initialize(m_window);
     m_camera.initialize(glm::vec3(0.0f, 0.0f, 3.0f));
@@ -83,8 +77,8 @@ std::shared_ptr<Material> Engine::loadMaterial(const std::string& albedo, const 
 void Engine::createMaterialDescriptorSet(std::shared_ptr<Material> material)
 {
     material->createDescriptorSet(m_renderer.getDevice(),
-        m_renderer.getDescriptorPool(), m_renderer.getDescriptorSetLayout(),
-        m_renderer.getUboInfos(), m_renderer.getLightInfos(),
+        m_renderer.getDescriptorSetLayout(),
+        m_renderer.getUboBuffers(), m_renderer.getLightBuffers(),
         m_renderer.getShadowView(), m_renderer.getShadowSampler(),
         m_renderer.getShadowAtlasView(), m_renderer.getShadowAtlasSampler(),
         m_renderer.getFramesInFlight());
@@ -98,8 +92,7 @@ std::shared_ptr<Material> Engine::createDefaultMaterial()
     static const unsigned char black[4] = { 0, 0, 0, 255 };
 
     auto mat = std::make_shared<Material>();
-    mat->loadFromPixels(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
-        m_renderer.getCommandPool(), m_renderer.getGraphicsQueue(),
+    mat->loadFromPixels(m_renderer.getDevice(),
         white, 1, 1, normalPx, 1, 1, white, 1, 1, white, 1, 1, black, 1, 1, false);
 
     createMaterialDescriptorSet(mat);
@@ -129,16 +122,16 @@ void Engine::updateInput(float deltaTime)
 
 void Engine::createSkinnedMaterialDescriptorSet(std::shared_ptr<Material> material, SkeletalMeshComponent& skeletal)
 {
-    std::vector<vk::DescriptorBufferInfo> boneInfos;
+    std::vector<ASH::Buffer*> boneBuffers;
     for (uint32_t i = 0; i < m_renderer.getFramesInFlight(); i++)
-        boneInfos.push_back(skeletal.getBoneDescriptorInfo(i));
+        boneBuffers.push_back(skeletal.getBoneBuffer(i));
 
     material->createSkinnedDescriptorSet(m_renderer.getDevice(),
-        m_renderer.getDescriptorPool(), m_renderer.getSkinnedDescriptorSetLayout(),
-        m_renderer.getUboInfos(), m_renderer.getLightInfos(),
+        m_renderer.getSkinnedDescriptorSetLayout(),
+        m_renderer.getUboBuffers(), m_renderer.getLightBuffers(),
         m_renderer.getShadowView(), m_renderer.getShadowSampler(),
         m_renderer.getShadowAtlasView(), m_renderer.getShadowAtlasSampler(),
-        boneInfos,
+        boneBuffers,
         m_renderer.getFramesInFlight());
 }
 
@@ -191,7 +184,7 @@ void Engine::run()
         m_renderer.drawScene(m_scene, m_camera);
     }
 
-    m_renderer.getDevice().waitIdle();
+    m_renderer.getDevice()->waitIdle();
 }
 
 void Engine::fixedUpdate(float fixedDt)
@@ -204,7 +197,7 @@ void Engine::shutdown()
     if (m_cleaned) return;
     m_cleaned = true;
 
-    m_renderer.getDevice().waitIdle();
+    m_renderer.getDevice()->waitIdle();
 
     m_resources.cleanup();
     m_renderer.cleanup();
@@ -226,7 +219,7 @@ GameObject& Engine::loadSkeletalGltfObject(const std::string& path)
     sm.indexCount = (uint32_t)loaded.indices.size();
     sm.materialIndex = 0;
 
-    skeletalMesh->loadFromData(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
+    skeletalMesh->loadFromData(m_renderer.getDevice(),
         loaded.vertices, loaded.indices, { sm });
     skeletalMesh->setSkeleton(loaded.skeleton);
 
@@ -236,7 +229,7 @@ GameObject& Engine::loadSkeletalGltfObject(const std::string& path)
         obj.animations[anim->name] = anim;
 
     auto& skeletalComp = obj.addComponent<SkeletalMeshComponent>(
-        m_renderer.getDevice(), m_renderer.getPhysicalDevice(), m_renderer.getFramesInFlight());
+        m_renderer.getDevice(), m_renderer.getFramesInFlight());
     skeletalComp.setSkeletalMesh(skeletalMesh);
 
     if (!loaded.animations.empty())
@@ -256,8 +249,7 @@ GameObject& Engine::loadGltfObject(const std::string& path)
     model.load(path);
 
     auto mesh = std::make_shared<Mesh>();
-    mesh->loadFromData(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
-        model.getVertices(), model.getIndices(), model.getSubmesh());
+    mesh->loadFromData(m_renderer.getDevice(), model.getVertices(), model.getIndices(), model.getSubmesh());
     m_resources.registerMesh(mesh);
 
     static const unsigned char white[4] = { 255, 255, 255, 255 };
@@ -297,8 +289,7 @@ GameObject& Engine::loadGltfObject(const std::string& path)
         const unsigned char* mPx = mrAdjusted.data();
 
         auto mat = std::make_shared<Material>();
-        mat->loadFromPixels(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
-            m_renderer.getCommandPool(), m_renderer.getGraphicsQueue(),
+        mat->loadFromPixels(m_renderer.getDevice(), 
             aPx, aw, ah, nPx, nw, nh, mPx, mw, mh, oPx, ow, oh,
             lPx, lw, lh, gm.hasLightmap);
 
@@ -433,13 +424,14 @@ std::shared_ptr<ScreenSpaceDecal> Engine::addScreenSpaceDecal(const std::string&
     decal->rotationEuler = rotationEuler;
     decal->size = size;
 
-    decal->loadTexture(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
-        m_renderer.getCommandPool(), m_renderer.getGraphicsQueue(), texturePath, opacityPath, normalPath, mrPath);
+    decal->loadTexture(m_renderer.getDevice(),
+        texturePath, opacityPath, normalPath, mrPath);
 
     LOG("using layout ptr=" << (void*)(VkDescriptorSetLayout)m_renderer.getDecalDescriptorSetLayout());
 
-    decal->createDescriptorSet(m_renderer.getDevice(), m_renderer.getDecalDescriptorPool(),
-        m_renderer.getDecalDescriptorSetLayout(), m_renderer.getDepthView(), m_renderer.getDepthSampler(),
+    decal->createDescriptorSet(m_renderer.getDevice(),
+        m_renderer.getDecalDescriptorSetLayout(),
+        m_renderer.getDepthView(), m_renderer.getDepthSampler(),
         m_renderer.getDecalCameraBuffer(), m_renderer.getLightBuffer(), m_renderer.getFramesInFlight());
 
     m_renderer.addScreenSpaceDecal(decal);

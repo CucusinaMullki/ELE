@@ -1,5 +1,8 @@
 #include "Vulkan/Renderer.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "VulkanDevice.h"
+#include "VulkanRenderPass.h"
+#include "VulkanCommandBuffer.h"
 #include "Vulkan/PushConstant.h"
 #include <vector>
 #include "Core/Log.h"
@@ -30,6 +33,8 @@ glm::vec2 Renderer::getJitter() const
 
 void Renderer::initImGui(GLFWwindow* window)
 {
+    auto* vulkanDevice = static_cast<ASH::vulkan::VulkanDevice*>(m_context.getDevice());
+
     std::array<vk::DescriptorPoolSize, 11> poolSizes = {{
         { vk::DescriptorType::eSampler, 1000 },
         { vk::DescriptorType::eCombinedImageSampler, 1000 },
@@ -43,34 +48,34 @@ void Renderer::initImGui(GLFWwindow* window)
         { vk::DescriptorType::eUniformBufferDynamic, 1000 },
         { vk::DescriptorType::eInputAttachment, 1000 }
     }};
-
     vk::DescriptorPoolCreateInfo poolInfo{};
     poolInfo.setFlags(vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet);
     poolInfo.setMaxSets(1000);
     poolInfo.setPoolSizes(poolSizes);
-    m_imguiDescriptorPool = m_context.getDevice().createDescriptorPoolUnique(poolInfo);
+    m_imguiDescriptorPool = vk::Device(vulkanDevice->getHandle()).createDescriptorPoolUnique(poolInfo);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    
-    ImGui::StyleColorsDark();
 
+    ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForVulkan(window, true);
 
-    uint32_t swapchianImageCount = m_swapchain.getImageCount();
+    uint32_t swapchainImageCount = m_swapchain.getImageCount();
+
+    auto* vulkanRenderPass = static_cast<ASH::vulkan::VulkanRenderPass*>(m_renderPass.getRenderPass());
 
     ImGui_ImplVulkan_InitInfo initInfo{};
-    initInfo.Instance = m_context.getInstance();
-    initInfo.PhysicalDevice = m_context.getPhysicalDevice();
-    initInfo.Device = m_context.getDevice();
-    initInfo.QueueFamily = m_context.getGraphicQueueFamily();
-    initInfo.Queue = m_context.getGraphicQueue();
+    initInfo.Instance = vulkanDevice->getInstance();
+    initInfo.PhysicalDevice = vulkanDevice->getPhysicalDevice();
+    initInfo.Device = vulkanDevice->getHandle();
+    initInfo.QueueFamily = vulkanDevice->getGraphicsQueueFamily();
+    initInfo.Queue = vulkanDevice->getGraphicsQueue();
     initInfo.DescriptorPool = m_imguiDescriptorPool.get();
-    initInfo.RenderPass = m_renderPass.getRenderPass();
-    initInfo.MinImageCount = swapchianImageCount;
-    initInfo.ImageCount = swapchianImageCount;
+    initInfo.RenderPass = vulkanRenderPass->getHandle();
+    initInfo.MinImageCount = swapchainImageCount;
+    initInfo.ImageCount = swapchainImageCount;
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
     ImGui_ImplVulkan_Init(&initInfo);
@@ -83,10 +88,11 @@ void Renderer::beginImGuiFrame()
     ImGui::NewFrame();
 }
 
-void Renderer::renderImGui(vk::CommandBuffer commandBuffer)
+void Renderer::renderImGui(ASH::CommandBuffer* commandBuffer)
 {
+    auto* vulkanCmd = static_cast<ASH::vulkan::VulkanCommandBuffer*>(commandBuffer);
     ImGui::Render();
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), vulkanCmd->getHandle());
 }
 
 void Renderer::cleanupImGui()
@@ -846,7 +852,21 @@ void Renderer::createFogDescriptorSets()
     }
 }
 
+std::vector<ASH::Buffer*> Renderer::getUboBuffers() const
+{
+    std::vector<ASH::Buffer*> result;
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        result.push_back(m_uniformBuffer.getBuffer(i));
+    return result;
+}
 
+std::vector<ASH::Buffer*> Renderer::getLightBuffers() const
+{
+    std::vector<ASH::Buffer*> result;
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+        result.push_back(m_lightBuffer.getBuffer(i));
+    return result;
+}
 
 std::vector<vk::DescriptorBufferInfo> Renderer::getLightInfos() const
 {

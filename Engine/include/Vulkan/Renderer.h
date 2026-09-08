@@ -70,12 +70,11 @@ public:
 
     void initImGui(GLFWwindow* window);
     void beginImGuiFrame();
-    void renderImGui(vk::CommandBuffer commandBuffer);
+    void renderImGui(ASH::CommandBuffer* commandBuffer);
     void cleanupImGui();
 
     ASH::Device* getDevice() const { return m_context.getDevice(); }
     const FogSettings& getFogSettings() const { return m_fogSettings; }
-    vk::CommandPool getCommandPool() const { return m_commandManager.getCommandPool(); }
     ASH::DescriptorSetLayout* getDescriptorSetLayout() const { return m_pipeline.getDescriptorSetLayout(); }
     std::vector<vk::DescriptorBufferInfo> getLightInfos() const;
     ASH::Sampler* getShadowAtlasSampler() const { return m_shadowAtlas.getSampler(); }
@@ -88,6 +87,8 @@ public:
     const LightBuffer& getLightBuffer() const { return m_lightBuffer; }
     const DecalCameraBuffer& getDecalCameraBuffer() const { return m_decalCameraBuffer; }
     const GodRaySettings& getGodRaySettings() const { return m_godRaySettings; }
+    std::vector<ASH::Buffer*> getUboBuffers() const;
+    std::vector<ASH::Buffer*> getLightBuffers() const;
     uint32_t getFramesInFlight() const { return MAX_FRAMES_IN_FLIGHT; }
     ASH::DescriptorSetLayout* getSkinnedDescriptorSetLayout() const { return m_skinnedPipeline.getDescriptorSetLayout(); }
     float getAspect() const;

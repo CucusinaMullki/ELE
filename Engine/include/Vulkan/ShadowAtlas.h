@@ -1,5 +1,6 @@
 #pragma once
-#include <vulkan/vulkan.hpp>
+#include "ASH/ASH.h"
+#include <memory>
 
 class ShadowAtlas
 {
@@ -8,30 +9,27 @@ public:
     static constexpr uint32_t TILES_X = 6;
     static constexpr uint32_t TILES_Y = 3;
 
-    void initialize(vk::Device device, vk::PhysicalDevice physicalDevice);
+    void initialize(ASH::Device* device);
     void cleanup();
 
-    vk::ImageView getImageView() const { return m_imageView.get(); }
-    vk::Sampler getSampler() const { return m_sampler.get(); }
-    vk::Format getFormat() const { return m_format; }
-
+    ASH::Texture* getTexture() const { return m_texture.get(); }
+    ASH::Sampler* getSampler() const { return m_sampler.get(); }
+    ASH::Format getFormat() const { return m_format; }
     uint32_t getWidth() const { return TILE_SIZE * TILES_X; }
     uint32_t getHeight() const { return TILE_SIZE * TILES_Y; }
 
-    vk::Rect2D getTileRect(uint32_t lightSlot, uint32_t face) const
+    ASH::Rect2D getTileRect(uint32_t lightSlot, uint32_t face) const
     {
-        return vk::Rect2D{
-            { (int32_t)(face * TILE_SIZE), (int32_t)(lightSlot * TILE_SIZE) },
-            { TILE_SIZE, TILE_SIZE }
-        };
+        ASH::Rect2D rect{};
+        rect.x = (int32_t)(face * TILE_SIZE);
+        rect.y = (int32_t)(lightSlot * TILE_SIZE);
+        rect.width = TILE_SIZE;
+        rect.height = TILE_SIZE;
+        return rect;
     }
 
 private:
-    uint32_t findMemoryType(vk::PhysicalDevice physicalDevice, uint32_t typeFiler, vk::MemoryPropertyFlags properties);
-
-    vk::UniqueImage m_image;
-    vk::UniqueDeviceMemory m_memory;
-    vk::UniqueImageView m_imageView;
-    vk::UniqueSampler m_sampler;
-    vk::Format m_format = vk::Format::eD32Sfloat;
+    std::unique_ptr<ASH::Texture> m_texture;
+    std::unique_ptr<ASH::Sampler> m_sampler;
+    ASH::Format m_format = ASH::Format::D32_Float;
 };

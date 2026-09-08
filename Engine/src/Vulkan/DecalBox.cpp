@@ -1,8 +1,9 @@
 #include "Vulkan/DecalBox.h"
 #include "Vulkan/Vertex.h"
+#include <vulkan/VulkanBuffer.h>
 #include <vector>
 
-void DecalBox::initialize(vk::Device device, vk::PhysicalDevice physicalDevice)
+void DecalBox::initialize(ASH::Device* device)
 {
     std::vector<Vertex> vertices = {
         {{-0.5f,-0.5f,-0.5f}, {1,1,1}, {0,0}, {0,0,-1}, {1,0,0}, {0,0}},
@@ -24,8 +25,8 @@ void DecalBox::initialize(vk::Device device, vk::PhysicalDevice physicalDevice)
         4,5,1, 1,0,4
     };
 
-    m_vertexBuffer.initialize(device, physicalDevice, vertices);
-    m_indexBuffer.initialize(device, physicalDevice, indices);
+    m_vertexBuffer.initialize(device, vertices);
+    m_indexBuffer.initialize(device, indices);
     m_indexCount = static_cast<uint32_t>(indices.size());
 }
 
@@ -37,10 +38,13 @@ void DecalBox::cleanup()
 
 void DecalBox::bind(vk::CommandBuffer cmd) const
 {
-    vk::Buffer vertexBuffers[] = { m_vertexBuffer.getBuffer() };
+    auto* vulkanVertexBuf = static_cast<ASH::vulkan::VulkanBuffer*>(m_vertexBuffer.getBuffer());
+    auto* vulkanIndexBuf = static_cast<ASH::vulkan::VulkanBuffer*>(m_indexBuffer.getBuffer());
+
+    vk::Buffer vertexBuffers[] = { vulkanVertexBuf->getHandle() };
     vk::DeviceSize offsets[] = { 0 };
     cmd.bindVertexBuffers(0, vertexBuffers, offsets);
-    cmd.bindIndexBuffer(m_indexBuffer.getBuffer(), 0, vk::IndexType::eUint32);
+    cmd.bindIndexBuffer(vulkanIndexBuf->getHandle(), 0, vk::IndexType::eUint32);
 }
 
 void DecalBox::draw(vk::CommandBuffer cmd) const

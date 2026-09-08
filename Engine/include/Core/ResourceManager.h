@@ -1,7 +1,7 @@
 #pragma once
 #include "Scene/Material.h"
 #include "Scene/Mesh.h"
-#include <vulkan/vulkan.hpp>
+#include "ASH/ASH.h"
 #include <vector>
 #include <memory>
 #include <string>
@@ -9,7 +9,7 @@
 class ResourceManager
 {
 public:
-    void initialize(vk::Device device, vk::PhysicalDevice physicalDevice, vk::CommandPool commandPool, vk::Queue graphicsQueue);
+    void initialize(ASH::Device* device);
 
     std::shared_ptr<Mesh> loadMesh(const std::string& path, bool keepCpuData = false);
     std::shared_ptr<Material> loadMaterial(const std::string& albedo, const std::string& normal,
@@ -21,10 +21,7 @@ public:
     void cleanup();
 
 private:
-    vk::Device         m_device;
-    vk::PhysicalDevice m_physicalDevice;
-    vk::CommandPool    m_commandPool;
-    vk::Queue          m_graphicsQueue;
+    ASH::Device* m_device = nullptr;
 
     std::vector<std::shared_ptr<Mesh>>     m_meshes;
     std::vector<std::shared_ptr<Material>> m_materials;

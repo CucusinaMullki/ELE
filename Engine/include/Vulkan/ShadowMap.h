@@ -1,24 +1,22 @@
 #pragma once
-#include <vulkan/vulkan.hpp>
+#include "ASH/ASH.h"
+#include <memory>
 
 class ShadowMap
 {
 public:
-    void initialize(vk::Device device, vk::PhysicalDevice physicalDevice, uint32_t size);
+    void initialize(ASH::Device* device, uint32_t size);
     void cleanup();
 
-    vk::ImageView getImageView() const { return m_imageView.get(); }
-    vk::Sampler getSampler() const { return m_sampler.get(); }
-    vk::Format getFormat() const { return m_format; }
+    ASH::Texture* getTexture() const { return m_texture.get(); }
+    ASH::Sampler* getSampler() const { return m_sampler.get(); }
+    ASH::Format getFormat() const { return m_format; }
     uint32_t getSize() const { return m_size; }
     
 private:
-    uint32_t findMemoryType(vk::PhysicalDevice physicalDevice, uint32_t typeFilter, vk::MemoryPropertyFlags properties);
+    std::unique_ptr<ASH::Texture> m_texture;
+    std::unique_ptr<ASH::Sampler> m_sampler;
+    ASH::Format m_format = ASH::Format::D32_Float;
 
-    vk::UniqueImage m_image;
-    vk::UniqueDeviceMemory m_memory;
-    vk::UniqueImageView m_imageView;
-    vk::UniqueSampler m_sampler;
-    vk::Format m_format = vk::Format::eD32Sfloat;
     uint32_t m_size = 2048;
 };

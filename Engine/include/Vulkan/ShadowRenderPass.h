@@ -1,14 +1,15 @@
 #pragma once
-#include <vulkan/vulkan.hpp>
+#include "ASH/ASH.h"
+#include <memory>
 
 class ShadowRenderPass
 {
 public:
-    void initialize(vk::Device device, vk::Format depthFormat);
+    void initialize(ASH::Device* device, ASH::Format depthFormat);
     void cleanup();
 
-    vk::RenderPass getRenderPass() const { return m_renderPass.get(); }
-    
+    ASH::RenderPass* getRenderPass() const { return m_renderPass.get(); }
+
 private:
-    vk::UniqueRenderPass m_renderPass;
+    std::unique_ptr<ASH::RenderPass> m_renderPass;
 };

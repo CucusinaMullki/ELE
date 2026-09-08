@@ -1,24 +1,19 @@
 #pragma once
-#include <vulkan/vulkan.hpp>
+#include "ASH/ASH.h"
+#include <memory>
 
 class DepthBuffer
 {
 public:
-    void initialize(vk::Device device, vk::PhysicalDevice physicalDevice, vk::Extent2D extent);
+    void initialize(ASH::Device* device, ASH::Extent2D extent);
     void cleanup();
 
-    vk::ImageView getImageView() const { return m_imageView.get(); }
-    vk::Sampler getSampler() const { return m_sampler.get(); }
-    vk::Format getFormat() const { return m_format; }
-
-    static vk::Format findDepthFormat(vk::PhysicalDevice physicalDevice);
+    ASH::Texture* getTexture() const { return m_texture.get(); }
+    ASH::Sampler* getSampler() const { return m_sampler.get(); }
+    ASH::Format getFormat() const { return m_format; }
     
 private:
-    uint32_t findMemoryType(vk::PhysicalDevice physicalDevice, uint32_t typeFilter, vk::MemoryPropertyFlags properties);
-
-    vk::UniqueImage m_image;
-    vk::UniqueDeviceMemory m_memory;
-    vk::UniqueImageView m_imageView;
-    vk::UniqueSampler m_sampler;
-    vk::Format m_format;
+    std::unique_ptr<ASH::Texture> m_texture;
+    std::unique_ptr<ASH::Sampler> m_sampler;
+    ASH::Format m_format = ASH::Format::D32_Float;
 };

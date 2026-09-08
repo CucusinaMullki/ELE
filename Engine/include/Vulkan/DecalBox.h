@@ -1,4 +1,5 @@
 #pragma once
+#include "ASH/ASH.h"
 #include "Vulkan/VertexBuffer.h"
 #include "Vulkan/IndexBuffer.h"
 #include <vulkan/vulkan.hpp>
@@ -6,7 +7,7 @@
 class DecalBox
 {
 public:
-    void initialize(vk::Device device, vk::PhysicalDevice physicalDevice);
+    void initialize(ASH::Device* device);
     void cleanup();
 
     void bind(vk::CommandBuffer cmd) const;

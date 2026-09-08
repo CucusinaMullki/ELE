@@ -3,8 +3,9 @@
 #include "Vulkan/Texture.h"
 #include "Vulkan/DecalCameraBuffer.h"
 #include "Vulkan/LightBuffer.h"
-#include <vulkan/vulkan.hpp>
+#include "ASH/ASH.h"
 #include <vector>
+#include <memory>
 
 class ScreenSpaceDecal
 {
@@ -16,8 +17,7 @@ public:
     float metallic = 0.0f;
     float roughness = 0.6f;
 
-    void loadTexture(vk::Device device, vk::PhysicalDevice physicalDevice,
-        vk::CommandPool pool, vk::Queue queue, 
+    void loadTexture(ASH::Device* device,
         const std::string& albedoPath,
         const std::string& opacityPath = "",
         const std::string& normalPath = "",
@@ -26,10 +26,10 @@ public:
 
     glm::mat4 getModelMatrix() const;
     glm::mat4 getInvModelMatrix() const;
-    vk::DescriptorSet getDescriptorSet(uint32_t frameIndex) const { return m_descriptorSets[frameIndex]; }
+    ASH::DescriptorSet* getDescriptorSet(uint32_t frameIndex) const { return m_descriptorSets[frameIndex].get(); }
 
-    void createDescriptorSet(vk::Device device, vk::DescriptorPool pool, vk::DescriptorSetLayout layout,
-        vk::ImageView depthView, vk::Sampler depthSampler,
+    void createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout* layout,
+        ASH::Texture* depthTexture, ASH::Sampler* depthSampler,
         const DecalCameraBuffer& cameraBuffer, const LightBuffer& lightBuffer, uint32_t frameCount);
 
 private:
@@ -37,5 +37,5 @@ private:
     Texture m_opacityTexture;
     Texture m_normalTexture;
     Texture m_mrTexture;
-    std::vector<vk::DescriptorSet> m_descriptorSets;
+    std::vector<std::unique_ptr<ASH::DescriptorSet>> m_descriptorSets;
 };

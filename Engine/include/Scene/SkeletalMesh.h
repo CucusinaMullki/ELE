@@ -9,7 +9,7 @@
 class SkeletalMesh
 {
 public:
-    void loadFromData(vk::Device device, vk::PhysicalDevice physicalDevice,
+    void loadFromData(ASH::Device* device,
         const std::vector<SkinnedVertex>& vertices,
         const std::vector<uint32_t>& indices,
         const std::vector<Submesh>& submeshes);

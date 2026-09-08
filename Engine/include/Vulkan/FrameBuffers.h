@@ -1,8 +1,8 @@
 #pragma once
-
 #include "Vulkan/SwapChain.h"
-#include "vulkan/vulkan.hpp"
+#include "ASH/ASH.h"
 #include <vector>
+#include <memory>
 
 class Framebuffers
 {
@@ -10,11 +10,11 @@ public:
     Framebuffers() = default;
     ~Framebuffers() { cleanup(); }
 
-    void initialize(vk::Device device, const SwapChain& swapChain, vk::RenderPass renderPass, vk::ImageView depthImageView);
+    void initialize(ASH::Device* device, const SwapChain& swapChain, ASH::RenderPass* renderPass, ASH::Texture* depthTexture);
     void cleanup();
 
-    const std::vector<vk::UniqueFramebuffer>& getFramebuffers() const { return m_framebuffers; }
+    const std::vector<std::unique_ptr<ASH::Framebuffer>>& getFramebuffers() const { return m_framebuffers; }
 
 private:
-    std::vector<vk::UniqueFramebuffer> m_framebuffers;
+    std::vector<std::unique_ptr<ASH::Framebuffer>> m_framebuffers;
 };

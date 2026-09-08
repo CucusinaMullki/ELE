@@ -1,36 +1,31 @@
 #pragma once
-
-#include "vulkan/vulkan.hpp"
-#include <vector>
+#include "ASH/ASH.h"
 #include "Vulkan/VulkanContext.h"
-#include <algorithm>
-#include <limits>
+#include <memory>
 
 class SwapChain
 {
 public:
-    //Functions
-    void initialize(const VulkanContext& context, GLFWwindow* window);
-    void recreate(const VulkanContext& context, GLFWwindow* window);
-    void cleanup(); 
+    void initialize(VulkanContext& context, GLFWwindow* window);
+    void recreate(VulkanContext& context, GLFWwindow* window);
+    void cleanup();
 
-    //Getters
-    vk::SwapchainKHR getSwapChain() const { return m_swapChain.get(); }
-    vk::Extent2D getExtent() const { return m_extent; }
-    const std::vector<vk::UniqueImageView>& getImageViews() const { return m_imageViews; }
-    vk::Format getImageFormat() const { return m_imageFormat; }
-    uint32_t getImageCount() const { return (uint32_t)m_images.size(); }
+    bool acquireNextImage(uint32_t& outImageIndex, ASH::Semaphore* signalSemaphore)
+    {
+        return m_swapChain->acquireNextImage(outImageIndex, signalSemaphore);
+    }
+
+    void present(uint32_t imageIndex, ASH::Semaphore* waitSemaphore)
+    {
+        m_swapChain->present(imageIndex, waitSemaphore);
+    }
+
+    ASH::Texture* getImage(uint32_t index) const { return m_swapChain->getImage(index); }
+    uint32_t getImageCount() const { return m_swapChain->getImageCount(); }
+    ASH::Extent2D getExtent() const { return m_swapChain->getExtent(); }
+    ASH::Format getImageFormat() const { return m_format; }
 
 private:
-    //Values
-    vk::UniqueSwapchainKHR m_swapChain;
-    std::vector<vk::Image> m_images;
-    std::vector<vk::UniqueImageView> m_imageViews;
-    vk::Format m_imageFormat;
-    vk::Extent2D m_extent;
-
-    //Functions
-    vk::SurfaceFormatKHR chooseSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats);
-    vk::PresentModeKHR choosePresentMode(const std::vector<vk::PresentModeKHR>& availablePresentModes); 
-    vk::Extent2D chooseExtent(const vk::SurfaceCapabilitiesKHR& capabilities, GLFWwindow* window); 
+    std::unique_ptr<ASH::SwapChain> m_swapChain;
+    ASH::Format m_format = ASH::Format::B8G8R8A8_UNorm;
 };

@@ -1,25 +1,21 @@
 #pragma once
-#include <vulkan/vulkan.hpp>
+#include "ASH/ASH.h"
+#include <memory>
 
 class BloomTarget
 {
 public:
-    void initialize(vk::Device device, vk::PhysicalDevice physicalDevice, vk::Extent2D extent);
+    void initialize(ASH::Device* device, ASH::Extent2D extent);
     void cleanup();
 
-    vk::ImageView getColorView() const { return m_colorView.get(); }
-    vk::Sampler getSampler() const { return m_sampler.get(); }
-    vk::Format getColorFormat() const { return m_colorFormat; }
-    vk::Extent2D getExtent() const { return m_extent; }
+    ASH::Texture* getColorTexture() const { return m_colorTexture.get(); }
+    ASH::Sampler* getSampler() const { return m_sampler.get(); }
+    ASH::Format getColorFormat() const { return m_colorFormat; }
+    ASH::Extent2D getExtent() const { return m_extent; }
 
 private:
-    uint32_t findMemoryType(vk::PhysicalDevice physicalDevice, uint32_t typeFilter, vk::MemoryPropertyFlags properties);
-
-    vk::UniqueImage m_colorImage;
-    vk::UniqueDeviceMemory m_colorMemory;
-    vk::UniqueImageView m_colorView;
-    vk::UniqueSampler m_sampler;
-
-    vk::Format m_colorFormat = vk::Format::eR16G16B16A16Sfloat;
-    vk::Extent2D m_extent;
+    std::unique_ptr<ASH::Texture> m_colorTexture;
+    std::unique_ptr<ASH::Sampler> m_sampler;
+    ASH::Format m_colorFormat = ASH::Format::R16G16B16A16_Float;
+    ASH::Extent2D m_extent{};
 };

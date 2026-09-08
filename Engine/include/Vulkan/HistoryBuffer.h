@@ -1,24 +1,20 @@
 #pragma once
-#include <vulkan/vulkan.hpp>
+#include "ASH/ASH.h"
 #include <array>
+#include <memory>
 
 class HistoryBuffer
 {
 public:
-    void initialize(vk::Device device, vk::PhysicalDevice physicalDevice, vk::Extent2D extent);
+    void initialize(ASH::Device* device, ASH::Extent2D extent);
     void cleanup();
 
-    vk::ImageView getView(uint32_t index) const { return m_views[index].get(); }
-    vk::Sampler getSampler() const { return m_sampler.get(); }
-    vk::Format getFormat() const { return m_format; }
+    ASH::Texture* getTexture(uint32_t index) const { return m_textures[index].get(); }
+    ASH::Sampler* getSampler() const { return m_sampler.get(); }
+    ASH::Format getFormat() const { return m_format; }
 
 private:
-    uint32_t findMemoryType(vk::PhysicalDevice physiclaDevice, uint32_t typeFilter, vk::MemoryPropertyFlags properties);
-
-    std::array<vk::UniqueImage, 2> m_images;
-    std::array<vk::UniqueDeviceMemory, 2> m_memories;
-    std::array<vk::UniqueImageView, 2> m_views;
-    vk::UniqueSampler m_sampler;
-
-    vk::Format m_format = vk::Format::eR16G16B16A16Sfloat;
+    std::array<std::unique_ptr<ASH::Texture>, 2> m_textures;
+    std::unique_ptr<ASH::Sampler> m_sampler;
+    ASH::Format m_format = ASH::Format::R16G16B16A16_Float;
 };

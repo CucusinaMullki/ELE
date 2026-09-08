@@ -31,7 +31,6 @@ add_library(ELE STATIC
     src/Vulkan/BloomTarget.cpp
     src/Vulkan/PostRenderPass.cpp
     src/Vulkan/PointShadowRenderPass.cpp
-    src/Vulkan/CubeShadowMap.cpp
     src/Vulkan/BloomChain.cpp
     src/Vulkan/LdrTarget.cpp
     src/Vulkan/FXAA.cpp

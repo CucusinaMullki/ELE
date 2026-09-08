@@ -1,5 +1,5 @@
 #pragma once
-#include <vulkan/vulkan.hpp>
+#include "ASH/ASH.h"
 
 enum class AAMethod
 {
@@ -12,12 +12,8 @@ class AntiAliasing
 {
 public:
     virtual ~AntiAliasing() = default;
-
-    virtual void initialize(vk::Device device, vk::PhysicalDevice physicalDevice, vk::Extent2D extent, vk::PipelineCache cache) = 0;
+    virtual void initialize(ASH::Device* device, ASH::Extent2D extent) = 0;
     virtual void cleanup() = 0;
-
-    virtual void apply(vk::CommandBuffer cmd, uint32_t frameIndex, vk::ImageView srcView, vk::Sampler srcSampler) = 0;
-
+    virtual void apply(vk::CommandBuffer cmd, uint32_t frameIndex, ASH::Texture* srcTexture, ASH::Sampler* srcSampler) = 0;
     virtual AAMethod getMethod() const = 0;
-    
 };

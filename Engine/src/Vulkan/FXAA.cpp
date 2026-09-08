@@ -1,45 +1,30 @@
 #include "Vulkan/FXAA.h"
 
-void FXAA::initializeWithRenderPass(vk::Device device, vk::PipelineCache cache,
-    vk::RenderPass renderPass, uint32_t frameCount)
+void FXAA::initializeWithRenderPass(ASH::Device* device, ASH::RenderPass* renderPass, uint32_t frameCount)
 {
     PipelineConfig config{};
     config.vertexShader = "fullscreen";
     config.fragmentShader = "fxaa";
     config.renderPass = renderPass;
-    config.cache = cache;
     config.frameCount = frameCount;
-    config.postProcess = true;
-    config.useDescriptors = false;
+    config.layoutType = LayoutType::PostProcess;
     config.useVertexInput = false;
     config.depthTest = false;
     config.depthWrite = false;
-    config.cullMode = vk::CullModeFlagBits::eNone;
+    config.cullMode = ASH::CullMode::None;
     config.colorAttachmentCount = 1;
     m_pipeline.initialize(device, config);
 
-    std::vector<vk::DescriptorSetLayout> layouts(frameCount, m_pipeline.getDescriptorSetLayout());
-    vk::DescriptorSetAllocateInfo allocInfo{};
-    allocInfo.setDescriptorPool(m_pipeline.getDescriptorPool());
-    allocInfo.setSetLayouts(layouts);
-    m_descriptorSets = device.allocateDescriptorSets(allocInfo);
+    m_descriptorSets.resize(frameCount);
+    for (uint32_t i = 0; i < frameCount; i++)
+        m_descriptorSets[i] = m_pipeline.createDescriptorSet();
 }
 
-void FXAA::updateDescriptorSet(vk::Device device, uint32_t frameIndex, vk::ImageView srcView, vk::Sampler srcSampler)
+void FXAA::updateDescriptorSet(uint32_t frameIndex, ASH::Texture* srcTexture, ASH::Sampler* srcSampler)
 {
-    vk::DescriptorImageInfo info{};
-    info.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
-    info.setImageView(srcView);
-    info.setSampler(srcSampler);
-
-    vk::WriteDescriptorSet write{};
-    write.setDstSet(m_descriptorSets[frameIndex]);
-    write.setDstBinding(0);
-    write.setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-    write.setDescriptorCount(1);
-    write.setImageInfo(info);
-
-    device.updateDescriptorSets(write, nullptr);
+    ASH::DescriptorImageInfo info{ srcTexture, srcSampler };
+    ASH::DescriptorWrite write{ 0, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &info };
+    m_descriptorSets[frameIndex]->update(&write, 1);
 }
 
 void FXAA::cleanup()
@@ -47,9 +32,11 @@ void FXAA::cleanup()
     m_pipeline.cleanup();
 }
 
-void FXAA::apply(vk::CommandBuffer cmd, uint32_t frameIndex, vk::ImageView srcView, vk::Sampler srcSampler)
+void FXAA::apply(ASH::CommandBuffer* cmd, uint32_t frameIndex, ASH::Texture* srcTexture, ASH::Sampler* srcSampler)
 {
-    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline.getPipeline());
-    cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline.getLayout(), 0, m_descriptorSets[frameIndex], nullptr);
-    cmd.draw(3, 1, 0, 0);
+    updateDescriptorSet(frameIndex, srcTexture, srcSampler);
+
+    cmd->bindPipeline(m_pipeline.getPipeline());
+    cmd->bindDescriptorSet(m_pipeline.getPipeline(), 0, m_descriptorSets[frameIndex].get());
+    cmd->draw(3, 1, 0, 0);
 }

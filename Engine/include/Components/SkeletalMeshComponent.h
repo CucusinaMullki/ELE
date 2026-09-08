@@ -5,6 +5,7 @@
 #include "Core/Log.h"
 #include "Scene/Animation.h"
 #include "Vulkan/BoneMatrixBuffer.h"
+#include "ASH/ASH.h"
 #include <glm/glm.hpp>
 #include <vector>
 #include <memory>
@@ -12,14 +13,19 @@
 class SkeletalMeshComponent : public IComponent
 {
 public:
-    SkeletalMeshComponent(vk::Device device, vk::PhysicalDevice physicalDevice, uint32_t frameCount)
+    SkeletalMeshComponent(ASH::Device* device, uint32_t frameCount)
     {
-        m_boneBuffer.initialize(device, physicalDevice, frameCount);
+        m_boneBuffer.initialize(device, frameCount);
     }
 
     ~SkeletalMeshComponent()
     {
         m_boneBuffer.cleanup();
+    }
+
+    ASH::Buffer* getBoneBuffer(uint32_t frameIndex) const
+    {
+        return m_boneBuffer.getBuffer(frameIndex);
     }
 
     void setSkeletalMesh(std::shared_ptr<SkeletalMesh> mesh) { m_skeletalMesh = mesh; }
@@ -46,13 +52,11 @@ public:
     }
 
     void stop() { m_playing = false; }
-
     void onAttach(GameObject& owner) override { m_owner = &owner; }
 
     void update(float deltaTime) override
     {
         if (!m_skeletalMesh || !m_skeletalMesh->getSkeleton()) return;
-
         if (m_playing && m_currentAnimation)
         {
             m_currentTime += deltaTime;
@@ -67,7 +71,6 @@ public:
                 }
             }
         }
-
         computePose();
     }
 
@@ -77,13 +80,7 @@ public:
         size_t count = std::min(m_boneMatrices.size(), (size_t)MAX_BONES);
         for (size_t i = 0; i < count; i++)
             data.bones[i] = m_boneMatrices[i];
-
         m_boneBuffer.update(frameIndex, data);
-    }
-
-    vk::DescriptorBufferInfo getBoneDescriptorInfo(uint32_t frameIndex) const
-    {
-        return m_boneBuffer.getDescriptorInfo(frameIndex);
     }
 
 private:
@@ -91,26 +88,21 @@ private:
     {
         const Skeleton& skeleton = *m_skeletalMesh->getSkeleton();
         size_t jointCount = skeleton.getJointCount();
-
         if (m_globalTransforms.size() != jointCount)
         {
             m_globalTransforms.resize(jointCount);
             m_boneMatrices.resize(jointCount, glm::mat4(1.0f));
         }
-
         for (size_t i = 0; i < jointCount; i++)
         {
             const Joint& joint = skeleton.getJoint((int)i);
-
             glm::mat4 localTransform = m_currentAnimation
                 ? m_currentAnimation->sampleJointTransform(joint.name, m_currentTime)
                 : joint.localBindTransform;
-
             if (joint.parentIndex >= 0)
                 m_globalTransforms[i] = m_globalTransforms[joint.parentIndex] * localTransform;
             else
                 m_globalTransforms[i] = localTransform;
-
             m_boneMatrices[i] = m_globalTransforms[i] * joint.inverseBindMatrix;
         }
     }
@@ -118,13 +110,10 @@ private:
     GameObject* m_owner = nullptr;
     std::shared_ptr<SkeletalMesh> m_skeletalMesh;
     std::shared_ptr<Animation> m_currentAnimation;
-
     float m_currentTime = 0.0f;
     bool m_loop = true;
     bool m_playing = false;
-
     std::vector<glm::mat4> m_globalTransforms;
     std::vector<glm::mat4> m_boneMatrices;
-
     BoneMatrixBuffer m_boneBuffer;
 };

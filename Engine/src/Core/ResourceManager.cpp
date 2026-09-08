@@ -1,18 +1,14 @@
 #include "Core/ResourceManager.h"
 
-void ResourceManager::initialize(vk::Device device, vk::PhysicalDevice physicalDevice,
-    vk::CommandPool commandPool, vk::Queue graphicsQueue)
+void ResourceManager::initialize(ASH::Device* device)
 {
     m_device = device;
-    m_physicalDevice = physicalDevice;
-    m_commandPool = commandPool;
-    m_graphicsQueue = graphicsQueue;
 }
 
 std::shared_ptr<Mesh> ResourceManager::loadMesh(const std::string& path, bool keepCpuData)
 {
     auto mesh = std::make_shared<Mesh>();
-    mesh->load(m_device, m_physicalDevice, path, keepCpuData);
+    mesh->load(m_device, path, keepCpuData);
     m_meshes.push_back(mesh);
     return mesh;
 }
@@ -21,8 +17,7 @@ std::shared_ptr<Material> ResourceManager::loadMaterial(const std::string& albed
     const std::string& metallic, const std::string& roughness)
 {
     auto material = std::make_shared<Material>();
-    material->load(m_device, m_physicalDevice, m_commandPool, m_graphicsQueue,
-        albedo, normal, metallic, roughness);
+    material->load(m_device, albedo, normal, metallic, roughness);
     m_materials.push_back(material);
     return material;
 }
