@@ -1,7 +1,8 @@
 #pragma once
 #include "Scene/Light.h"
-#include <vulkan/vulkan.hpp>
+#include "ASH/ASH.h"
 #include <vector>
+#include <memory>
 
 static const int MAX_LIGHTS = 16;
 
@@ -14,16 +15,12 @@ struct LightData
 class LightBuffer
 {
 public:
-    void initialize(vk::Device device, vk::PhysicalDevice physicalDevice, uint32_t frameCount);
+    void initialize(ASH::Device* device, uint32_t frameCount);
     void update(uint32_t frameIndex, const LightData& data);
     void cleanup();
 
-    vk::DescriptorBufferInfo getDescriptorInfo(uint32_t frameIndex) const;
+    ASH::Buffer* getBuffer(uint32_t frameIndex) const { return m_buffers[frameIndex].get(); }
 
 private:
-    uint32_t findMemoryType(vk::PhysicalDevice physicalDevice, uint32_t typeFilter, vk::MemoryPropertyFlags properties);
-
-    std::vector<vk::UniqueBuffer> m_buffers;
-    std::vector<vk::UniqueDeviceMemory> m_memories;
-    std::vector<void*> m_mapped;
+    std::vector<std::unique_ptr<ASH::Buffer>> m_buffers;
 };
