@@ -24,6 +24,9 @@ add_library(ELE STATIC
     src/Vulkan/LightBuffer.cpp
     src/Vulkan/ShadowMap.cpp
     src/Vulkan/ShaderLoader.cpp
+    src/Vulkan/EnvironmentBaker.cpp
+    src/Vulkan/HdrTexture.cpp
+    src/Vulkan/CubeTexture.cpp
     src/Vulkan/ShadowRenderPass.cpp
     src/Vulkan/HdrTarget.cpp
     src/Vulkan/HdrRenderPass.cpp

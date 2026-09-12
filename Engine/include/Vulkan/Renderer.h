@@ -20,6 +20,8 @@
 #include "Vulkan/BloomTarget.h"
 #include "Vulkan/PostRenderPass.h"
 #include "Vulkan/PointShadowRenderPass.h"
+#include "Vulkan/CubeTexture.h"
+#include "Vulkan/EnvironmentBaker.h"
 #include "Vulkan/BloomChain.h"
 #include "Vulkan/AntiAliasing.h"
 #include "Vulkan/NoAA.h"
@@ -65,6 +67,8 @@ public:
     void renderImGui(ASH::CommandBuffer* commandBuffer);
     void cleanupImGui();
 
+    void loadEnvironmentMap(const std::string& hdrPath);
+
     ASH::Device* getDevice() const { return m_context.getDevice(); }
     const FogSettings& getFogSettings() const { return m_fogSettings; }
     ASH::DescriptorSetLayout* getDescriptorSetLayout() const { return m_pipeline.getDescriptorSetLayout(); }
@@ -75,6 +79,8 @@ public:
     ASH::DescriptorSetLayout* getDecalDescriptorSetLayout() const { return m_decalPipeline.getDescriptorSetLayout(); }
     ASH::Texture* getDepthView() const { return m_depthBuffer.getTexture(); }
     ASH::Sampler* getDepthSampler() const { return m_depthBuffer.getSampler(); }
+    ASH::Texture* getIrradianceView() const { return m_irradianceCubemap.getTexture(); }
+    ASH::Sampler* getIrradianceSampler() const { return m_irradianceCubemap.getSampler(); }
     const LightBuffer& getLightBuffer() const { return m_lightBuffer; }
     const DecalCameraBuffer& getDecalCameraBuffer() const { return m_decalCameraBuffer; }
     const GodRaySettings& getGodRaySettings() const { return m_godRaySettings; }
@@ -231,6 +237,13 @@ private:
     std::vector<std::unique_ptr<ASH::DescriptorSet>> m_godRayMaskDescriptorSets;
     std::vector<std::unique_ptr<ASH::DescriptorSet>> m_godRayBlurDescriptorSets;
     std::vector<std::unique_ptr<ASH::DescriptorSet>> m_godRayCompositeDescriptorSets;
+
+    CubeTexture m_environmentCubemap;
+    CubeTexture m_irradianceCubemap;
+    EnvironmentBaker m_envBaker;
+    Pipeline m_skyboxPipeline;
+    std::unique_ptr<ASH::DescriptorSet> m_skyboxDescriptorSet;
+    bool m_hasEnvironment = false;
 
     GodRaySettings m_godRaySettings;
 

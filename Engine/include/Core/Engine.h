@@ -57,6 +57,8 @@ public:
     void resume() { m_time.resume(); }
     void setTimeScale(float scale) { m_time.setTimeScale(scale); }
 
+    void loadEnvironmentMap(const std::string& hdrPath) { m_renderer.loadEnvironmentMap(hdrPath); }
+
     GameObject& loadGltfObject(const std::string& path);
     GameObject& loadSkeletalGltfObject(const std::string& path);
 

@@ -21,6 +21,7 @@ void Material::createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout
     const std::vector<ASH::Buffer*>& lightBuffers,
     ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
     ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
+    ASH::Texture* irradianceTexture, ASH::Sampler* irradianceSampler,
     uint32_t frameCount)
 {
     m_descriptorSets.clear();
@@ -40,8 +41,9 @@ void Material::createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout
         ASH::DescriptorImageInfo shadowInfo{ shadowTexture, shadowSampler };
         ASH::DescriptorImageInfo lightmapInfo{ m_lightmap.getTexture(), m_lightmap.getSampler() };
         ASH::DescriptorImageInfo shadowAtlasInfo{ shadowAtlasTexture, shadowAtlasSampler };
+        ASH::DescriptorImageInfo irradianceInfo{ irradianceTexture, irradianceSampler };
 
-        std::array<ASH::DescriptorWrite, 9> writes{};
+        std::array<ASH::DescriptorWrite, 10> writes{};
 
         writes[0] = { 0, ASH::DescriptorType::UniformBuffer, 0, &uboInfo, nullptr };
         writes[1] = { 1, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &albedoInfo };
@@ -52,6 +54,7 @@ void Material::createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout
         writes[6] = { 6, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &shadowInfo };
         writes[7] = { 7, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &shadowAtlasInfo };
         writes[8] = { 8, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &lightmapInfo };
+        writes[9] = { 9, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &irradianceInfo };
 
         m_descriptorSets[i]->update(writes.data(), (uint32_t)writes.size());
     }
@@ -88,6 +91,7 @@ void Material::createSkinnedDescriptorSet(ASH::Device* device, ASH::DescriptorSe
     ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
     ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
     const std::vector<ASH::Buffer*>& boneBuffers,
+    ASH::Texture* irradianceTexture, ASH::Sampler* irradianceSampler,
     uint32_t frameCount)
 {
     m_descriptorSets.clear();
@@ -108,8 +112,9 @@ void Material::createSkinnedDescriptorSet(ASH::Device* device, ASH::DescriptorSe
         ASH::DescriptorImageInfo shadowInfo{ shadowTexture, shadowSampler };
         ASH::DescriptorImageInfo lightmapInfo{ m_lightmap.getTexture(), m_lightmap.getSampler() };
         ASH::DescriptorImageInfo shadowAtlasInfo{ shadowAtlasTexture, shadowAtlasSampler };
+        ASH::DescriptorImageInfo irradianceInfo{ irradianceTexture, irradianceSampler };
 
-        std::array<ASH::DescriptorWrite, 10> writes{};
+        std::array<ASH::DescriptorWrite, 11> writes{};
 
         writes[0] = { 0, ASH::DescriptorType::UniformBuffer, 0, &uboInfo, nullptr };
         writes[1] = { 1, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &albedoInfo };
@@ -121,6 +126,7 @@ void Material::createSkinnedDescriptorSet(ASH::Device* device, ASH::DescriptorSe
         writes[7] = { 7, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &shadowAtlasInfo };
         writes[8] = { 8, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &lightmapInfo };
         writes[9] = { 9, ASH::DescriptorType::UniformBuffer, 0, &boneInfo, nullptr };
+        writes[10] = { 10, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &irradianceInfo };
 
         m_descriptorSets[i]->update(writes.data(), (uint32_t)writes.size());
     }

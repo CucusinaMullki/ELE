@@ -30,6 +30,7 @@ layout(binding = 5) uniform LightUBO {
 layout(binding = 6) uniform sampler2DShadow shadowMap;
 layout(binding = 7) uniform sampler2D shadowAtlas;
 layout(binding = 8) uniform sampler2D lightmapMap;
+layout(binding = 9) uniform samplerCube irradianceMap;
 
 layout(location = 0) in vec3 fragWorldPos;
 layout(location = 1) in vec2 fragTexCoord;
@@ -252,7 +253,9 @@ void main()
         }
     }
 
-    vec3 ambient = vec3(0.03) * albedo * ao;
+    vec3 irradiance = texture(irradianceMap, N).rgb;
+    vec3 ambientDiffuse = irradiance * albedo * (1.0 - metallic);
+    vec3 ambient = ambientDiffuse * ao;
     vec3 color = ambient + Lo;
 
     vec3 lightmapColor = texture(lightmapMap, fragLightmapUV).rgb;

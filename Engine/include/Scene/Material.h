@@ -38,7 +38,9 @@ public:
         const std::vector<ASH::Buffer*>& lightBuffers,
         ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
         ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
+        ASH::Texture* irradianceTexture, ASH::Sampler* irradianceSampler,
         uint32_t frameCount);
+
 
     void createSkinnedDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout* layout,
         const std::vector<ASH::Buffer*>& uboBuffers,
@@ -46,6 +48,7 @@ public:
         ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
         ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
         const std::vector<ASH::Buffer*>& boneBuffers,
+        ASH::Texture* irradianceTexture, ASH::Sampler* irradianceSampler,
         uint32_t frameCount);
 
     ASH::DescriptorSet* getDescriptorSet(uint32_t frame) const { return m_descriptorSets[frame].get(); }

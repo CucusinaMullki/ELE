@@ -81,6 +81,7 @@ void Engine::createMaterialDescriptorSet(std::shared_ptr<Material> material)
         m_renderer.getUboBuffers(), m_renderer.getLightBuffers(),
         m_renderer.getShadowView(), m_renderer.getShadowSampler(),
         m_renderer.getShadowAtlasView(), m_renderer.getShadowAtlasSampler(),
+        m_renderer.getIrradianceView(), m_renderer.getIrradianceSampler(),
         m_renderer.getFramesInFlight());
 }
 
@@ -132,6 +133,7 @@ void Engine::createSkinnedMaterialDescriptorSet(std::shared_ptr<Material> materi
         m_renderer.getShadowView(), m_renderer.getShadowSampler(),
         m_renderer.getShadowAtlasView(), m_renderer.getShadowAtlasSampler(),
         boneBuffers,
+        m_renderer.getIrradianceView(), m_renderer.getIrradianceSampler(),
         m_renderer.getFramesInFlight());
 }
 

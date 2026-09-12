@@ -12,6 +12,8 @@ enum class LayoutType
     Decal,
     Skinned,
     PostProcess,
+    SingleTexture,
+    Skybox
 };
 
 struct PipelineConfig
@@ -25,6 +27,7 @@ struct PipelineConfig
     ASH::BlendFactor blendSrcFactor = ASH::BlendFactor::One;
     ASH::BlendFactor blendDstFactor = ASH::BlendFactor::Zero;
     ASH::BlendOp blendOp = ASH::BlendOp::Add;
+    ASH::CompareOp depthCompareOp = ASH::CompareOp::Less;
     ASH::ShaderStage pushStage = ASH::ShaderStage::Vertex;
     ASH::CullMode cullMode = ASH::CullMode::Back;
     bool depthClampEnable = false;

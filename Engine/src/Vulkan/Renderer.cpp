@@ -508,6 +508,9 @@ void Renderer::initialize(GLFWwindow* window)
 
     m_shadowAtlas.initialize(device);
 
+    m_irradianceCubemap.initialize(device, 1, ASH::Format::R32G32B32A32_Float, 1);
+    m_irradianceCubemap.clear(device, 0.0f, 0.0f, 0.0f, 1.0f);
+
     ASH::FramebufferDesc atlasFbDesc{};
     atlasFbDesc.renderPass = m_pointShadowRenderPass.getRenderPass();
     atlasFbDesc.depthStencilAttachment = m_shadowAtlas.getTexture();
@@ -655,6 +658,44 @@ void Renderer::initialize(GLFWwindow* window)
         device->submit(submitInfo);
         device->waitIdle();
     }
+}
+
+void Renderer::loadEnvironmentMap(const std::string& hdrPath)
+{
+    ASH::Device* device = m_context.getDevice();
+
+    m_envBaker.initialize(device);
+    m_environmentCubemap.initialize(device, 512, ASH::Format::R32G32B32A32_Float, 1);
+    m_envBaker.bakeEnvironmentCubemap(device, hdrPath, m_environmentCubemap);
+
+    m_irradianceCubemap.initialize(device, 32, ASH::Format::R32G32B32A32_Float, 1);
+    m_envBaker.bakeIrradianceMap(device, m_environmentCubemap, m_irradianceCubemap);
+
+    PipelineConfig skyboxConfig{};
+    skyboxConfig.vertexShader = "skybox";
+    skyboxConfig.fragmentShader = "skybox";
+    skyboxConfig.renderPass = m_hdrRenderPass.getRenderPass();
+    skyboxConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
+    skyboxConfig.layoutType = LayoutType::Skybox;
+    skyboxConfig.depthCompareOp = ASH::CompareOp::LessOrEqual;
+    skyboxConfig.colorAttachmentCount = 2;
+    skyboxConfig.depthTest = true;
+    skyboxConfig.depthWrite = false;
+    skyboxConfig.cullMode = ASH::CullMode::None;
+    skyboxConfig.useVertexInput = true;
+    m_skyboxPipeline.initialize(device, skyboxConfig);
+
+    m_skyboxDescriptorSet = m_skyboxPipeline.createDescriptorSet();
+
+    ASH::DescriptorBufferInfo camInfo{ m_uniformBuffer.getBuffer(0), 0, m_uniformBuffer.getBuffer(0)->getSize() };
+    ASH::DescriptorImageInfo envInfo{ m_environmentCubemap.getTexture(), m_environmentCubemap.getSampler() };
+
+    std::array<ASH::DescriptorWrite, 2> writes{};
+    writes[0] = { 0, ASH::DescriptorType::UniformBuffer, 0, &camInfo, nullptr };
+    writes[1] = { 1, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &envInfo };
+    m_skyboxDescriptorSet->update(writes.data(), (uint32_t)writes.size());
+
+    m_hasEnvironment = true;
 }
 
 void Renderer::createFogDescriptorSets()
@@ -970,6 +1011,14 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         int totalCount = 0;
 
         ASH::Pipeline* currentBoundPipeline = nullptr;
+
+        if (m_hasEnvironment)
+        {
+            cmd->bindPipeline(m_skyboxPipeline.getPipeline());
+            cmd->bindDescriptorSet(m_skyboxPipeline.getPipeline(), 0, m_skyboxDescriptorSet.get());
+            m_decalBox.bind(cmd);
+            m_decalBox.draw(cmd);
+        }
 
         for (const auto& obj : scene.getObjects())
         {
@@ -1708,6 +1757,11 @@ void Renderer::cleanup()
     m_postDescriptorSets[1].clear();
     m_postDescriptorSetsRaw.clear();
     m_fogDescriptorSets.clear();
+
+    m_skyboxDescriptorSet.reset();
+    m_skyboxPipeline.cleanup();
+    m_environmentCubemap.cleanup();
+    m_envBaker.cleanup();
     
     if (m_cleaned) return;
     m_cleaned = true;
@@ -1719,6 +1773,11 @@ void Renderer::cleanup()
     device->waitIdle();
 
     m_skinnedPipeline.cleanup();
+
+    m_skyboxPipeline.cleanup();
+    m_environmentCubemap.cleanup();
+    m_irradianceCubemap.cleanup();
+    m_envBaker.cleanup();
 
     m_godRayMaskFramebuffer.reset();
     m_godRayBlurFramebuffer.reset();

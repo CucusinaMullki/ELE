@@ -51,6 +51,7 @@ void Pipeline::initialize(ASH::Device* device, const PipelineConfig& config)
         addBinding(7, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         addBinding(8, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         addBinding(9, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex);
+        addBinding(10, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         break;
 
     case LayoutType::PostProcess:
@@ -68,6 +69,16 @@ void Pipeline::initialize(ASH::Device* device, const PipelineConfig& config)
         addBinding(6, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         addBinding(7, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         addBinding(8, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(9, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        break;
+
+    case LayoutType::SingleTexture:
+        addBinding(0, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        break;
+
+    case LayoutType::Skybox:
+        addBinding(0, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex);
+        addBinding(1, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         break;
 
     case LayoutType::None:
@@ -130,7 +141,7 @@ void Pipeline::initialize(ASH::Device* device, const PipelineConfig& config)
 
     desc.depthStencil.depthTestEnable = config.depthTest;
     desc.depthStencil.depthWriteEnable = config.depthWrite;
-    desc.depthStencil.depthCompareOp = ASH::CompareOp::Less;
+    desc.depthStencil.depthCompareOp = config.depthCompareOp;
 
     for (uint32_t i = 0; i < config.colorAttachmentCount; i++)
     {

@@ -131,6 +131,9 @@ int main()
     engine.setExposure(1.0f);
     InputInScene(engine);
 
+
+    engine.loadEnvironmentMap("assets/hdri/some_env.hdr");
+
     auto& character = engine.loadGltfObject("assets/models/Level.glb");
     engine.getScene().flush();
 
