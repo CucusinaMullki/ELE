@@ -199,6 +199,7 @@ void Engine::shutdown()
 
     m_renderer.getDevice()->waitIdle();
 
+    m_scene.clear();
     m_resources.cleanup();
     m_renderer.cleanup();
     m_physics.cleanup();
@@ -363,8 +364,7 @@ GameObject& Engine::loadGltfObject(const std::string& path)
     if (materials.empty())
     {
         auto mat = std::make_shared<Material>();
-        mat->loadFromPixels(m_renderer.getDevice(), m_renderer.getPhysicalDevice(),
-            m_renderer.getCommandPool(), m_renderer.getGraphicsQueue(),
+        mat->loadFromPixels(m_renderer.getDevice(),
             white, 1, 1, normalPx, 1, 1, white, 1, 1, white, 1, 1, black, 1, 1, false);
         createMaterialDescriptorSet(mat);
         m_resources.registerMaterial(mat);

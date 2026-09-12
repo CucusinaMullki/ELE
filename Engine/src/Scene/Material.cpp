@@ -59,6 +59,7 @@ void Material::createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout
 
 void Material::cleanup()
 {
+    m_descriptorSets.clear();
     m_albedo.cleanup();
     m_normal.cleanup();
     m_metallicRoughness.cleanup();

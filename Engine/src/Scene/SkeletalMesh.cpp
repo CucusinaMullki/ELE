@@ -15,3 +15,14 @@ void SkeletalMesh::cleanup()
     m_vertexBuffer.cleanup();
     m_indexBuffer.cleanup();
 }
+
+void SkeletalMesh::bind(ASH::CommandBuffer* cmd) const
+{
+    cmd->bindVertexBuffer(m_vertexBuffer.getBuffer(), 0, 0);
+    cmd->bindIndexBuffer(m_indexBuffer.getBuffer(), 0, ASH::IndexType::UInt32);
+}
+
+void SkeletalMesh::drawSubmesh(ASH::CommandBuffer* cmd, const Submesh& sm) const
+{
+    cmd->drawIndexed(sm.indexCount, 1, sm.firstIndex, 0, 0);
+}

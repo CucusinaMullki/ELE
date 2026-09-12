@@ -3,7 +3,6 @@
 #include "Vulkan/VertexBuffer.h"
 #include "Vulkan/IndexBuffer.h"
 #include "Scene/Submesh.h"
-#include <vulkan/vulkan.hpp>
 #include <string>
 #include <vector>
 
@@ -18,8 +17,8 @@ public:
         bool keepCpuData = false);
 
     void cleanup();
-    void bind(vk::CommandBuffer cmd) const;
-    void drawSubmesh(vk::CommandBuffer cmd, const Submesh& sm) const;
+    void bind(ASH::CommandBuffer* cmd) const;
+    void drawSubmesh(ASH::CommandBuffer* cmd, const Submesh& sm) const;
     const std::vector<Submesh>& getSubmeshes() const { return m_submeshes; }
     bool hasCpuData() const { return !m_cpuVertices.empty(); }
     const std::vector<Vertex>& getCpuVertices() const { return m_cpuVertices; }

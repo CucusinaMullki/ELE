@@ -79,7 +79,7 @@ void Pipeline::initialize(ASH::Device* device, const PipelineConfig& config)
     if (hasLayout)
         m_descriptorSetLayout = device->createDescriptorSetLayout(layoutDesc);
 
-    auto vertCode = loadSpirvFile(config.vertexShader);
+    auto vertCode = loadSpirvFile(config.vertexShader + ".vert");
 
     ASH::GraphicsPipelineDesc desc{};
 
@@ -92,7 +92,7 @@ void Pipeline::initialize(ASH::Device* device, const PipelineConfig& config)
     std::vector<uint32_t> fragCode;
     if (!config.fragmentShader.empty())
     {
-        fragCode = loadSpirvFile(config.fragmentShader);
+        fragCode = loadSpirvFile(config.fragmentShader + ".frag");
         ASH::ShaderStageDesc fragStage{};
         fragStage.stage = ASH::ShaderStage::Fragment;
         fragStage.spirvCode = fragCode.data();

@@ -6,7 +6,6 @@ add_library(ELE STATIC
     src/Vulkan/RenderPass.cpp
     src/Vulkan/SwapChain.cpp
     src/Vulkan/VulkanContext.cpp
-    src/Vulkan/Shader.cpp
     src/Vulkan/UniformBuffer.cpp
     src/Core/Path.cpp
     src/Vulkan/VertexBuffer.cpp
@@ -23,8 +22,8 @@ add_library(ELE STATIC
     src/Core/tinygltf_impl.cpp
     src/Core/GltfModel.cpp
     src/Vulkan/LightBuffer.cpp
-    src/Vulkan/PipelineCache.cpp
     src/Vulkan/ShadowMap.cpp
+    src/Vulkan/ShaderLoader.cpp
     src/Vulkan/ShadowRenderPass.cpp
     src/Vulkan/HdrTarget.cpp
     src/Vulkan/HdrRenderPass.cpp

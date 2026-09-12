@@ -25,7 +25,7 @@ layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 inTexCoord;
 layout(location = 3) in vec3 inTangent;
-layout(location = 4) in ivec4 inBoneIndices;
+layout(location = 4) in vec4 inBoneIndices;
 layout(location = 5) in vec4 inBoneWeights;
 
 layout(location = 0) out vec3 fragWorldPos;
@@ -39,11 +39,13 @@ layout(location = 8) out vec2 fragLightmapUV;
 
 void main()
 {
+    ivec4 boneIdx = ivec4(inBoneIndices);
+
     mat4 skinMatrix =
-        inBoneWeights.x * boneData.bones[inBoneIndices.x] +
-        inBoneWeights.y * boneData.bones[inBoneIndices.y] +
-        inBoneWeights.z * boneData.bones[inBoneIndices.z] +
-        inBoneWeights.w * boneData.bones[inBoneIndices.w];
+        inBoneWeights.x * boneData.bones[boneIdx.x] +
+        inBoneWeights.y * boneData.bones[boneIdx.y] +
+        inBoneWeights.z * boneData.bones[boneIdx.z] +
+        inBoneWeights.w * boneData.bones[boneIdx.w];
 
     vec4 skinnedLocalPos = skinMatrix * vec4(inPosition, 1.0);
 

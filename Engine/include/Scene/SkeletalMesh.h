@@ -1,4 +1,5 @@
 #pragma once
+#include "ASH/ASH.h"
 #include "Vulkan/SkinnedVertexBuffer.h"
 #include "Vulkan/IndexBuffer.h"
 #include "Scene/Submesh.h"
@@ -18,8 +19,8 @@ public:
 
     ~SkeletalMesh() { cleanup(); }
 
-    void bind(vk::CommandBuffer cmd) const;
-    void drawSubmesh(vk::CommandBuffer cmd, const Submesh& sm) const;
+    void bind(ASH::CommandBuffer* cmd) const;
+    void drawSubmesh(ASH::CommandBuffer* cmd, const Submesh& sm) const;
 
     const std::vector<Submesh>& getSubmeshes() const { return m_submeshes; }
 

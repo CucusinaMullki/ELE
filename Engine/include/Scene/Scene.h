@@ -1,5 +1,6 @@
 #pragma once
 #include "Scene/GameObject.h"
+#include <algorithm>
 #include <vector>
 #include <memory>
 
@@ -18,6 +19,12 @@ public:
     }
 
     void flush() { flushPenging(); }
+
+    void clear()
+    {
+        m_objects.clear();
+        m_pendingObjects.clear();
+    }
 
     const std::vector<std::shared_ptr<GameObject>>& getObjects() const { return m_objects; }
 

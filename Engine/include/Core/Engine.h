@@ -86,11 +86,11 @@ private:
 
     AudioSystem m_audio;
     TimeSystem m_time;
-    Renderer        m_renderer;
+    Renderer m_renderer;
     ResourceManager m_resources;
-    Input           m_input;
-    Camera          m_camera;
-    Scene           m_scene;
+    Input m_input;
+    Camera m_camera;
+    Scene m_scene;
     FogSettings m_fogSettings;
     UISystem m_ui;
     std::unique_ptr<ICameraController> m_cameraController;

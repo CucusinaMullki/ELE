@@ -1,7 +1,6 @@
 #include "Scene/Mesh.h"
 #include "Core/Model.h"
 #include "Core/GltfModel.h"
-#include <vulkan/VulkanBuffer.h>
 
 void Mesh::load(ASH::Device* device, const std::string& path, bool keepCpuData)
 {
@@ -24,20 +23,15 @@ void Mesh::cleanup()
     m_submeshes.clear();
 }
 
-void Mesh::bind(vk::CommandBuffer cmd) const
+void Mesh::bind(ASH::CommandBuffer* cmd) const
 {
-    auto* vulkanVertexBuf = static_cast<ASH::vulkan::VulkanBuffer*>(m_vertexBuffer.getBuffer());
-    auto* vulkanIndexBuf = static_cast<ASH::vulkan::VulkanBuffer*>(m_indexBuffer.getBuffer());
-
-    vk::Buffer vertexBuffers[] = { vulkanVertexBuf->getHandle() };
-    vk::DeviceSize offsets[] = { 0 };
-    cmd.bindVertexBuffers(0, vertexBuffers, offsets);
-    cmd.bindIndexBuffer(vulkanIndexBuf->getHandle(), 0, vk::IndexType::eUint32);
+    cmd->bindVertexBuffer(m_vertexBuffer.getBuffer(), 0, 0);
+    cmd->bindIndexBuffer(m_indexBuffer.getBuffer(), 0, ASH::IndexType::UInt32);
 }
 
-void Mesh::drawSubmesh(vk::CommandBuffer cmd, const Submesh& sm) const
+void Mesh::drawSubmesh(ASH::CommandBuffer* cmd, const Submesh& sm) const
 {
-    cmd.drawIndexed(sm.indexCount, 1, sm.firstIndex, 0, 0);
+    cmd->drawIndexed(sm.indexCount, 1, sm.firstIndex, 0, 0);
 }
 
 void Mesh::computeBounds(const std::vector<Vertex>& vertices)

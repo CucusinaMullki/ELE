@@ -8,7 +8,7 @@ public:
     void initialize(ASH::Device* device, ASH::Extent2D extent);
     void cleanup();
 
-    ASH::Texture* getColorView() const { return m_colorTexture.get(); }
+    ASH::Texture* getColorTexture() const { return m_colorTexture.get(); }
     ASH::Sampler* getSampler() const { return m_sampler.get(); }
     ASH::Format getColorFormat() const { return m_colorFormat; }
 

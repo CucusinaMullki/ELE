@@ -1,6 +1,5 @@
 #include "Vulkan/DecalBox.h"
 #include "Vulkan/Vertex.h"
-#include <vulkan/VulkanBuffer.h>
 #include <vector>
 
 void DecalBox::initialize(ASH::Device* device)
@@ -36,18 +35,13 @@ void DecalBox::cleanup()
     m_indexBuffer.cleanup();
 }
 
-void DecalBox::bind(vk::CommandBuffer cmd) const
+void DecalBox::bind(ASH::CommandBuffer* cmd) const
 {
-    auto* vulkanVertexBuf = static_cast<ASH::vulkan::VulkanBuffer*>(m_vertexBuffer.getBuffer());
-    auto* vulkanIndexBuf = static_cast<ASH::vulkan::VulkanBuffer*>(m_indexBuffer.getBuffer());
-
-    vk::Buffer vertexBuffers[] = { vulkanVertexBuf->getHandle() };
-    vk::DeviceSize offsets[] = { 0 };
-    cmd.bindVertexBuffers(0, vertexBuffers, offsets);
-    cmd.bindIndexBuffer(vulkanIndexBuf->getHandle(), 0, vk::IndexType::eUint32);
+    cmd->bindVertexBuffer(m_vertexBuffer.getBuffer(), 0, 0);
+    cmd->bindIndexBuffer(m_indexBuffer.getBuffer(), 0, ASH::IndexType::UInt32);
 }
 
-void DecalBox::draw(vk::CommandBuffer cmd) const
+void DecalBox::draw(ASH::CommandBuffer* cmd) const
 {
-    cmd.drawIndexed(m_indexCount, 1, 0, 0, 0);
+    cmd->drawIndexed(m_indexCount, 1, 0, 0, 0);
 }

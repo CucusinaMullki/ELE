@@ -29,6 +29,7 @@ void FXAA::updateDescriptorSet(uint32_t frameIndex, ASH::Texture* srcTexture, AS
 
 void FXAA::cleanup()
 {
+    m_descriptorSets.clear();
     m_pipeline.cleanup();
 }
 

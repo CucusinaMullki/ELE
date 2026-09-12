@@ -13,7 +13,7 @@ void Texture::upload(ASH::Device* device, const unsigned char* pixels, int width
 
     m_texture = device->createTexture(texDesc);
 
-    size_t dataSize = (size_t)width + height * 4;
+    size_t dataSize = (size_t)width * (size_t)height * 4;
 
     ASH::BufferDesc stagingDesc{};
     stagingDesc.size = dataSize;
@@ -33,14 +33,6 @@ void Texture::upload(ASH::Device* device, const unsigned char* pixels, int width
     toTransferDst.oldState = ASH::ResourceState::Undefined;
     toTransferDst.newState = ASH::ResourceState::TransferDst;
     cmd->barrier(&toTransferDst, 1, nullptr, 0);
-
-    cmd->copyBufferToTexture(stagingBuffer.get(), m_texture.get());
-
-    ASH::TextureBarrier toShaderRead{};
-    toShaderRead.texture = m_texture.get();
-    toShaderRead.oldState = ASH::ResourceState::TransferDst;
-    toShaderRead.newState = ASH::ResourceState::ShaderReadOnly;
-    cmd->barrier(&toShaderRead, 1, nullptr, 0);
 
     cmd->copyBufferToTexture(stagingBuffer.get(), m_texture.get());
 

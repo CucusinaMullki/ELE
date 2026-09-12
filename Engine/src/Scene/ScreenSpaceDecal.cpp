@@ -5,38 +5,38 @@
 
 namespace
 {
-    const unsigned char kWhitePixel[4] = {255, 255, 255, 255};
-    const unsigned char kFlatNormal[4] = {128, 128, 255, 255};
-    const unsigned char kDefaultMR[4] = {0, 128, 0, 255};
+const unsigned char kWhitePixel[4] = {255, 255, 255, 255};
+const unsigned char kFlatNormal[4] = {128, 128, 255, 255};
+const unsigned char kDefaultMR[4] = {0, 128, 0, 255};
 }
 
-void ScreenSpaceDecal::loadTexture(vk::Device device, vk::PhysicalDevice physicalDevice,
-    vk::CommandPool pool, vk::Queue queue, 
+void ScreenSpaceDecal::loadTexture(ASH::Device* device,
     const std::string& albedoPath,
     const std::string& opacityPath,
     const std::string& normalPath,
     const std::string& mrPath)
 {
-    m_albedoTexture.initialize(device, physicalDevice, pool, queue, albedoPath, true);
+    m_albedoTexture.initialize(device, albedoPath, true);
 
     if (!opacityPath.empty())
-        m_opacityTexture.initialize(device, physicalDevice, pool, queue, opacityPath, false);
+        m_opacityTexture.initialize(device, opacityPath, false);
     else
-        m_opacityTexture.initializeFromMemory(device, physicalDevice, pool, queue, kWhitePixel, 1, 1, false);
+        m_opacityTexture.initializeFromMemory(device, kWhitePixel, 1, 1, false);
 
     if (!normalPath.empty())
-        m_normalTexture.initialize(device, physicalDevice, pool, queue, normalPath, false);
+        m_normalTexture.initialize(device, normalPath, false);
     else
-        m_normalTexture.initializeFromMemory(device, physicalDevice, pool, queue, kFlatNormal, 1, 1, false);
+        m_normalTexture.initializeFromMemory(device, kFlatNormal, 1, 1, false);
 
     if (!mrPath.empty())
-        m_mrTexture.initialize(device, physicalDevice, pool, queue, mrPath, false);
-    else 
-        m_mrTexture.initializeFromMemory(device, physicalDevice, pool, queue, kDefaultMR, 1, 1, false);
+        m_mrTexture.initialize(device, mrPath, false);
+    else
+        m_mrTexture.initializeFromMemory(device, kDefaultMR, 1, 1, false);
 }
 
 void ScreenSpaceDecal::cleanup()
 {
+    m_descriptorSets.clear();
     m_albedoTexture.cleanup();
     m_opacityTexture.cleanup();
     m_normalTexture.cleanup();
@@ -59,80 +59,35 @@ glm::mat4 ScreenSpaceDecal::getInvModelMatrix() const
     return glm::inverse(getModelMatrix());
 }
 
-void ScreenSpaceDecal::createDescriptorSet(vk::Device device, vk::DescriptorPool pool, vk::DescriptorSetLayout layout,
-    vk::ImageView depthView, vk::Sampler depthSampler,
+void ScreenSpaceDecal::createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout* layout,
+    ASH::Texture* depthTexture, ASH::Sampler* depthSampler,
     const DecalCameraBuffer& cameraBuffer, const LightBuffer& lightBuffer, uint32_t frameCount)
 {
-    LOG("decal depth view  = " << (void*)(VkImageView)depthView);
-    std::vector<vk::DescriptorSetLayout> layouts(frameCount, layout);
-    vk::DescriptorSetAllocateInfo allocInfo{};
-    allocInfo.setDescriptorPool(pool);
-    allocInfo.setSetLayouts(layouts);
-    m_descriptorSets = device.allocateDescriptorSets(allocInfo);
+    m_descriptorSets.clear();
+    m_descriptorSets.resize(frameCount);
 
     for (uint32_t i = 0; i < frameCount; i++)
     {
-        vk::DescriptorImageInfo decalTexInfo{};
-        decalTexInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
-        decalTexInfo.setImageView(m_albedoTexture.getImageView());
-        decalTexInfo.setSampler(m_albedoTexture.getSampler());
+        m_descriptorSets[i] = device->createDescriptorSet(layout);
 
-        vk::DescriptorImageInfo depthInfo{};
-        depthInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
-        depthInfo.setImageView(depthView);
-        depthInfo.setSampler(depthSampler);
+        ASH::DescriptorImageInfo decalTexInfo{ m_albedoTexture.getTexture(), m_albedoTexture.getSampler() };
+        ASH::DescriptorImageInfo depthInfo{ depthTexture, depthSampler };
+        ASH::DescriptorImageInfo opacityInfo{ m_opacityTexture.getTexture(), m_opacityTexture.getSampler() };
+        ASH::DescriptorImageInfo normalInfo{ m_normalTexture.getTexture(), m_normalTexture.getSampler() };
+        ASH::DescriptorImageInfo mrInfo{ m_mrTexture.getTexture(), m_mrTexture.getSampler() };
 
-        std::array<vk::WriteDescriptorSet, 7> writes{};
-        writes[0].setDstSet(m_descriptorSets[i]);
-        writes[0].setDstBinding(0);
-        writes[0].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-        writes[0].setDescriptorCount(1);
-        writes[0].setImageInfo(decalTexInfo);
+        ASH::DescriptorBufferInfo camInfo{ cameraBuffer.getBuffer(i), 0, cameraBuffer.getBuffer(i)->getSize() };
+        ASH::DescriptorBufferInfo lightInfo{ lightBuffer.getBuffer(i), 0, lightBuffer.getBuffer(i)->getSize() };
 
-        writes[1].setDstSet(m_descriptorSets[i]);
-        writes[1].setDstBinding(1);
-        writes[1].setDescriptorType(vk::DescriptorType::eCombinedImageSampler);
-        writes[1].setDescriptorCount(1);
-        writes[1].setImageInfo(depthInfo);
+        std::array<ASH::DescriptorWrite, 7> writes{};
+        writes[0] = { 0, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &decalTexInfo };
+        writes[1] = { 1, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &depthInfo };
+        writes[2] = { 2, ASH::DescriptorType::UniformBuffer, 0, &camInfo, nullptr };
+        writes[3] = { 3, ASH::DescriptorType::UniformBuffer, 0, &lightInfo, nullptr };
+        writes[4] = { 4, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &opacityInfo };
+        writes[5] = { 5, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &normalInfo };
+        writes[6] = { 6, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &mrInfo };
 
-        writes[2].setDstSet(m_descriptorSets[i]);
-        writes[2].setDstBinding(2);
-        writes[2].setDescriptorType(vk::DescriptorType::eUniformBuffer);
-        writes[2].setDescriptorCount(1);
-        vk::DescriptorBufferInfo camInfo = cameraBuffer.getDescriptorInfo(i);
-        writes[2].setBufferInfo(camInfo);  
-
-        vk::DescriptorBufferInfo lightInfo = lightBuffer.getDescriptorInfo(i);
-        writes[3].setDstSet(m_descriptorSets[i]);
-        writes[3].setDstBinding(3);
-        writes[3].setDescriptorType(vk::DescriptorType::eUniformBuffer);
-        writes[3].setDescriptorCount(1);
-        writes[3].setBufferInfo(lightInfo);
-
-        vk::DescriptorImageInfo opacityInfo{};
-        opacityInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
-        opacityInfo.setImageView(m_opacityTexture.getImageView());
-        opacityInfo.setSampler(m_opacityTexture.getSampler());
-        writes[4].setDstSet(m_descriptorSets[i]).setDstBinding(4)
-            .setDescriptorType(vk::DescriptorType::eCombinedImageSampler).setDescriptorCount(1)
-            .setImageInfo(opacityInfo);
-
-        vk::DescriptorImageInfo normalInfo{};
-        normalInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
-        normalInfo.setImageView(m_normalTexture.getImageView());
-        normalInfo.setSampler(m_normalTexture.getSampler());
-        writes[5].setDstSet(m_descriptorSets[i]).setDstBinding(5)
-            .setDescriptorType(vk::DescriptorType::eCombinedImageSampler).setDescriptorCount(1)
-            .setImageInfo(normalInfo);
-
-        vk::DescriptorImageInfo mrInfo{};
-        mrInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
-        mrInfo.setImageView(m_mrTexture.getImageView());
-        mrInfo.setSampler(m_mrTexture.getSampler());
-        writes[6].setDstSet(m_descriptorSets[i]).setDstBinding(6)
-            .setDescriptorType(vk::DescriptorType::eCombinedImageSampler).setDescriptorCount(1)
-            .setImageInfo(mrInfo);
-
-        device.updateDescriptorSets(writes, nullptr);
+        m_descriptorSets[i]->update(writes.data(), (uint32_t)writes.size());
     }
 }

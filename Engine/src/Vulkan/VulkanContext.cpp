@@ -10,7 +10,11 @@ void VulkanContext::initialize(GLFWwindow* window)
     bool enableValidation = true;
 #endif
 
-    m_device = ASH::createDevice(ASH::Backend::Vulkan, enableValidation);
+    uint32_t glfwExtensionCount = 0;
+    const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+    std::vector<const char*> requiredExtensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+
+    m_device = ASH::createDevice(ASH::Backend::Vulkan, enableValidation, requiredExtensions);
 
     auto* vulkanDevice = static_cast<ASH::vulkan::VulkanDevice*>(m_device.get());
     VkResult result = glfwCreateWindowSurface(vulkanDevice->getInstance(), window, nullptr, &m_surface);
@@ -22,12 +26,6 @@ void VulkanContext::initialize(GLFWwindow* window)
 
 void VulkanContext::shutdown()
 {
-    if (m_surface != VK_NULL_HANDLE && m_device)
-    {
-        auto* vulkanDevice = static_cast<ASH::vulkan::VulkanDevice*>(m_device.get());
-        vkDestroySurfaceKHR(vulkanDevice->getInstance(), m_surface, nullptr);
-        m_surface = VK_NULL_HANDLE;
-    }
-
+    m_surface = VK_NULL_HANDLE;
     m_device.reset();
 }

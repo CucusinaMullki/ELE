@@ -128,6 +128,7 @@ int main()
     Engine engine;
     engine.initialize(800, 600, "ELE Game");
     engine.setAntialiasing(AAMethod::TAA);
+    engine.setExposure(1.0f);
     InputInScene(engine);
 
     auto& character = engine.loadGltfObject("assets/models/Level.glb");
@@ -181,33 +182,33 @@ int main()
     auto& testText = engine.getUI().addWidget<TextWidget>("Penis");
     testText.setFontScale(10.0f);
 
-    auto& enemy = engine.loadSkeletalGltfObject("assets/models/testAnimModel.glb");
-    enemy.transform.position = glm::vec3(0.0f, 1.0f, 0.0f);
-
-    auto enemyMaterial = engine.createDefaultMaterial();
-    enemy.setMaterial(enemyMaterial);
-
-    auto* skeletalComp = enemy.getComponent<SkeletalMeshComponent>();
-    engine.createSkinnedMaterialDescriptorSet(enemyMaterial, *skeletalComp);
-
-    enemy.addComponent<CharacterComponent>(engine.getPhysics(), engine.getTime(), 0.3f, 1.4f, 60.0f);
-
-    auto& ai = enemy.addComponent<AIController>(engine.getPhysics());
-    ai.setVisionTarget(&player);
-    ai.setVisionRange(15.0f);
-    ai.setVisionFOV(100.0f);
-    
-    skeletalComp->playAnimationByName(enemy, "Test", true);
-
-    std::vector<glm::vec3> patrolPoints;
-
-    for (GameObject* spawnPoints : engine.getScene().findAllByType("ai_point"))
-    {
-        patrolPoints.push_back(spawnPoints->transform.position);
-    }
-
-    ai.pushCommand(std::make_unique<EnemyBehaviorCommand>(engine.getNavMesh(), patrolPoints, &player));
-
+    //auto& enemy = engine.loadSkeletalGltfObject("assets/models/testAnimModel.glb");
+    //enemy.transform.position = glm::vec3(0.0f, 1.0f, 0.0f);
+//
+    //auto enemyMaterial = engine.createDefaultMaterial();
+    //enemy.setMaterial(enemyMaterial);
+//
+    //auto* skeletalComp = enemy.getComponent<SkeletalMeshComponent>();
+    //engine.createSkinnedMaterialDescriptorSet(enemyMaterial, *skeletalComp);
+//
+    //enemy.addComponent<CharacterComponent>(engine.getPhysics(), engine.getTime(), 0.3f, 1.4f, 60.0f);
+//
+    //auto& ai = enemy.addComponent<AIController>(engine.getPhysics());
+    //ai.setVisionTarget(&player);
+    //ai.setVisionRange(15.0f);
+    //ai.setVisionFOV(100.0f);
+    //
+    //skeletalComp->playAnimationByName(enemy, "Test", true);
+//
+    //std::vector<glm::vec3> patrolPoints;
+//
+    //for (GameObject* spawnPoints : engine.getScene().findAllByType("ai_point"))
+    //{
+    //    patrolPoints.push_back(spawnPoints->transform.position);
+    //}
+//
+    //ai.pushCommand(std::make_unique<EnemyBehaviorCommand>(engine.getNavMesh(), patrolPoints, &player));
+//
     createInteractableCube(engine, glm::vec3(2.0f, 1.0f, 2.0f), [&engine]()
     {
         createCube(engine, glm::vec3(0.0f, 10.0f, 0.0f));
