@@ -20,5 +20,11 @@ void main()
 {
     vec2 uv = sampleSphericalMap(normalize(fragLocalPos));
     vec3 color = texture(equirectMap, uv).rgb;
+
+    float maxBrightness = 8.0;
+    float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    if (luminance > maxBrightness)
+        color *= maxBrightness / luminance;
+
     outColor = vec4(color, 1.0);
 }

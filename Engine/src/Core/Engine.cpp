@@ -82,6 +82,7 @@ void Engine::createMaterialDescriptorSet(std::shared_ptr<Material> material)
         m_renderer.getShadowView(), m_renderer.getShadowSampler(),
         m_renderer.getShadowAtlasView(), m_renderer.getShadowAtlasSampler(),
         m_renderer.getIrradianceView(), m_renderer.getIrradianceSampler(),
+        m_renderer.getVoxelTexture(), m_renderer.getVoxelSampler(), m_renderer.getVoxelGridBuffer(),
         m_renderer.getFramesInFlight());
 }
 

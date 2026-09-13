@@ -42,6 +42,7 @@ public:
 
     void setFogEnabled(bool enabled);
     void setFogSettings(const FogSettings& settings);
+    void setIBLSettings(const IBLSettings& settings) { m_renderer.setIBLSettings(settings); }
     
     const FogSettings& getFogSettings() const;
     Scene& getScene()   { return m_scene; }
@@ -52,6 +53,8 @@ public:
     AudioSystem& getAudio() { return m_audio; }
     NavMesh& getNavMesh() { return m_navMesh; }
     UISystem& getUI() { return m_ui; }
+
+    Renderer& getRenderer() { return m_renderer; }
 
     void pause() { m_time.pause(); }
     void resume() { m_time.resume(); }

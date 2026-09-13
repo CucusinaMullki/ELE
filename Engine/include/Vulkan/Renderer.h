@@ -13,6 +13,8 @@
 #include "Vulkan/LightBuffer.h"
 #include "Vulkan/ShadowMap.h"
 #include "Vulkan/ShadowRenderPass.h"
+#include "Vulkan/IBLSettings.h"
+#include "Vulkan/VoxelGI.h"
 #include "Vulkan/ShadowAtlas.h"
 #include "Vulkan/DepthBuffer.h"
 #include "Vulkan/HdrRenderPass.h"
@@ -61,7 +63,8 @@ public:
     void setGodRaySettings(const GodRaySettings& settings) { m_godRaySettings = settings; }
     void setTotalTime(float t) { m_totalTime = t; }
     void addScreenSpaceDecal(std::shared_ptr<ScreenSpaceDecal> decal) { m_screenSpaceDecals.push_back(decal); }
-
+    void setIBLSettings(const IBLSettings& settings) { m_iblSettings = settings; }
+    
     void initImGui(GLFWwindow* window);
     void beginImGuiFrame();
     void renderImGui(ASH::CommandBuffer* commandBuffer);
@@ -85,6 +88,9 @@ public:
     const DecalCameraBuffer& getDecalCameraBuffer() const { return m_decalCameraBuffer; }
     const GodRaySettings& getGodRaySettings() const { return m_godRaySettings; }
     std::vector<ASH::Buffer*> getUboBuffers() const;
+    ASH::Texture* getVoxelTexture() const { return m_voxelGI.getVoxelTexture(); }
+    ASH::Sampler* getVoxelSampler() const { return m_voxelGI.getVoxelSampler(); }
+    ASH::Buffer* getVoxelGridBuffer() const { return m_voxelGridBuffer.get(); }
     std::vector<ASH::Buffer*> getLightBuffers() const;
     uint32_t getFramesInFlight() const { return MAX_FRAMES_IN_FLIGHT; }
     ASH::DescriptorSetLayout* getSkinnedDescriptorSetLayout() const { return m_skinnedPipeline.getDescriptorSetLayout(); }
@@ -92,6 +98,9 @@ public:
 
     std::vector<const GameObject*> parallelCull(const Scene& scene, const std::array<glm::vec4, 6>& planes) const;
     bool isVisible(const GameObject& obj, const std::array<glm::vec4, 6>& planes) const;
+
+    void initializeVoxelGI(glm::vec3 gridMin, glm::vec3 gridSize, uint32_t resolution = 128);
+    void voxelizeScene(const Scene& scene);
 
 private:
     void recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
@@ -171,6 +180,11 @@ private:
     float m_bloomThreshold = 4.0f;
     float m_contrast = 1.0f;
 
+    //VoxelGI
+    VoxelGI m_voxelGI;
+    bool m_hasVoxelGI = false;
+    std::unique_ptr<ASH::Buffer> m_voxelGridBuffer;
+
     //HDR
     HdrTarget m_hdrTarget;
     HdrRenderPass m_hdrRenderPass;
@@ -240,6 +254,7 @@ private:
 
     CubeTexture m_environmentCubemap;
     CubeTexture m_irradianceCubemap;
+    IBLSettings m_iblSettings;
     EnvironmentBaker m_envBaker;
     Pipeline m_skyboxPipeline;
     std::unique_ptr<ASH::DescriptorSet> m_skyboxDescriptorSet;

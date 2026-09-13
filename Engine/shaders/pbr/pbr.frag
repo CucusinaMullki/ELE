@@ -11,7 +11,9 @@ layout(binding = 0) uniform Camera {
     mat4 prevViewProj;
     mat4 viewProjNoJitter;
     vec4 camPos;
+    vec4 iblParams;
 } cam;
+
 layout(binding = 1) uniform sampler2D albedoMap;
 layout(binding = 2) uniform sampler2D normalMap;
 layout(binding = 3) uniform sampler2D metallicRoughnessMap;
@@ -31,6 +33,12 @@ layout(binding = 6) uniform sampler2DShadow shadowMap;
 layout(binding = 7) uniform sampler2D shadowAtlas;
 layout(binding = 8) uniform sampler2D lightmapMap;
 layout(binding = 9) uniform samplerCube irradianceMap;
+layout(binding = 10) uniform sampler3D voxelTexture;
+
+layout(binding = 11) uniform VoxelGrid {
+    vec4 gridMin;
+    vec4 gridSize;
+} voxelGrid;
 
 layout(location = 0) in vec3 fragWorldPos;
 layout(location = 1) in vec2 fragTexCoord;
@@ -254,12 +262,16 @@ void main()
     }
 
     vec3 irradiance = texture(irradianceMap, N).rgb;
-    vec3 ambientDiffuse = irradiance * albedo * (1.0 - metallic);
+    vec3 ambientDiffuse = irradiance * albedo * (1.0 - metallic) * cam.iblParams.x;
     vec3 ambient = ambientDiffuse * ao;
     vec3 color = ambient + Lo;
 
     vec3 lightmapColor = texture(lightmapMap, fragLightmapUV).rgb;
-    color += lightmapColor * 0.02 * ao;
+    color += lightmapColor * 0.05 * ao;
+
+    vec3 voxelNormalizedPos = (fragWorldPos - voxelGrid.gridMin.xyz) / voxelGrid.gridSize.xyz;
+    vec3 voxelDebugColor = texture(voxelTexture, voxelNormalizedPos).rgb;
+    // color = voxelDebugColor; // debug: uncomment to visualize voxel grid
 
     float alpha = texture(albedoMap, fragTexCoord).a;
     outColor = vec4(color, alpha);

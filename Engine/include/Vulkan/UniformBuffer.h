@@ -12,6 +12,7 @@ struct MVP
     glm::mat4 prevViewProj;
     glm::mat4 viewProjNoJitter;
     glm::vec4 camPos;
+    glm::vec4 iblParams;
 };
 
 class UniformBuffer

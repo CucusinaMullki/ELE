@@ -22,6 +22,7 @@ void Material::createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout
     ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
     ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
     ASH::Texture* irradianceTexture, ASH::Sampler* irradianceSampler,
+    ASH::Texture* voxelTexture, ASH::Sampler* voxelSampler, ASH::Buffer* voxelGridBuffer,
     uint32_t frameCount)
 {
     m_descriptorSets.clear();
@@ -42,8 +43,10 @@ void Material::createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout
         ASH::DescriptorImageInfo lightmapInfo{ m_lightmap.getTexture(), m_lightmap.getSampler() };
         ASH::DescriptorImageInfo shadowAtlasInfo{ shadowAtlasTexture, shadowAtlasSampler };
         ASH::DescriptorImageInfo irradianceInfo{ irradianceTexture, irradianceSampler };
+        ASH::DescriptorImageInfo voxelInfo{ voxelTexture, voxelSampler };
+        ASH::DescriptorBufferInfo voxelGridInfo{ voxelGridBuffer, 0, voxelGridBuffer->getSize() };
 
-        std::array<ASH::DescriptorWrite, 10> writes{};
+        std::array<ASH::DescriptorWrite, 12> writes{};
 
         writes[0] = { 0, ASH::DescriptorType::UniformBuffer, 0, &uboInfo, nullptr };
         writes[1] = { 1, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &albedoInfo };
@@ -55,6 +58,8 @@ void Material::createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout
         writes[7] = { 7, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &shadowAtlasInfo };
         writes[8] = { 8, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &lightmapInfo };
         writes[9] = { 9, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &irradianceInfo };
+        writes[10] = {10, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &voxelInfo };
+        writes[11] = { 11, ASH::DescriptorType::UniformBuffer, 0, &voxelGridInfo, nullptr };
 
         m_descriptorSets[i]->update(writes.data(), (uint32_t)writes.size());
     }

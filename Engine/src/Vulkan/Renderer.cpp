@@ -660,6 +660,58 @@ void Renderer::initialize(GLFWwindow* window)
     }
 }
 
+void Renderer::initializeVoxelGI(glm::vec3 gridMin, glm::vec3 gridSize, uint32_t resolution)
+{
+    ASH::Device* device = m_context.getDevice();
+    m_voxelGI.initialize(device, resolution, gridMin, gridSize);
+    m_hasVoxelGI = true;
+
+    struct VoxelGridData
+    {
+        glm::vec4 gridMin;
+        glm::vec4 gridSize;
+    };
+
+    VoxelGridData gridData{};
+    gridData.gridMin = glm::vec4(gridMin, 0.0f);
+    gridData.gridSize = glm::vec4(gridSize, 0.0f);
+
+    ASH::BufferDesc bufDesc{};
+    bufDesc.size = sizeof(VoxelGridData);
+    bufDesc.usage = ASH::BufferUsage::UniformBuffer;
+    bufDesc.memory = ASH::MemoryUsage::CpuToGpu;
+    m_voxelGridBuffer = device->createBuffer(bufDesc);
+
+    void* mapped = m_voxelGridBuffer->map();
+    memcpy(mapped, &gridData, sizeof(VoxelGridData));
+    m_voxelGridBuffer->unmap();
+}
+
+void Renderer::voxelizeScene(const Scene& scene)
+{
+    if (!m_hasVoxelGI) return;
+
+    ASH::Device* device = m_context.getDevice();
+    auto cmd = device->createCommandBuffer();
+    cmd->begin();
+
+    m_voxelGI.clearVoxels(cmd.get());
+    m_voxelGI.voxelizeScene(cmd.get(), scene);
+
+    ASH::TextureBarrier tb{};
+    tb.texture = m_voxelGI.getVoxelTexture();
+    tb.oldState = ASH::ResourceState::General;
+    tb.newState = ASH::ResourceState::ShaderReadOnly;
+    cmd->barrier(&tb, 1, nullptr, 0);
+
+    cmd->end();
+
+    ASH::SubmitInfo submitInfo{};
+    submitInfo.commandBuffer = cmd.get();
+    device->submit(submitInfo);
+    device->waitIdle();
+}
+
 void Renderer::loadEnvironmentMap(const std::string& hdrPath)
 {
     ASH::Device* device = m_context.getDevice();
@@ -825,6 +877,7 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
     mvp.prevViewProj = m_prevViewProj;
     mvp.viewProjNoJitter = baseProj * camera.getViewMatrix();
     mvp.camPos = glm::vec4(camera.getPosition(), 1.0f);
+    mvp.iblParams = glm::vec4(m_iblSettings.diffuseIntensity, m_iblSettings.specularIntensity, 0.0f, 0.0f);
     m_uniformBuffer.update(m_currentFrame, mvp);
 
     m_prevViewProj = mvp.viewProjNoJitter;
@@ -1098,7 +1151,6 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
             }
         }
 
-        LOG("visible submeshes: " << visibleCount << " / " << totalCount);
 
         cmd->endRenderPass();
     }
@@ -1778,6 +1830,10 @@ void Renderer::cleanup()
     m_environmentCubemap.cleanup();
     m_irradianceCubemap.cleanup();
     m_envBaker.cleanup();
+
+    m_voxelGridBuffer.reset();
+
+    m_voxelGI.cleanup();
 
     m_godRayMaskFramebuffer.reset();
     m_godRayBlurFramebuffer.reset();

@@ -10,86 +10,10 @@ void Pipeline::initialize(ASH::Device* device, const PipelineConfig& config)
 {
     m_device = device;
 
-    ASH::DescriptorSetLayoutDesc layoutDesc{};
-
-    auto addBinding = [&](uint32_t binding, ASH::DescriptorType type, ASH::ShaderStage stages) {
-        ASH::DescriptorBindingDesc b{};
-        b.binding = binding;
-        b.type = type;
-        b.count = 1;
-        b.stageFlags = stages;
-        layoutDesc.bindings.push_back(b);
-    };
-
-    switch (config.layoutType)
-    {
-    case LayoutType::Fog:
-        addBinding(0, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(1, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
-        addBinding(2, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(3, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
-        break;
-    
-    case LayoutType::Decal:
-        addBinding(0, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(1, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(2, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex | ASH::ShaderStage::Fragment);
-        addBinding(3, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
-        addBinding(4, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(5, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(6, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        break;
-
-    case LayoutType::Skinned:
-        addBinding(0, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex | ASH::ShaderStage::Fragment);
-        addBinding(1, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(2, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(3, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(4, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(5, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
-        addBinding(6, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(7, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(8, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(9, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex);
-        addBinding(10, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        break;
-
-    case LayoutType::PostProcess:
-        for (uint32_t b = 0; b < 3; b++)
-            addBinding(b, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        break;
-
-    case LayoutType::Default:
-        addBinding(0, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex | ASH::ShaderStage::Fragment);
-        addBinding(1, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(2, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(3, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(4, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(5, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
-        addBinding(6, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(7, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(8, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        addBinding(9, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        break;
-
-    case LayoutType::SingleTexture:
-        addBinding(0, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        break;
-
-    case LayoutType::Skybox:
-        addBinding(0, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex);
-        addBinding(1, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
-        break;
-
-    case LayoutType::None:
-        break;
-    }
+    ASH::DescriptorSetLayoutDesc layoutDesc = buildLayoutDesc(config.layoutType);
+    m_descriptorSetLayout = device->createDescriptorSetLayout(layoutDesc);
 
     bool hasLayout = (config.layoutType != LayoutType::None);
-
-    if (hasLayout)
-        m_descriptorSetLayout = device->createDescriptorSetLayout(layoutDesc);
-
     auto vertCode = loadSpirvFile(config.vertexShader + ".vert");
 
     ASH::GraphicsPipelineDesc desc{};
@@ -168,6 +92,98 @@ void Pipeline::initialize(ASH::Device* device, const PipelineConfig& config)
     desc.pushConstantRanges.push_back(pcRange);
 
     m_pipeline = device->createGraphicsPipeline(desc);
+}
+
+ASH::DescriptorSetLayoutDesc buildLayoutDesc(LayoutType layoutType)
+{
+
+    ASH::DescriptorSetLayoutDesc layoutDesc{};
+
+    auto addBinding = [&](uint32_t binding, ASH::DescriptorType type, ASH::ShaderStage stages) {
+        ASH::DescriptorBindingDesc b{};
+        b.binding = binding;
+        b.type = type;
+        b.count = 1;
+        b.stageFlags = stages;
+        layoutDesc.bindings.push_back(b);
+    };
+
+    switch (layoutType)
+    {
+    case LayoutType::Fog:
+        addBinding(0, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(1, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
+        addBinding(2, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(3, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
+        break;
+    
+    case LayoutType::Decal:
+        addBinding(0, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(1, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(2, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex | ASH::ShaderStage::Fragment);
+        addBinding(3, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
+        addBinding(4, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(5, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(6, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        break;
+
+    case LayoutType::Skinned:
+        addBinding(0, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex | ASH::ShaderStage::Fragment);
+        addBinding(1, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(2, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(3, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(4, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(5, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
+        addBinding(6, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(7, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(8, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(9, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex);
+        addBinding(10, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        break;
+
+    case LayoutType::PostProcess:
+        for (uint32_t b = 0; b < 3; b++)
+            addBinding(b, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        break;
+
+    case LayoutType::Default:
+        addBinding(0, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex | ASH::ShaderStage::Fragment);
+        addBinding(1, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(2, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(3, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(4, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(5, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
+        addBinding(6, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(7, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(8, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(9, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(10, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(11, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
+        break;
+
+    case LayoutType::SingleTexture:
+        addBinding(0, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        break;
+
+    case LayoutType::Skybox:
+        addBinding(0, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex);
+        addBinding(1, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        break;
+
+    case LayoutType::VoxelClear:
+        addBinding(0, ASH::DescriptorType::StorageImage, ASH::ShaderStage::Compute);
+        break;
+
+    case LayoutType::Voxelize:
+        addBinding(0, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(1, ASH::DescriptorType::StorageImage, ASH::ShaderStage::Fragment);
+        break;
+
+    case LayoutType::None:
+        break;
+    }
+
+    return layoutDesc;
 }
 
 void Pipeline::cleanup()

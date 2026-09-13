@@ -18,6 +18,8 @@ add_library(ELE STATIC
     src/Scene/Material.cpp
     src/Scene/Mesh.cpp
     src/Core/ResourceManager.cpp
+    src/Vulkan/VoxelGI.cpp
+    src/Vulkan/VoxelizeRenderPass.cpp
     src/Vulkan/Renderer.cpp
     src/Core/tinygltf_impl.cpp
     src/Core/GltfModel.cpp
@@ -27,6 +29,8 @@ add_library(ELE STATIC
     src/Vulkan/EnvironmentBaker.cpp
     src/Vulkan/HdrTexture.cpp
     src/Vulkan/CubeTexture.cpp
+    src/Vulkan/ComputePipeline.cpp
+    src/Vulkan/VoxelTexture3D.cpp
     src/Vulkan/ShadowRenderPass.cpp
     src/Vulkan/HdrTarget.cpp
     src/Vulkan/HdrRenderPass.cpp

@@ -13,7 +13,9 @@ enum class LayoutType
     Skinned,
     PostProcess,
     SingleTexture,
-    Skybox
+    Skybox,
+    VoxelClear,
+    Voxelize
 };
 
 struct PipelineConfig
@@ -42,6 +44,8 @@ struct PipelineConfig
     float depthBiasSlope = 0.0f;
     LayoutType layoutType = LayoutType::Default;
 };
+
+ASH::DescriptorSetLayoutDesc buildLayoutDesc(LayoutType layoutType);
 
 class Pipeline
 {

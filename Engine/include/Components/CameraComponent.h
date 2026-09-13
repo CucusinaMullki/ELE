@@ -22,10 +22,6 @@ public:
     {
         if (!m_active) return;
 
-        LOG("applyToCamera: owner pos=" << m_owner->transform.position.x << "," 
-            << m_owner->transform.position.y << "," << m_owner->transform.position.z);
-
-
         glm::vec3 basePos = m_owner->transform.position;
         float yawRad = glm::radians(m_owner->transform.rotation.y);
         float pitchRad = glm::radians(m_pitch);
