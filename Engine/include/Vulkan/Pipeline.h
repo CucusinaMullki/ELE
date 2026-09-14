@@ -15,7 +15,8 @@ enum class LayoutType
     SingleTexture,
     Skybox,
     VoxelClear,
-    Voxelize
+    Voxelize,
+    StampProxy
 };
 
 struct PipelineConfig

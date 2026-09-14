@@ -5,6 +5,7 @@
 #include "Components/DoorComponent.h"
 #include "Components/PlayerComponent.h"
 #include "Components/InputComponent.h"
+#include "Components/VoxelProxyComponent.h"
 #include "Components/CameraComponent.h"
 #include "Components/TransformComponent.h"
 #include "Components/RigidBodyComponent.h"
@@ -26,12 +27,15 @@ GameObject* createCube(Engine& engine, glm::vec3 pos)
 
     cube.addComponent<TransformComponent>().setPosition(pos);
     cube.setMaterial(material);
-    cube.addComponent<MeshComponent>().setMesh(engine.loadMesh("assets/models/Dick.glb"));
+    auto mesh = engine.loadMesh("assets/models/cube.glb");
+    cube.addComponent<MeshComponent>().setMesh(mesh);
     cube.addComponent<RigidBodyComponent>(engine.getPhysics(),
-        RigidBodyComponent::Shape::ConvexHull, RigidBodyComponent::Motion::Dynamic, engine.loadMesh("assets/models/Dick.glb", true),
+        RigidBodyComponent::Shape::ConvexHull, RigidBodyComponent::Motion::Dynamic, engine.loadMesh("assets/models/cube.glb", true),
         glm::vec3(1.0f), 1.5f);
     auto& audioComp = cube.addComponent<AudioComponent>(engine.getAudio(), engine.getPhysics(), "test");
     audioComp.play();
+
+    cube.addComponent<VoxelProxyComponent>(engine.getRenderer(), mesh.get(), material.get());
 
     return &cube;
 }

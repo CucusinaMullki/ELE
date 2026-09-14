@@ -25,10 +25,14 @@ public:
     const std::vector<uint32_t>& getCpuIndices() const { return m_cpuIndices; }
     glm::vec3 getLocalBoundCentre() const { return m_boundsCenter; }
     float getLocalBoundsRadius() const { return m_boundRadius; }
+    glm::vec3 getLocalBoundsMin() const { return m_boundsMin; }
+    glm::vec3 getLocalBoundsMax() const { return m_boundsMax; }
 
 private:
     glm::vec3 m_boundsCenter{0.0f};
     float m_boundRadius = 0.0f;
+    glm::vec3 m_boundsMin{0.0f};
+    glm::vec3 m_boundsMax{0.0f};
     void computeBounds(const std::vector<Vertex>& vertices);
     VertexBuffer m_vertexBuffer;
     IndexBuffer  m_indexBuffer;

@@ -3,6 +3,7 @@
 #include "Vulkan/VoxelTexture3D.h"
 #include "Vulkan/ComputePipeline.h"
 #include "Vulkan/VoxelizeRenderPass.h"
+#include "Vulkan/DynamicVoxelProxy.h"
 #include "Vulkan/RenderPass.h"
 #include <glm/glm.hpp>
 #include <memory>
@@ -25,6 +26,20 @@ public:
 
     void clearVoxels(ASH::CommandBuffer* cmd);
 
+    void stampProxy(ASH::CommandBuffer* cmd, DynamicVoxelProxy& proxy, glm::vec3 worldPosition);
+
+    void bakeLocalProxy(ASH::Device* device, Mesh* mesh, Material* material, DynamicVoxelProxy& proxy,
+        ASH::Buffer* lightBuffer,
+        ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
+        ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
+        ASH::Buffer* shadowDataBuffer);
+
+    std::unique_ptr<DynamicVoxelProxy> createLocalProxy(ASH::Device* device, Mesh* mesh, Material* material,
+        ASH::Buffer* lightBuffer,
+        ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
+        ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
+        ASH::Buffer* shadowDataBuffer);
+
     void voxelizeScene(ASH::CommandBuffer* cmd, const Scene& scene,
         ASH::Buffer* lightBuffer,
         ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
@@ -40,14 +55,16 @@ public:
 private:
     VoxelTexture3D m_voxelTexture;
     ComputePipeline m_clearPipeline;
+    ComputePipeline m_stampPipeline;
+    std::unique_ptr<ASH::DescriptorSet> m_stampDescriptorSet;
     Pipeline m_voxelizePipeline;
     std::unique_ptr<ASH::DescriptorSet> m_clearDescriptorSet;
     VoxelizeRenderPass m_voxelizeRenderPass;
     std::unique_ptr<ASH::Framebuffer> m_voxelizeFramebuffer;
     std::vector<std::unique_ptr<ASH::DescriptorSet>> m_perObjectDescriptorSets;
 
-    uint32_t m_lastKnownSceneVersion = 0xFFFFFFFF;
     bool m_descriptorsInitialized = false;
+    uint32_t m_lastKnownSceneVersion = 0xFFFFFFFF;
 
     uint32_t m_resolution = 0;
     glm::vec3 m_gridMin{};

@@ -1,0 +1,33 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+layout(binding = 0, rgba8) uniform readonly image3D localVoxels;
+layout(binding = 1, rgba8) uniform image3D worldVoxels;
+
+layout(push_constant) uniform Push
+{
+    ivec4 worldOffset;
+    ivec4 localSize;
+} push;
+
+void main()
+{
+    ivec3 localCoord = ivec3(gl_GlobalInvocationID);
+
+    if (any(greaterThanEqual(localCoord, push.localSize.xyz)))
+        return;
+
+    vec4 voxelData = imageLoad(localVoxels, localCoord);
+
+    if (voxelData.a < 0.01)
+        return;
+
+    ivec3 worldCoord = push.worldOffset.xyz + localCoord;
+
+    ivec3 worldSize = imageSize(worldVoxels);
+    if (any(lessThan(worldCoord, ivec3(0))) || any(greaterThanEqual(worldCoord, worldSize)))
+        return;
+
+    imageStore(worldVoxels, worldCoord, voxelData);
+}

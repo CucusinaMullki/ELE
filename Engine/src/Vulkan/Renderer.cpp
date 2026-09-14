@@ -938,23 +938,38 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         transition(m_shadowMap.getTexture(), ASH::ResourceState::DepthStencilAttachment, ASH::ResourceState::ShaderReadOnly);
     }
 
-    if (m_hasVoxelGI && (m_frameIndex % m_voxelizeInterval == 0))
+    if (m_hasVoxelGI)
     {
-        void* mapped = m_voxelizeShadowDataBuffer->map();
-        memcpy(mapped, &m_lightSpaceMatrix, sizeof(glm::mat4));
-        m_voxelizeShadowDataBuffer->unmap();
+        bool worldVoxelizedThisFrame = (m_frameIndex % m_voxelizeInterval == 0);
+        bool hasStamps = !m_pendingStamps.empty();
 
-        if (m_frameIndex != 0)
+        if (worldVoxelizedThisFrame)
+        {
+            void* mapped = m_voxelizeShadowDataBuffer->map();
+            memcpy(mapped, &m_lightSpaceMatrix, sizeof(glm::mat4));
+            m_voxelizeShadowDataBuffer->unmap();
+
+            if (m_frameIndex != 0)
+                transition(m_voxelGI.getVoxelTexture(), ASH::ResourceState::ShaderReadOnly, ASH::ResourceState::General);
+
+            m_voxelGI.clearVoxels(cmd);
+            m_voxelGI.voxelizeScene(cmd, scene,
+                m_lightBuffer.getBuffer(m_currentFrame),
+                m_shadowMap.getTexture(), m_shadowMap.getSampler(),
+                m_shadowAtlas.getTexture(), m_shadowAtlas.getSampler(),
+                m_voxelizeShadowDataBuffer.get());
+        }
+        else if (hasStamps)
+        {
             transition(m_voxelGI.getVoxelTexture(), ASH::ResourceState::ShaderReadOnly, ASH::ResourceState::General);
+        }
 
-        m_voxelGI.clearVoxels(cmd);
-        m_voxelGI.voxelizeScene(cmd, scene,
-            m_lightBuffer.getBuffer(m_currentFrame),
-            m_shadowMap.getTexture(), m_shadowMap.getSampler(),
-            m_shadowAtlas.getTexture(), m_shadowAtlas.getSampler(),
-            m_voxelizeShadowDataBuffer.get());
+        for (auto& stamp : m_pendingStamps)
+            m_voxelGI.stampProxy(cmd, *stamp.proxy, stamp.worldPosition);
+        m_pendingStamps.clear();
 
-        transition(m_voxelGI.getVoxelTexture(), ASH::ResourceState::General, ASH::ResourceState::ShaderReadOnly);
+        if (worldVoxelizedThisFrame || hasStamps)
+            transition(m_voxelGI.getVoxelTexture(), ASH::ResourceState::General, ASH::ResourceState::ShaderReadOnly);
     }
 
     if (m_hasPointLightShadow)
@@ -1567,6 +1582,16 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
     cmd->end();
 }
 
+std::unique_ptr<DynamicVoxelProxy> Renderer::createVoxelProxy(Mesh* mesh, Material* material)
+{
+    ASH::Device* device = m_context.getDevice();
+    return m_voxelGI.createLocalProxy(device, mesh, material,
+        m_lightBuffer.getBuffer(m_currentFrame),
+        m_shadowMap.getTexture(), m_shadowMap.getSampler(),
+        m_shadowAtlas.getTexture(), m_shadowAtlas.getSampler(),
+        m_voxelizeShadowDataBuffer.get());
+}
+
 void Renderer::recreateSwapchain()
 {
     LOG("recreateSwapchain() called!");
@@ -1813,6 +1838,11 @@ void Renderer::recreateSwapchain()
         device->submit(submitInfo);
         device->waitIdle();
     }
+}
+
+void Renderer::stampVoxelProxy(DynamicVoxelProxy& proxy, glm::vec3 worldPosition)
+{
+    m_pendingStamps.push_back({ &proxy, worldPosition });
 }
 
 void Renderer::setAAMethod(AAMethod method)

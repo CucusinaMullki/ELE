@@ -36,7 +36,7 @@ void Mesh::drawSubmesh(ASH::CommandBuffer* cmd, const Submesh& sm) const
 
 void Mesh::computeBounds(const std::vector<Vertex>& vertices)
 {
-    if (vertices.empty()) { m_boundsCenter = glm::vec3(0.0f); m_boundRadius = 0.0f; }
+    if (vertices.empty()) { m_boundsCenter = glm::vec3(0.0f); m_boundRadius = 0.0f; return; }
     glm::vec3 minB(FLT_MAX), maxB(-FLT_MAX);
     for (const auto& v : vertices)
     {
@@ -45,6 +45,8 @@ void Mesh::computeBounds(const std::vector<Vertex>& vertices)
     }
     m_boundsCenter = (minB + maxB) * 0.5f;
     m_boundRadius = glm::length(maxB - m_boundsCenter);
+    m_boundsMin = minB;
+    m_boundsMax = maxB;
 }
 
 void Mesh::loadFromData(ASH::Device* device,

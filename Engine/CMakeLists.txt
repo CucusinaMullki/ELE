@@ -14,6 +14,7 @@ add_library(ELE STATIC
     src/Core/Input.cpp
     src/Core/Camera.cpp
     src/Vulkan/Texture.cpp
+    src/Vulkan/DynamicVoxelProxy.cpp
     src/Core/stb_impl.cpp
     src/Scene/Material.cpp
     src/Scene/Mesh.cpp

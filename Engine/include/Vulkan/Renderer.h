@@ -100,6 +100,8 @@ public:
     bool isVisible(const GameObject& obj, const std::array<glm::vec4, 6>& planes) const;
 
     void enableVoxelGI(glm::vec3 gridMin, glm::vec3 gridSize, uint32_t resolution = 128);
+    void stampVoxelProxy(DynamicVoxelProxy& proxy, glm::vec3 worldPosition);
+    std::unique_ptr<DynamicVoxelProxy> createVoxelProxy(Mesh* mesh, Material* material);
 
 private:
     void recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
@@ -185,6 +187,8 @@ private:
     std::unique_ptr<ASH::Buffer> m_voxelGridBuffer;
     std::unique_ptr<ASH::Buffer> m_voxelizeShadowDataBuffer;
     uint32_t m_voxelizeInterval = 8;
+    struct PendingStamp { DynamicVoxelProxy* proxy; glm::vec3 worldPosition; };
+    std::vector<PendingStamp> m_pendingStamps;
 
     //HDR
     HdrTarget m_hdrTarget;

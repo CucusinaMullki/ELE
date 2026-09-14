@@ -183,6 +183,11 @@ ASH::DescriptorSetLayoutDesc buildLayoutDesc(LayoutType layoutType)
         addBinding(5, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
         break;
 
+    case LayoutType::StampProxy:
+        addBinding(0, ASH::DescriptorType::StorageImage, ASH::ShaderStage::Compute);
+        addBinding(1, ASH::DescriptorType::StorageImage, ASH::ShaderStage::Compute);
+        break;
+
     case LayoutType::None:
         break;
     }
