@@ -1,4 +1,5 @@
 #include "Scene/SkeletalMesh.h"
+#include <cfloat>
 
 void SkeletalMesh::loadFromData(ASH::Device* device,
     const std::vector<SkinnedVertex>& vertices,
@@ -8,6 +9,18 @@ void SkeletalMesh::loadFromData(ASH::Device* device,
     m_vertexBuffer.initialize(device, vertices);
     m_indexBuffer.initialize(device, indices);
     m_submeshes = submeshes;
+
+    if (!vertices.empty())
+    {
+        glm::vec3 minB(FLT_MAX), maxB(-FLT_MAX);
+        for (const auto& v : vertices)
+        {
+            minB = glm::min(minB, v.pos);
+            maxB = glm::max(maxB, v.pos);
+        }
+        m_boundsMin = minB;
+        m_boundsMax = maxB;
+    }
 }
 
 void SkeletalMesh::cleanup()

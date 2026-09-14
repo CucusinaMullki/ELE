@@ -32,6 +32,7 @@ void VoxelGI::initialize(ASH::Device* device, uint32_t resolution, glm::vec3 gri
     stampConfig.pushStage = ASH::ShaderStage::Compute;
     m_stampPipeline.initialize(device, stampConfig);
 
+
     PipelineConfig voxelizeConfig{};
     voxelizeConfig.vertexShader = "voxelize";
     voxelizeConfig.fragmentShader = "voxelize";
@@ -47,11 +48,99 @@ void VoxelGI::initialize(ASH::Device* device, uint32_t resolution, glm::vec3 gri
     voxelizeConfig.pushStage = ASH::ShaderStage::Vertex | ASH::ShaderStage::Fragment;
     m_voxelizePipeline.initialize(device, voxelizeConfig);
 
+    PipelineConfig voxelizeSkinnedConfig = voxelizeConfig;
+    voxelizeSkinnedConfig.vertexShader = "voxelize_skinned";
+    voxelizeSkinnedConfig.fragmentShader = "voxelize";
+    voxelizeSkinnedConfig.layoutType = LayoutType::VoxelizeSkinned;
+    m_voxelizeSkinnedPipeline.initialize(device, voxelizeSkinnedConfig);
+
     ASH::FramebufferDesc fbDesc{};
     fbDesc.renderPass = m_voxelizeRenderPass.getRenderPass();
     fbDesc.extent = { resolution, resolution };
     fbDesc.layers = 1;
     m_voxelizeFramebuffer = device->createFramebuffer(fbDesc);
+}
+
+void VoxelGI::bakeLocalProxySkinned(ASH::Device* device, SkeletalMesh* mesh, Material* material, DynamicVoxelProxy& proxy,
+    ASH::Buffer* boneBuffer,
+    ASH::Buffer* lightBuffer,
+    ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
+    ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
+    ASH::Buffer* shadowDataBuffer)
+{
+    uint32_t localRes = proxy.getResolution();
+
+    ASH::FramebufferDesc fbDesc{};
+    fbDesc.renderPass = m_voxelizeRenderPass.getRenderPass();
+    fbDesc.extent = { localRes, localRes };
+    fbDesc.layers = 1;
+    auto localFb = device->createFramebuffer(fbDesc);
+
+    auto cmd = device->createCommandBuffer();
+    cmd->begin();
+
+    ASH::TextureBarrier toGeneral{};
+    toGeneral.texture = proxy.getLocalVoxelTexture().getTexture();
+    toGeneral.oldState = ASH::ResourceState::Undefined;
+    toGeneral.newState = ASH::ResourceState::General;
+    cmd->barrier(&toGeneral, 1, nullptr, 0);
+
+    ASH::RenderPassBeginInfo passInfo{};
+    passInfo.renderPass = m_voxelizeRenderPass.getRenderPass();
+    passInfo.framebuffer = localFb.get();
+    passInfo.renderArea = { 0, 0, localRes, localRes };
+
+    cmd->beginRenderPass(passInfo);
+    cmd->bindPipeline(m_voxelizeSkinnedPipeline.getPipeline());
+
+    ASH::Viewport vp{};
+    vp.width = (float)localRes;
+    vp.height = (float)localRes;
+    vp.maxDepth = 1.0f;
+    cmd->setViewport(vp);
+    ASH::Rect2D sc{ 0, 0, localRes, localRes };
+    cmd->setScissor(sc);
+
+    auto descSet = m_voxelizeSkinnedPipeline.createDescriptorSet();
+
+    ASH::DescriptorImageInfo albedoInfo{ material->getAlbedoTexture(), material->getAlbedoSampler() };
+    ASH::DescriptorImageInfo voxelInfo{ proxy.getLocalVoxelTexture().getTexture(), nullptr };
+    ASH::DescriptorBufferInfo lightInfo{ lightBuffer, 0, lightBuffer->getSize() };
+    ASH::DescriptorImageInfo shadowInfo{ shadowTexture, shadowSampler };
+    ASH::DescriptorImageInfo shadowAtlasInfo{ shadowAtlasTexture, shadowAtlasSampler };
+    ASH::DescriptorBufferInfo shadowDataInfo{ shadowDataBuffer, 0, shadowDataBuffer->getSize() };
+    ASH::DescriptorBufferInfo boneInfo{ boneBuffer, 0, boneBuffer->getSize() };
+
+    std::array<ASH::DescriptorWrite, 7> writes{};
+    writes[0] = { 0, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &albedoInfo };
+    writes[1] = { 1, ASH::DescriptorType::StorageImage, 0, nullptr, &voxelInfo };
+    writes[2] = { 2, ASH::DescriptorType::UniformBuffer, 0, &lightInfo, nullptr };
+    writes[3] = { 3, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &shadowInfo };
+    writes[4] = { 4, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &shadowAtlasInfo };
+    writes[5] = { 5, ASH::DescriptorType::UniformBuffer, 0, &shadowDataInfo, nullptr };
+    writes[6] = { 6, ASH::DescriptorType::UniformBuffer, 0, &boneInfo, nullptr };
+    descSet->update(writes.data(), (uint32_t)writes.size());
+
+    cmd->bindDescriptorSet(m_voxelizeSkinnedPipeline.getPipeline(), 0, descSet.get());
+
+    VoxelizePush push{};
+    push.model = glm::mat4(1.0f);
+    push.voxelGridMin = glm::vec4(proxy.getLocalBoundsMin(), 0.0f);
+    push.voxelGridSize = glm::vec4(proxy.getLocalBoundsSize(), 0.0f);
+    cmd->pushConstants(m_voxelizeSkinnedPipeline.getPipeline(), ASH::ShaderStage::Vertex | ASH::ShaderStage::Fragment, 0, sizeof(VoxelizePush), &push);
+
+    mesh->bind(cmd.get());
+    for (const auto& sm : mesh->getSubmeshes())
+        mesh->drawSubmesh(cmd.get(), sm);
+
+    cmd->endRenderPass();
+
+    cmd->end();
+
+    ASH::SubmitInfo submitInfo{};
+    submitInfo.commandBuffer = cmd.get();
+    device->submit(submitInfo);
+    device->waitIdle();
 }
 
 void VoxelGI::stampProxy(ASH::CommandBuffer* cmd, DynamicVoxelProxy& proxy, glm::vec3 worldPosition)
@@ -281,6 +370,7 @@ void VoxelGI::bakeLocalProxy(ASH::Device* device, Mesh* mesh, Material* material
 
 void VoxelGI::cleanup()
 {
+    m_voxelizeSkinnedPipeline.cleanup();
     m_stampPipeline.cleanup();
     m_stampDescriptorSet.reset();
     m_perObjectDescriptorSets.clear();

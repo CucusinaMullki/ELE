@@ -3,6 +3,7 @@
 #include "Vulkan/VoxelTexture3D.h"
 #include "Vulkan/ComputePipeline.h"
 #include "Vulkan/VoxelizeRenderPass.h"
+#include "Scene/SkeletalMesh.h"
 #include "Vulkan/DynamicVoxelProxy.h"
 #include "Vulkan/RenderPass.h"
 #include <glm/glm.hpp>
@@ -46,6 +47,13 @@ public:
         ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
         ASH::Buffer* shadowDataBuffer);
 
+    void bakeLocalProxySkinned(ASH::Device* device, SkeletalMesh* mesh, Material* material, DynamicVoxelProxy& proxy,
+        ASH::Buffer* boneBuffer,
+        ASH::Buffer* lightBuffer,
+        ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
+        ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
+        ASH::Buffer* shadowDataBuffer);
+
     ASH::Texture* getVoxelTexture() const { return m_voxelTexture.getTexture(); }
     ASH::Sampler* getVoxelSampler() const { return m_voxelTexture.getSampler(); }
     glm::vec3 getGridMin() const { return m_gridMin; }
@@ -58,6 +66,7 @@ private:
     ComputePipeline m_stampPipeline;
     std::unique_ptr<ASH::DescriptorSet> m_stampDescriptorSet;
     Pipeline m_voxelizePipeline;
+    Pipeline m_voxelizeSkinnedPipeline;
     std::unique_ptr<ASH::DescriptorSet> m_clearDescriptorSet;
     VoxelizeRenderPass m_voxelizeRenderPass;
     std::unique_ptr<ASH::Framebuffer> m_voxelizeFramebuffer;

@@ -188,6 +188,16 @@ ASH::DescriptorSetLayoutDesc buildLayoutDesc(LayoutType layoutType)
         addBinding(1, ASH::DescriptorType::StorageImage, ASH::ShaderStage::Compute);
         break;
 
+    case LayoutType::VoxelizeSkinned:
+        addBinding(0, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(1, ASH::DescriptorType::StorageImage, ASH::ShaderStage::Fragment);
+        addBinding(2, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
+        addBinding(3, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(4, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(5, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
+        addBinding(6, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex);   // BoneMatrices
+        break;
+
     case LayoutType::None:
         break;
     }

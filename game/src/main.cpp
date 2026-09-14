@@ -138,6 +138,8 @@ int main()
     engine.getRenderer().enableVoxelGI(glm::vec3(-15.0f, -5.0f, -15.0f), glm::vec3(30.0f, 15.0f, 30.0f), 128);
 
     //engine.loadEnvironmentMap("assets/hdri/some_env.hdr");
+//
+    //engine.addDirectionalLight(glm::vec3(0.25f, -0.25f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 5.0f);
 
     IBLSettings iblSettings{};
     iblSettings.diffuseIntensity = 0.25f;

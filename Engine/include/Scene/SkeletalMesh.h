@@ -24,6 +24,9 @@ public:
 
     const std::vector<Submesh>& getSubmeshes() const { return m_submeshes; }
 
+    glm::vec3 getLocalBoundsMin() const { return m_boundsMin; }
+    glm::vec3 getLocalBoundsMax() const { return m_boundsMax; }
+
     void setSkeleton(std::shared_ptr<Skeleton> skeleton) { m_skeleton = skeleton; }
     std::shared_ptr<Skeleton> getSkeleton() const { return m_skeleton; }
 
@@ -32,4 +35,7 @@ private:
     IndexBuffer m_indexBuffer;
     std::vector<Submesh> m_submeshes;
     std::shared_ptr<Skeleton> m_skeleton;
+
+    glm::vec3 m_boundsMin{0.0f};
+    glm::vec3 m_boundsMax{0.0f};
 };

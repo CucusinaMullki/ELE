@@ -103,6 +103,9 @@ public:
     void stampVoxelProxy(DynamicVoxelProxy& proxy, glm::vec3 worldPosition);
     std::unique_ptr<DynamicVoxelProxy> createVoxelProxy(Mesh* mesh, Material* material);
 
+    std::unique_ptr<DynamicVoxelProxy> createSkeletalVoxelProxy(SkeletalMesh* mesh, Material* material, ASH::Buffer* boneBuffer);
+    void rebakeSkeletalVoxelProxy(DynamicVoxelProxy& proxy, SkeletalMesh* mesh, Material* material, ASH::Buffer* boneBuffer);
+
 private:
     void recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         const Scene& scene, const Camera& camera);

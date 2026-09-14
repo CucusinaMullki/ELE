@@ -1582,6 +1582,40 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
     cmd->end();
 }
 
+std::unique_ptr<DynamicVoxelProxy> Renderer::createSkeletalVoxelProxy(SkeletalMesh* mesh, Material* material, ASH::Buffer* boneBuffer)
+{
+    ASH::Device* device = m_context.getDevice();
+
+    glm::vec3 boundsMin = mesh->getLocalBoundsMin();
+    glm::vec3 boundsMax = mesh->getLocalBoundsMax();
+    glm::vec3 boundsSize = boundsMax - boundsMin;
+
+    float voxelSize = m_voxelGI.getGridSize().x / (float)m_voxelGI.getResolution();
+    uint32_t localRes = (uint32_t)glm::ceil(glm::max(boundsSize.x, glm::max(boundsSize.y, boundsSize.z)) / voxelSize);
+    localRes = glm::max(localRes, 1u);
+
+    auto proxy = std::make_unique<DynamicVoxelProxy>();
+    proxy->initialize(device, localRes, boundsMin, boundsSize);
+
+    m_voxelGI.bakeLocalProxySkinned(device, mesh, material, *proxy, boneBuffer,
+        m_lightBuffer.getBuffer(m_currentFrame),
+        m_shadowMap.getTexture(), m_shadowMap.getSampler(),
+        m_shadowAtlas.getTexture(), m_shadowAtlas.getSampler(),
+        m_voxelizeShadowDataBuffer.get());
+
+    return proxy;
+}
+
+void Renderer::rebakeSkeletalVoxelProxy(DynamicVoxelProxy& proxy, SkeletalMesh* mesh, Material* material, ASH::Buffer* boneBuffer)
+{
+    ASH::Device* device = m_context.getDevice();
+    m_voxelGI.bakeLocalProxySkinned(device, mesh, material, proxy, boneBuffer,
+        m_lightBuffer.getBuffer(m_currentFrame),
+        m_shadowMap.getTexture(), m_shadowMap.getSampler(),
+        m_shadowAtlas.getTexture(), m_shadowAtlas.getSampler(),
+        m_voxelizeShadowDataBuffer.get());
+}
+
 std::unique_ptr<DynamicVoxelProxy> Renderer::createVoxelProxy(Mesh* mesh, Material* material)
 {
     ASH::Device* device = m_context.getDevice();
