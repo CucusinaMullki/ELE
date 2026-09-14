@@ -195,7 +195,11 @@ ASH::DescriptorSetLayoutDesc buildLayoutDesc(LayoutType layoutType)
         addBinding(3, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         addBinding(4, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         addBinding(5, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
-        addBinding(6, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex);   // BoneMatrices
+        addBinding(6, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex);
+        break;
+    case LayoutType::DownsampleVoxels:
+        addBinding(0, ASH::DescriptorType::StorageImage, ASH::ShaderStage::Compute);
+        addBinding(1, ASH::DescriptorType::StorageImage, ASH::ShaderStage::Compute);
         break;
 
     case LayoutType::None:

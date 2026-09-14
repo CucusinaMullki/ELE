@@ -38,6 +38,7 @@ layout(binding = 10) uniform sampler3D voxelTexture;
 layout(binding = 11) uniform VoxelGrid {
     vec4 gridMin;
     vec4 gridSize;
+    vec4 resolution;
 } voxelGrid;
 
 layout(location = 0) in vec3 fragWorldPos;
@@ -57,6 +58,68 @@ const vec3 SKY_HORIZON = vec3(0.55, 0.60, 0.65);
 const vec3 GROUND      = vec3(0.05, 0.05, 0.06);
 
 const float POINT_SHADOW_FAR_PLANE = 25.0;
+
+vec3 traceConeVoxel(vec3 startPos, vec3 direction, float coneAperture, float maxDistance)
+{
+    vec3 result = vec3(0.0);
+    float alpha = 0.0;
+
+    float voxelSize = voxelGrid.gridSize.x / voxelGrid.resolution.x;
+    float dist = voxelSize * 2.0;
+
+    while (dist < maxDistance && alpha < 1.0)
+    {
+        float diameter = max(voxelSize, 2.0 * coneAperture * dist);
+        float mipLevel = log2(diameter / voxelSize);
+
+        vec3 samplePos = startPos + direction * dist;
+        vec3 normalizedPos = (samplePos - voxelGrid.gridMin.xyz) / voxelGrid.gridSize.xyz;
+
+        if (any(lessThan(normalizedPos, vec3(0.0))) || any(greaterThan(normalizedPos, vec3(1.0))))
+            break;
+
+        vec4 voxelSample = textureLod(voxelTexture, normalizedPos, mipLevel);
+
+        result += (1.0 - alpha) * voxelSample.rgb;
+        alpha += (1.0 - alpha) * voxelSample.a;
+
+        dist += diameter * 0.5;
+    }
+
+    return result;
+}
+
+vec3 calculateVoxelGI(vec3 worldPos, vec3 N)
+{
+    vec3 up = abs(N.y) < 0.999 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 right = normalize(cross(up, N));
+    up = normalize(cross(N, right));
+
+    const int NUM_CONES = 9;
+    vec3 coneDirs[NUM_CONES] = vec3[](
+        vec3(0.0, 0.0, 1.0),
+        vec3(0.0, 0.866, 0.5),
+        vec3(0.823, 0.267, 0.5),
+        vec3(0.509, -0.7, 0.5),
+        vec3(-0.509, -0.7, 0.5),
+        vec3(-0.823, 0.267, 0.5),
+        vec3(0.588, 0.588, 0.555),
+        vec3(-0.588, 0.588, 0.555),
+        vec3(0.0, -0.809, 0.588)
+    );
+    float coneWeights[NUM_CONES] = float[](
+        0.16, 0.10, 0.10, 0.10, 0.10, 0.10, 0.11, 0.11, 0.12
+    );
+
+    vec3 result = vec3(0.0);
+    for (int i = 0; i < NUM_CONES; i++)
+    {
+        vec3 dir = coneDirs[i].x * right + coneDirs[i].y * up + coneDirs[i].z * N;
+        result += traceConeVoxel(worldPos, dir, 0.5, 8.0) * coneWeights[i];
+    }
+
+    return result;
+}
 
 vec3 sampleSky(vec3 dir)
 {
@@ -261,18 +324,36 @@ void main()
         }
     }
 
-    vec3 irradiance = texture(irradianceMap, N).rgb;
-    vec3 ambientDiffuse = irradiance * albedo * (1.0 - metallic) * cam.iblParams.x;
-    vec3 ambient = ambientDiffuse * ao;
+    //vec3 irradiance = texture(irradianceMap, N).rgb;
+    //vec3 ambientDiffuse = irradiance * albedo * (1.0 - metallic) * cam.iblParams.x;
+    //vec3 ambient = ambientDiffuse * ao;
+    
+    vec3 voxelNormalizedPos = (fragWorldPos - voxelGrid.gridMin.xyz) / voxelGrid.gridSize.xyz;
+    bool insideVoxelGrid = all(greaterThanEqual(voxelNormalizedPos, vec3(0.0))) && all(lessThanEqual(voxelNormalizedPos, vec3(1.0)));
+
+    vec3 iblAmbient = texture(irradianceMap, N).rgb * albedo * (1.0 - metallic) * cam.iblParams.x;
+
+    vec3 indirectDiffuse;
+    if (insideVoxelGrid)
+    {
+        vec3 voxelBounce = calculateVoxelGI(fragWorldPos, N) * albedo * (1.0 - metallic);
+        indirectDiffuse = mix(iblAmbient, voxelBounce, 0.35);
+    }
+    else
+    {
+        indirectDiffuse = iblAmbient;
+    }
+
+    vec3 ambient = indirectDiffuse * ao;
+    
     vec3 color = ambient + Lo;
 
     vec3 lightmapColor = texture(lightmapMap, fragLightmapUV).rgb;
     color += lightmapColor * 0.05 * ao;
 
-    vec3 voxelNormalizedPos = (fragWorldPos - voxelGrid.gridMin.xyz) / voxelGrid.gridSize.xyz;
     vec3 voxelDebugColor = texture(voxelTexture, voxelNormalizedPos).rgb;
     // color = voxelDebugColor; // debug: uncomment to visualize voxel grid
-
+    
     float alpha = texture(albedoMap, fragTexCoord).a;
     outColor = vec4(color, alpha);
 

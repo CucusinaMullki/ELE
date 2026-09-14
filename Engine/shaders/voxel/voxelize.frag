@@ -89,5 +89,10 @@ void main()
         result += albedo * radiance * NdotL * visibility;
     }
 
+    float maxBrightness = 4.0;
+    float luminance = dot(result, vec3(0.2126, 0.7152, 0.0722));
+    if (luminance > maxBrightness)
+        result *= maxBrightness / luminance;
+    
     imageStore(voxelTexture, voxelCoord, vec4(result, 1.0));
 }

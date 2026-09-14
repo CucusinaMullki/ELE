@@ -134,8 +134,8 @@ int main()
     engine.setAntialiasing(AAMethod::TAA);
     engine.setExposure(1.0f);
     InputInScene(engine);
-
-    engine.getRenderer().enableVoxelGI(glm::vec3(-15.0f, -5.0f, -15.0f), glm::vec3(30.0f, 15.0f, 30.0f), 128);
+    
+    engine.getRenderer().enableVoxelGI(glm::vec3(-30.0f, -5.0f, -30.0f), glm::vec3(60.0f, 20.0f, 60.0f), 256);
 
     //engine.loadEnvironmentMap("assets/hdri/some_env.hdr");
 //

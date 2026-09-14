@@ -54,6 +54,8 @@ public:
         ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
         ASH::Buffer* shadowDataBuffer);
 
+    void buildMipChain(ASH::CommandBuffer* cmd);
+
     ASH::Texture* getVoxelTexture() const { return m_voxelTexture.getTexture(); }
     ASH::Sampler* getVoxelSampler() const { return m_voxelTexture.getSampler(); }
     glm::vec3 getGridMin() const { return m_gridMin; }
@@ -63,6 +65,7 @@ public:
 private:
     VoxelTexture3D m_voxelTexture;
     ComputePipeline m_clearPipeline;
+    ComputePipeline m_downsamplePipeline;
     ComputePipeline m_stampPipeline;
     std::unique_ptr<ASH::DescriptorSet> m_stampDescriptorSet;
     Pipeline m_voxelizePipeline;
@@ -71,6 +74,7 @@ private:
     VoxelizeRenderPass m_voxelizeRenderPass;
     std::unique_ptr<ASH::Framebuffer> m_voxelizeFramebuffer;
     std::vector<std::unique_ptr<ASH::DescriptorSet>> m_perObjectDescriptorSets;
+    std::vector<std::unique_ptr<ASH::DescriptorSet>> m_downsampleDescriptorSets;
 
     bool m_descriptorsInitialized = false;
     uint32_t m_lastKnownSceneVersion = 0xFFFFFFFF;

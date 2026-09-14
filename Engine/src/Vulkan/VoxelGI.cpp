@@ -11,7 +11,8 @@ void VoxelGI::initialize(ASH::Device* device, uint32_t resolution, glm::vec3 gri
     m_gridMin = gridMin;
     m_gridSize = gridSize;
 
-    m_voxelTexture.initialize(device, resolution, ASH::Format::R8G8B8A8_UNorm);
+    uint32_t mipLevels = (uint32_t)std::floor(std::log2((float)resolution)) + 1;
+    m_voxelTexture.initialize(device, resolution, ASH::Format::R8G8B8A8_UNorm, mipLevels);
 
     ComputePipelineConfig clearConfig{};
     clearConfig.computeShader = "clear_voxels";
@@ -32,6 +33,10 @@ void VoxelGI::initialize(ASH::Device* device, uint32_t resolution, glm::vec3 gri
     stampConfig.pushStage = ASH::ShaderStage::Compute;
     m_stampPipeline.initialize(device, stampConfig);
 
+    ComputePipelineConfig downsampleConfig{};
+    downsampleConfig.computeShader  = "downsample_voxels";
+    downsampleConfig.layoutType = LayoutType::DownsampleVoxels;
+    m_downsamplePipeline.initialize(device, downsampleConfig);
 
     PipelineConfig voxelizeConfig{};
     voxelizeConfig.vertexShader = "voxelize";
@@ -59,6 +64,50 @@ void VoxelGI::initialize(ASH::Device* device, uint32_t resolution, glm::vec3 gri
     fbDesc.extent = { resolution, resolution };
     fbDesc.layers = 1;
     m_voxelizeFramebuffer = device->createFramebuffer(fbDesc);
+}
+
+void VoxelGI::buildMipChain(ASH::CommandBuffer* cmd)
+{
+    uint32_t mipLevels = m_voxelTexture.getMipLevels();
+
+    if (m_downsampleDescriptorSets.empty())
+    {
+        m_downsampleDescriptorSets.resize(mipLevels - 1);
+        for (uint32_t mip = 0; mip < mipLevels - 1; mip++)
+        {
+            m_downsampleDescriptorSets[mip] = m_downsamplePipeline.createDescriptorSet();
+
+            ASH::DescriptorImageInfo srcInfo{};
+            srcInfo.texture = m_voxelTexture.getTexture();
+            srcInfo.mipLevel = mip;
+            srcInfo.useSpecificMipLayer = true;
+
+            ASH::DescriptorImageInfo dstInfo{};
+            dstInfo.texture = m_voxelTexture.getTexture();
+            dstInfo.mipLevel = mip + 1;
+            dstInfo.useSpecificMipLayer = true;
+
+            std::array<ASH::DescriptorWrite, 2> writes{};
+            writes[0] = { 0, ASH::DescriptorType::StorageImage, 0, nullptr, &srcInfo };
+            writes[1] = { 1, ASH::DescriptorType::StorageImage, 0, nullptr, &dstInfo };
+            m_downsampleDescriptorSets[mip]->update(writes.data(), (uint32_t)writes.size());
+        }
+    }
+
+    cmd->bindPipeline(m_downsamplePipeline.getPipeline());
+
+    uint32_t srcSize = m_resolution;
+    for (uint32_t mip = 0; mip < mipLevels - 1; mip++)
+    {
+        uint32_t dstSize = srcSize / 2;
+
+        cmd->bindDescriptorSet(m_downsamplePipeline.getPipeline(), 0, m_downsampleDescriptorSets[mip].get());
+
+        uint32_t groups = (dstSize + 7) / 8;
+        cmd->dispatch(groups, groups, groups);
+
+        srcSize = dstSize;
+    }
 }
 
 void VoxelGI::bakeLocalProxySkinned(ASH::Device* device, SkeletalMesh* mesh, Material* material, DynamicVoxelProxy& proxy,
@@ -371,7 +420,9 @@ void VoxelGI::bakeLocalProxy(ASH::Device* device, Mesh* mesh, Material* material
 void VoxelGI::cleanup()
 {
     m_voxelizeSkinnedPipeline.cleanup();
+    m_downsamplePipeline.cleanup();
     m_stampPipeline.cleanup();
+    m_voxelizeSkinnedPipeline.cleanup();
     m_stampDescriptorSet.reset();
     m_perObjectDescriptorSets.clear();
     m_clearDescriptorSet.reset();

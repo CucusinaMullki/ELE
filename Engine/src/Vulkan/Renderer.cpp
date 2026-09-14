@@ -507,6 +507,7 @@ void Renderer::initialize(GLFWwindow* window)
     m_pointShadowRenderPass.initialize(device, ASH::Format::D32_Float);
 
     m_shadowAtlas.initialize(device);
+    m_voxelGI.initialize(device, 1, glm::vec3(-0.5f, -0.5f, -0.5f), glm::vec3(1.0f, 1.0f, 1.0f));
 
     m_irradianceCubemap.initialize(device, 1, ASH::Format::R32G32B32A32_Float, 1);
     m_irradianceCubemap.clear(device, 0.0f, 0.0f, 0.0f, 1.0f);
@@ -663,11 +664,13 @@ void Renderer::initialize(GLFWwindow* window)
 void Renderer::enableVoxelGI(glm::vec3 gridMin, glm::vec3 gridSize, uint32_t resolution)
 {
     ASH::Device* device = m_context.getDevice();
+
+    m_voxelGI.cleanup();
     m_voxelGI.initialize(device, resolution, gridMin, gridSize);
     m_hasVoxelGI = true;
 
-    struct VoxelGridData { glm::vec4 gridMin; glm::vec4 gridSize; };
-    VoxelGridData gridData{ glm::vec4(gridMin, 0.0f), glm::vec4(gridSize, 0.0f) };
+    struct VoxelGridData { glm::vec4 gridMin; glm::vec4 gridSize; glm::vec4 resolution; };
+    VoxelGridData gridData{ glm::vec4(gridMin, 0.0f), glm::vec4(gridSize, 0.0f), glm::vec4((float)resolution, 0.0f, 0.0f, 0.0f) };
 
     ASH::BufferDesc bufDesc{};
     bufDesc.size = sizeof(VoxelGridData);
@@ -969,7 +972,10 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         m_pendingStamps.clear();
 
         if (worldVoxelizedThisFrame || hasStamps)
+        {
+            m_voxelGI.buildMipChain(cmd);
             transition(m_voxelGI.getVoxelTexture(), ASH::ResourceState::General, ASH::ResourceState::ShaderReadOnly);
+        }
     }
 
     if (m_hasPointLightShadow)
