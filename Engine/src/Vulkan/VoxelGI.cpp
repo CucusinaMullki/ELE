@@ -56,8 +56,19 @@ void VoxelGI::clearVoxels(ASH::CommandBuffer* cmd)
     cmd->dispatch(groups, groups, groups);
 }
 
-void VoxelGI::voxelizeScene(ASH::CommandBuffer* cmd, const Scene& scene)
+void VoxelGI::voxelizeScene(ASH::CommandBuffer* cmd, const Scene& scene,
+    ASH::Buffer* lightBuffer,
+    ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
+    ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
+    ASH::Buffer* shadowDataBuffer)
 {
+    bool sceneChanged = (scene.getVersion() != m_lastKnownSceneVersion);
+    if (sceneChanged)
+    {
+        m_perObjectDescriptorSets.clear();
+        m_lastKnownSceneVersion = scene.getVersion();
+    }
+
     ASH::RenderPassBeginInfo passInfo{};
     passInfo.renderPass = m_voxelizeRenderPass.getRenderPass();
     passInfo.framebuffer = m_voxelizeFramebuffer.get();
@@ -75,34 +86,56 @@ void VoxelGI::voxelizeScene(ASH::CommandBuffer* cmd, const Scene& scene)
     ASH::Rect2D sc{ 0, 0, m_resolution, m_resolution };
     cmd->setScissor(sc);
 
+    size_t objIndex = 0;
     for (const auto& obj : scene.getObjects())
     {
         if (!obj->mesh) continue;
 
-        auto descSet = m_voxelizePipeline.createDescriptorSet();
+        ASH::DescriptorSet* descSet = nullptr;
+
+        if (sceneChanged || objIndex >= m_perObjectDescriptorSets.size())
+        {
+            m_perObjectDescriptorSets.push_back(m_voxelizePipeline.createDescriptorSet());
+            descSet = m_perObjectDescriptorSets.back().get();
+        }
+        else
+        {
+            descSet = m_perObjectDescriptorSets[objIndex].get();
+        }
 
         auto mat = obj->getMaterial(0);
-        if (!mat) continue;
+        if (!mat) { objIndex++; continue; }
 
         ASH::DescriptorImageInfo albedoInfo{ mat->getAlbedoTexture(), mat->getAlbedoSampler() };
         ASH::DescriptorImageInfo voxelInfo{ m_voxelTexture.getTexture(), nullptr };
+        ASH::DescriptorBufferInfo lightInfo{ lightBuffer, 0, lightBuffer->getSize() };
+        ASH::DescriptorImageInfo shadowInfo{ shadowTexture, shadowSampler };
+        ASH::DescriptorImageInfo shadowAtlasInfo{ shadowAtlasTexture, shadowAtlasSampler };
+        ASH::DescriptorBufferInfo shadowDataInfo{ shadowDataBuffer, 0, shadowDataBuffer->getSize() };
 
-        std::array<ASH::DescriptorWrite, 2> writes{};
+        std::array<ASH::DescriptorWrite, 6> writes{};
         writes[0] = { 0, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &albedoInfo };
         writes[1] = { 1, ASH::DescriptorType::StorageImage, 0, nullptr, &voxelInfo };
+        writes[2] = { 2, ASH::DescriptorType::UniformBuffer, 0, &lightInfo, nullptr };
+        writes[3] = { 3, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &shadowInfo };
+        writes[4] = { 4, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &shadowAtlasInfo };
+        writes[5] = { 5, ASH::DescriptorType::UniformBuffer, 0, &shadowDataInfo, nullptr };
         descSet->update(writes.data(), (uint32_t)writes.size());
 
-        cmd->bindDescriptorSet(m_voxelizePipeline.getPipeline(), 0, descSet.get());
+        descSet->update(writes.data(), (uint32_t)writes.size());
+        cmd->bindDescriptorSet(m_voxelizePipeline.getPipeline(), 0, descSet);
 
         VoxelizePush push{};
         push.model = obj->transform.getMatrix();
         push.voxelGridMin = glm::vec4(m_gridMin, 0.0f);
         push.voxelGridSize = glm::vec4(m_gridSize, 0.0f);
-        cmd->pushConstants(m_voxelizePipeline.getPipeline(), ASH::ShaderStage::Vertex, 0, sizeof(VoxelizePush), &push);
+        cmd->pushConstants(m_voxelizePipeline.getPipeline(), ASH::ShaderStage::Vertex | ASH::ShaderStage::Fragment, 0, sizeof(VoxelizePush), &push);
 
         obj->mesh->bind(cmd);
         for (const auto& sm : obj->mesh->getSubmeshes())
             obj->mesh->drawSubmesh(cmd, sm);
+
+        objIndex++;
     }
 
     cmd->endRenderPass();
@@ -110,6 +143,7 @@ void VoxelGI::voxelizeScene(ASH::CommandBuffer* cmd, const Scene& scene)
 
 void VoxelGI::cleanup()
 {
+    m_perObjectDescriptorSets.clear();
     m_clearDescriptorSet.reset();
     m_voxelizeFramebuffer.reset();
     m_voxelizeRenderPass.cleanup();

@@ -16,6 +16,7 @@ public:
     void removeObject(const std::shared_ptr<GameObject>& obj)
     {
         m_objects.erase(std::remove(m_objects.begin(), m_objects.end(), obj), m_objects.end());
+        m_version++;   // ДОБАВИТЬ — состав объектов изменился
     }
 
     void flush() { flushPenging(); }
@@ -24,9 +25,13 @@ public:
     {
         m_objects.clear();
         m_pendingObjects.clear();
+        m_version++;   // ДОБАВИТЬ
     }
 
     const std::vector<std::shared_ptr<GameObject>>& getObjects() const { return m_objects; }
+
+    // ДОБАВИТЬ — версия увеличивается при каждом структурном изменении списка объектов
+    uint32_t getVersion() const { return m_version; }
 
     GameObject* findByName(const std::string& name) const
     {
@@ -50,7 +55,7 @@ public:
             obj->fixedUpdateComponents(fixedDeltaTime);
         flushPenging();
     }
-    
+
     std::vector<GameObject*> findAllByType(const std::string& type) const
     {
         std::vector<GameObject*> result;
@@ -59,7 +64,7 @@ public:
                 result.push_back(obj.get());
         return result;
     }
-    
+
 private:
     void flushPenging()
     {
@@ -67,8 +72,10 @@ private:
         for (auto& obj : m_pendingObjects)
             m_objects.push_back(std::move(obj));
         m_pendingObjects.clear();
+        m_version++;
     }
 
     std::vector<std::shared_ptr<GameObject>> m_objects;
     std::vector<std::shared_ptr<GameObject>> m_pendingObjects;
+    uint32_t m_version = 0;
 };

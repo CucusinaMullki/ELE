@@ -99,8 +99,7 @@ public:
     std::vector<const GameObject*> parallelCull(const Scene& scene, const std::array<glm::vec4, 6>& planes) const;
     bool isVisible(const GameObject& obj, const std::array<glm::vec4, 6>& planes) const;
 
-    void initializeVoxelGI(glm::vec3 gridMin, glm::vec3 gridSize, uint32_t resolution = 128);
-    void voxelizeScene(const Scene& scene);
+    void enableVoxelGI(glm::vec3 gridMin, glm::vec3 gridSize, uint32_t resolution = 128);
 
 private:
     void recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
@@ -184,6 +183,8 @@ private:
     VoxelGI m_voxelGI;
     bool m_hasVoxelGI = false;
     std::unique_ptr<ASH::Buffer> m_voxelGridBuffer;
+    std::unique_ptr<ASH::Buffer> m_voxelizeShadowDataBuffer;
+    uint32_t m_voxelizeInterval = 8;
 
     //HDR
     HdrTarget m_hdrTarget;

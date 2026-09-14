@@ -131,7 +131,7 @@ int main()
     engine.setExposure(1.0f);
     InputInScene(engine);
 
-    engine.getRenderer().initializeVoxelGI(glm::vec3(-15.0f, -5.0f, -15.0f), glm::vec3(30.0f, 15.0f, 30.0f), 128);
+    engine.getRenderer().enableVoxelGI(glm::vec3(-15.0f, -5.0f, -15.0f), glm::vec3(30.0f, 15.0f, 30.0f), 128);
 
     //engine.loadEnvironmentMap("assets/hdri/some_env.hdr");
 
@@ -141,8 +141,6 @@ int main()
 
     auto& character = engine.loadGltfObject("assets/models/Level.glb");
     engine.getScene().flush();
-
-    engine.getRenderer().voxelizeScene(engine.getScene());
 
     engine.getAudio().loadSound("music", "audio/yebimenya.wav");
     engine.getAudio().playSound("music", 0.5f);

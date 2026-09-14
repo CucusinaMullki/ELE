@@ -25,7 +25,11 @@ public:
 
     void clearVoxels(ASH::CommandBuffer* cmd);
 
-    void voxelizeScene(ASH::CommandBuffer* cmd, const Scene& scene);
+    void voxelizeScene(ASH::CommandBuffer* cmd, const Scene& scene,
+        ASH::Buffer* lightBuffer,
+        ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
+        ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
+        ASH::Buffer* shadowDataBuffer);
 
     ASH::Texture* getVoxelTexture() const { return m_voxelTexture.getTexture(); }
     ASH::Sampler* getVoxelSampler() const { return m_voxelTexture.getSampler(); }
@@ -40,6 +44,10 @@ private:
     std::unique_ptr<ASH::DescriptorSet> m_clearDescriptorSet;
     VoxelizeRenderPass m_voxelizeRenderPass;
     std::unique_ptr<ASH::Framebuffer> m_voxelizeFramebuffer;
+    std::vector<std::unique_ptr<ASH::DescriptorSet>> m_perObjectDescriptorSets;
+
+    uint32_t m_lastKnownSceneVersion = 0xFFFFFFFF;
+    bool m_descriptorsInitialized = false;
 
     uint32_t m_resolution = 0;
     glm::vec3 m_gridMin{};

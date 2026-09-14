@@ -177,6 +177,10 @@ ASH::DescriptorSetLayoutDesc buildLayoutDesc(LayoutType layoutType)
     case LayoutType::Voxelize:
         addBinding(0, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         addBinding(1, ASH::DescriptorType::StorageImage, ASH::ShaderStage::Fragment);
+        addBinding(2, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
+        addBinding(3, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(4, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(5, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
         break;
 
     case LayoutType::None:

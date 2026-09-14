@@ -660,21 +660,14 @@ void Renderer::initialize(GLFWwindow* window)
     }
 }
 
-void Renderer::initializeVoxelGI(glm::vec3 gridMin, glm::vec3 gridSize, uint32_t resolution)
+void Renderer::enableVoxelGI(glm::vec3 gridMin, glm::vec3 gridSize, uint32_t resolution)
 {
     ASH::Device* device = m_context.getDevice();
     m_voxelGI.initialize(device, resolution, gridMin, gridSize);
     m_hasVoxelGI = true;
 
-    struct VoxelGridData
-    {
-        glm::vec4 gridMin;
-        glm::vec4 gridSize;
-    };
-
-    VoxelGridData gridData{};
-    gridData.gridMin = glm::vec4(gridMin, 0.0f);
-    gridData.gridSize = glm::vec4(gridSize, 0.0f);
+    struct VoxelGridData { glm::vec4 gridMin; glm::vec4 gridSize; };
+    VoxelGridData gridData{ glm::vec4(gridMin, 0.0f), glm::vec4(gridSize, 0.0f) };
 
     ASH::BufferDesc bufDesc{};
     bufDesc.size = sizeof(VoxelGridData);
@@ -685,31 +678,12 @@ void Renderer::initializeVoxelGI(glm::vec3 gridMin, glm::vec3 gridSize, uint32_t
     void* mapped = m_voxelGridBuffer->map();
     memcpy(mapped, &gridData, sizeof(VoxelGridData));
     m_voxelGridBuffer->unmap();
-}
 
-void Renderer::voxelizeScene(const Scene& scene)
-{
-    if (!m_hasVoxelGI) return;
-
-    ASH::Device* device = m_context.getDevice();
-    auto cmd = device->createCommandBuffer();
-    cmd->begin();
-
-    m_voxelGI.clearVoxels(cmd.get());
-    m_voxelGI.voxelizeScene(cmd.get(), scene);
-
-    ASH::TextureBarrier tb{};
-    tb.texture = m_voxelGI.getVoxelTexture();
-    tb.oldState = ASH::ResourceState::General;
-    tb.newState = ASH::ResourceState::ShaderReadOnly;
-    cmd->barrier(&tb, 1, nullptr, 0);
-
-    cmd->end();
-
-    ASH::SubmitInfo submitInfo{};
-    submitInfo.commandBuffer = cmd.get();
-    device->submit(submitInfo);
-    device->waitIdle();
+    ASH::BufferDesc shadowDataDesc{};
+    shadowDataDesc.size = sizeof(glm::mat4);
+    shadowDataDesc.usage = ASH::BufferUsage::UniformBuffer;
+    shadowDataDesc.memory = ASH::MemoryUsage::CpuToGpu;
+    m_voxelizeShadowDataBuffer = device->createBuffer(shadowDataDesc);
 }
 
 void Renderer::loadEnvironmentMap(const std::string& hdrPath)
@@ -962,6 +936,25 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         }
         cmd->endRenderPass();
         transition(m_shadowMap.getTexture(), ASH::ResourceState::DepthStencilAttachment, ASH::ResourceState::ShaderReadOnly);
+    }
+
+    if (m_hasVoxelGI && (m_frameIndex % m_voxelizeInterval == 0))
+    {
+        void* mapped = m_voxelizeShadowDataBuffer->map();
+        memcpy(mapped, &m_lightSpaceMatrix, sizeof(glm::mat4));
+        m_voxelizeShadowDataBuffer->unmap();
+
+        if (m_frameIndex != 0)
+            transition(m_voxelGI.getVoxelTexture(), ASH::ResourceState::ShaderReadOnly, ASH::ResourceState::General);
+
+        m_voxelGI.clearVoxels(cmd);
+        m_voxelGI.voxelizeScene(cmd, scene,
+            m_lightBuffer.getBuffer(m_currentFrame),
+            m_shadowMap.getTexture(), m_shadowMap.getSampler(),
+            m_shadowAtlas.getTexture(), m_shadowAtlas.getSampler(),
+            m_voxelizeShadowDataBuffer.get());
+
+        transition(m_voxelGI.getVoxelTexture(), ASH::ResourceState::General, ASH::ResourceState::ShaderReadOnly);
     }
 
     if (m_hasPointLightShadow)
@@ -1775,6 +1768,51 @@ void Renderer::recreateSwapchain()
             m_renderFinishedSemaphore[i] = device->createSemaphore();
         m_imagesInFlight.assign(imageCount, nullptr);
     }
+
+    {
+        auto cmd = device->createCommandBuffer();
+        cmd->begin();
+
+        ASH::ClearColor colorClear{};
+        colorClear.f32[0] = 0.0f; colorClear.f32[1] = 0.0f; colorClear.f32[2] = 0.0f; colorClear.f32[3] = 1.0f;
+        std::array<ASH::ClearColor, 2> hdrColorClears = { colorClear, colorClear };
+        ASH::ClearDepthStencil depthClear{ 1.0f, 0 };
+
+        ASH::RenderPassBeginInfo hdrPass{};
+        hdrPass.renderPass = m_hdrRenderPass.getRenderPass();
+        hdrPass.framebuffer = m_hdrFramebuffer.get();
+        hdrPass.renderArea = { 0, 0, extent.width, extent.height };
+        hdrPass.colorClearValues = hdrColorClears.data();
+        hdrPass.colorClearCount = 2;
+        hdrPass.depthStencilClear = &depthClear;
+        cmd->beginRenderPass(hdrPass);
+        cmd->endRenderPass();
+
+        for (uint32_t slot = 0; slot < 2; slot++)
+        {
+            ASH::RenderPassBeginInfo pass{};
+            pass.renderPass = m_postRenderPass.getRenderPass();
+            pass.framebuffer = m_taaFramebuffers[slot].get();
+            pass.renderArea = { 0, 0, extent.width, extent.height };
+            pass.colorClearValues = &colorClear;
+            pass.colorClearCount = 1;
+            cmd->beginRenderPass(pass);
+            cmd->endRenderPass();
+
+            ASH::TextureBarrier tb{};
+            tb.texture = m_historyBuffer.getTexture(slot);
+            tb.oldState = ASH::ResourceState::ColorAttachment;
+            tb.newState = ASH::ResourceState::ShaderReadOnly;
+            cmd->barrier(&tb, 1, nullptr, 0);
+        }
+
+        cmd->end();
+
+        ASH::SubmitInfo submitInfo{};
+        submitInfo.commandBuffer = cmd.get();
+        device->submit(submitInfo);
+        device->waitIdle();
+    }
 }
 
 void Renderer::setAAMethod(AAMethod method)
@@ -1893,6 +1931,9 @@ void Renderer::cleanup()
     m_shadowPipeline.cleanup();
     m_shadowRenderPass.cleanup();
     m_shadowMap.cleanup();
+
+    m_voxelGridBuffer.reset();
+    m_voxelizeShadowDataBuffer.reset();
 
     m_lightBuffer.cleanup();
     m_uniformBuffer.cleanup();
