@@ -25,6 +25,7 @@ add_library(ELE STATIC
     src/Core/tinygltf_impl.cpp
     src/Core/GltfModel.cpp
     src/Vulkan/LightBuffer.cpp
+    src/Vulkan/VoxelChunkManager.cpp
     src/Vulkan/ShadowMap.cpp
     src/Vulkan/ShaderLoader.cpp
     src/Vulkan/EnvironmentBaker.cpp

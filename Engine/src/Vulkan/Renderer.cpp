@@ -507,7 +507,20 @@ void Renderer::initialize(GLFWwindow* window)
     m_pointShadowRenderPass.initialize(device, ASH::Format::D32_Float);
 
     m_shadowAtlas.initialize(device);
-    m_voxelGI.initialize(device, 1, glm::vec3(-0.5f, -0.5f, -0.5f), glm::vec3(1.0f, 1.0f, 1.0f));
+    m_voxelGI.initialize(device, 4.0f, 8, 1);
+
+    struct VoxelGridInfoData { glm::vec4 chunkParams; glm::ivec4 cameraChunkCoord; glm::vec4 flags; };
+    ASH::BufferDesc voxelInfoDesc{};
+    voxelInfoDesc.size = sizeof(VoxelGridInfoData);
+    voxelInfoDesc.usage = ASH::BufferUsage::UniformBuffer;
+    voxelInfoDesc.memory = ASH::MemoryUsage::CpuToGpu;
+    m_voxelGridInfoBuffer = device->createBuffer(voxelInfoDesc);
+
+    ASH::BufferDesc shadowDataDesc{};
+    shadowDataDesc.size = sizeof(glm::mat4);
+    shadowDataDesc.usage = ASH::BufferUsage::UniformBuffer;
+    shadowDataDesc.memory = ASH::MemoryUsage::CpuToGpu;
+    m_voxelizeShadowDataBuffer = device->createBuffer(shadowDataDesc);
 
     m_irradianceCubemap.initialize(device, 1, ASH::Format::R32G32B32A32_Float, 1);
     m_irradianceCubemap.clear(device, 0.0f, 0.0f, 0.0f, 1.0f);
@@ -661,32 +674,13 @@ void Renderer::initialize(GLFWwindow* window)
     }
 }
 
-void Renderer::enableVoxelGI(glm::vec3 gridMin, glm::vec3 gridSize, uint32_t resolution)
+void Renderer::enableVoxelGI(float chunkSize, uint32_t chunkResolution, int32_t visibilityRadiusChunks)
 {
     ASH::Device* device = m_context.getDevice();
 
     m_voxelGI.cleanup();
-    m_voxelGI.initialize(device, resolution, gridMin, gridSize);
+    m_voxelGI.initialize(device, chunkSize, chunkResolution, visibilityRadiusChunks);
     m_hasVoxelGI = true;
-
-    struct VoxelGridData { glm::vec4 gridMin; glm::vec4 gridSize; glm::vec4 resolution; };
-    VoxelGridData gridData{ glm::vec4(gridMin, 0.0f), glm::vec4(gridSize, 0.0f), glm::vec4((float)resolution, 0.0f, 0.0f, 0.0f) };
-
-    ASH::BufferDesc bufDesc{};
-    bufDesc.size = sizeof(VoxelGridData);
-    bufDesc.usage = ASH::BufferUsage::UniformBuffer;
-    bufDesc.memory = ASH::MemoryUsage::CpuToGpu;
-    m_voxelGridBuffer = device->createBuffer(bufDesc);
-
-    void* mapped = m_voxelGridBuffer->map();
-    memcpy(mapped, &gridData, sizeof(VoxelGridData));
-    m_voxelGridBuffer->unmap();
-
-    ASH::BufferDesc shadowDataDesc{};
-    shadowDataDesc.size = sizeof(glm::mat4);
-    shadowDataDesc.usage = ASH::BufferUsage::UniformBuffer;
-    shadowDataDesc.memory = ASH::MemoryUsage::CpuToGpu;
-    m_voxelizeShadowDataBuffer = device->createBuffer(shadowDataDesc);
 }
 
 void Renderer::loadEnvironmentMap(const std::string& hdrPath)
@@ -797,12 +791,20 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
 
     ASH::CommandBuffer* cmd = m_commandManager.getCommandBuffer(m_currentFrame);
 
-    glm::vec3 lightDir = glm::normalize(glm::vec3(m_pendingLights.lights[0].position));
+    glm::vec3 lightDir = glm::vec3(0.0f, -1.0f, 0.0f);
+    for (int i = 0; i < m_pendingLights.count.x; i++)
+    {
+        if (m_pendingLights.lights[i].position.w < 0.5f)
+        {
+            lightDir = glm::normalize(glm::vec3(m_pendingLights.lights[i].position));
+            break;
+        }
+    }
     float orthSize = 20.0f;
     glm::mat4 lightProj = glm::ortho(-orthSize, orthSize, -orthSize, orthSize, 1.0f, 100.0f);
     lightProj[1][1] *= -1;
-    glm::vec3 lightPos = -lightDir * 30.0f;
-    glm::mat4 lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::vec3 lightPos = camera.getPosition() - lightDir * 30.0f;
+    glm::mat4 lightView = glm::lookAt(lightPos, camera.getPosition(), glm::vec3(0.0f, 1.0f, 0.0f));
     m_lightSpaceMatrix = lightProj * lightView;
 
     struct LightDist { int index; float dist2; };
@@ -941,41 +943,28 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         transition(m_shadowMap.getTexture(), ASH::ResourceState::DepthStencilAttachment, ASH::ResourceState::ShaderReadOnly);
     }
 
-    if (m_hasVoxelGI)
+    if (m_hasVoxelGI && m_voxelGIEnabled)
     {
-        bool worldVoxelizedThisFrame = (m_frameIndex % m_voxelizeInterval == 0);
-        bool hasStamps = !m_pendingStamps.empty();
+        void* mapped = m_voxelizeShadowDataBuffer->map();
+        memcpy(mapped, &m_lightSpaceMatrix, sizeof(glm::mat4));
+        m_voxelizeShadowDataBuffer->unmap();
+        m_voxelGI.update(cmd, scene, camera.getPosition(),
+            m_lightBuffer.getBuffer(m_currentFrame),
+            m_shadowMap.getTexture(), m_shadowMap.getSampler(),
+            m_shadowAtlas.getTexture(), m_shadowAtlas.getSampler(),
+            m_voxelizeShadowDataBuffer.get());
 
-        if (worldVoxelizedThisFrame)
-        {
-            void* mapped = m_voxelizeShadowDataBuffer->map();
-            memcpy(mapped, &m_lightSpaceMatrix, sizeof(glm::mat4));
-            m_voxelizeShadowDataBuffer->unmap();
+        ChunkCoord camChunk = m_voxelGI.getCameraChunkCoord();
 
-            if (m_frameIndex != 0)
-                transition(m_voxelGI.getVoxelTexture(), ASH::ResourceState::ShaderReadOnly, ASH::ResourceState::General);
+        struct VoxelGridInfoData { glm::vec4 chunkParams; glm::ivec4 cameraChunkCoord; glm::vec4 flags; };
+        VoxelGridInfoData info{};
+        info.chunkParams = glm::vec4(m_voxelGI.getChunkSize(), (float)m_voxelGI.getChunkResolution(), (float)m_voxelGI.getAtlasSlotsPerAxis(), (float)((m_voxelGI.getAtlasSlotsPerAxis() - 1) / 2));
+        info.cameraChunkCoord = glm::ivec4(camChunk.x, camChunk.y, camChunk.z, (int)(m_voxelGI.getChunkResolution() + 2));
+        info.flags = glm::vec4(m_voxelGIEnabled ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
 
-            m_voxelGI.clearVoxels(cmd);
-            m_voxelGI.voxelizeScene(cmd, scene,
-                m_lightBuffer.getBuffer(m_currentFrame),
-                m_shadowMap.getTexture(), m_shadowMap.getSampler(),
-                m_shadowAtlas.getTexture(), m_shadowAtlas.getSampler(),
-                m_voxelizeShadowDataBuffer.get());
-        }
-        else if (hasStamps)
-        {
-            transition(m_voxelGI.getVoxelTexture(), ASH::ResourceState::ShaderReadOnly, ASH::ResourceState::General);
-        }
-
-        for (auto& stamp : m_pendingStamps)
-            m_voxelGI.stampProxy(cmd, *stamp.proxy, stamp.worldPosition);
-        m_pendingStamps.clear();
-
-        if (worldVoxelizedThisFrame || hasStamps)
-        {
-            m_voxelGI.buildMipChain(cmd);
-            transition(m_voxelGI.getVoxelTexture(), ASH::ResourceState::General, ASH::ResourceState::ShaderReadOnly);
-        }
+        void* mappedInfo = m_voxelGridInfoBuffer->map();
+        memcpy(mappedInfo, &info, sizeof(info));
+        m_voxelGridInfoBuffer->unmap();
     }
 
     if (m_hasPointLightShadow)
@@ -1266,11 +1255,20 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         glm::vec3 sunColor(1.0f);
         glm::vec2 sunUV(0.5f);
 
-        if (m_pendingLights.count.x > 0 && m_pendingLights.lights[0].position.w < 0.5f)
+        int sunLightIndex = -1;
+        for (int li = 0; li < m_pendingLights.count.x; li++)
         {
-            sunDir = glm::normalize(-glm::vec3(m_pendingLights.lights[0].position));
-            sunColor = glm::vec3(m_pendingLights.lights[0].color);
+            if (m_pendingLights.lights[li].position.w < 0.5f)
+            {
+                sunLightIndex = li;
+                break;
+            }
+        }
 
+        if (sunLightIndex >= 0)
+        {
+            sunDir = glm::normalize(-glm::vec3(m_pendingLights.lights[sunLightIndex].position));
+            sunColor = glm::vec3(m_pendingLights.lights[sunLightIndex].color);
             glm::mat4 proj = camera.getProjectionMatrix();
             glm::mat4 view = camera.getViewMatrix();
             glm::vec3 sunFarPoint = camera.getPosition() + sunDir * 1000.0f;
@@ -1588,50 +1586,6 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
     cmd->end();
 }
 
-std::unique_ptr<DynamicVoxelProxy> Renderer::createSkeletalVoxelProxy(SkeletalMesh* mesh, Material* material, ASH::Buffer* boneBuffer)
-{
-    ASH::Device* device = m_context.getDevice();
-
-    glm::vec3 boundsMin = mesh->getLocalBoundsMin();
-    glm::vec3 boundsMax = mesh->getLocalBoundsMax();
-    glm::vec3 boundsSize = boundsMax - boundsMin;
-
-    float voxelSize = m_voxelGI.getGridSize().x / (float)m_voxelGI.getResolution();
-    uint32_t localRes = (uint32_t)glm::ceil(glm::max(boundsSize.x, glm::max(boundsSize.y, boundsSize.z)) / voxelSize);
-    localRes = glm::max(localRes, 1u);
-
-    auto proxy = std::make_unique<DynamicVoxelProxy>();
-    proxy->initialize(device, localRes, boundsMin, boundsSize);
-
-    m_voxelGI.bakeLocalProxySkinned(device, mesh, material, *proxy, boneBuffer,
-        m_lightBuffer.getBuffer(m_currentFrame),
-        m_shadowMap.getTexture(), m_shadowMap.getSampler(),
-        m_shadowAtlas.getTexture(), m_shadowAtlas.getSampler(),
-        m_voxelizeShadowDataBuffer.get());
-
-    return proxy;
-}
-
-void Renderer::rebakeSkeletalVoxelProxy(DynamicVoxelProxy& proxy, SkeletalMesh* mesh, Material* material, ASH::Buffer* boneBuffer)
-{
-    ASH::Device* device = m_context.getDevice();
-    m_voxelGI.bakeLocalProxySkinned(device, mesh, material, proxy, boneBuffer,
-        m_lightBuffer.getBuffer(m_currentFrame),
-        m_shadowMap.getTexture(), m_shadowMap.getSampler(),
-        m_shadowAtlas.getTexture(), m_shadowAtlas.getSampler(),
-        m_voxelizeShadowDataBuffer.get());
-}
-
-std::unique_ptr<DynamicVoxelProxy> Renderer::createVoxelProxy(Mesh* mesh, Material* material)
-{
-    ASH::Device* device = m_context.getDevice();
-    return m_voxelGI.createLocalProxy(device, mesh, material,
-        m_lightBuffer.getBuffer(m_currentFrame),
-        m_shadowMap.getTexture(), m_shadowMap.getSampler(),
-        m_shadowAtlas.getTexture(), m_shadowAtlas.getSampler(),
-        m_voxelizeShadowDataBuffer.get());
-}
-
 void Renderer::recreateSwapchain()
 {
     LOG("recreateSwapchain() called!");
@@ -1880,11 +1834,6 @@ void Renderer::recreateSwapchain()
     }
 }
 
-void Renderer::stampVoxelProxy(DynamicVoxelProxy& proxy, glm::vec3 worldPosition)
-{
-    m_pendingStamps.push_back({ &proxy, worldPosition });
-}
-
 void Renderer::setAAMethod(AAMethod method)
 {
     m_aaMethod = method;
@@ -1929,6 +1878,8 @@ void Renderer::cleanup()
     cleanupImGui();
     m_imguiDescriptorPool.reset();
 
+    m_voxelGridInfoBuffer.reset();
+
     ASH::Device* device = m_context.getDevice();
     device->waitIdle();
 
@@ -1938,8 +1889,6 @@ void Renderer::cleanup()
     m_environmentCubemap.cleanup();
     m_irradianceCubemap.cleanup();
     m_envBaker.cleanup();
-
-    m_voxelGridBuffer.reset();
 
     m_voxelGI.cleanup();
 
@@ -2001,8 +1950,7 @@ void Renderer::cleanup()
     m_shadowPipeline.cleanup();
     m_shadowRenderPass.cleanup();
     m_shadowMap.cleanup();
-
-    m_voxelGridBuffer.reset();
+    
     m_voxelizeShadowDataBuffer.reset();
 
     m_lightBuffer.cleanup();

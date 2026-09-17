@@ -64,6 +64,7 @@ public:
     void setTotalTime(float t) { m_totalTime = t; }
     void addScreenSpaceDecal(std::shared_ptr<ScreenSpaceDecal> decal) { m_screenSpaceDecals.push_back(decal); }
     void setIBLSettings(const IBLSettings& settings) { m_iblSettings = settings; }
+    void setVoxelGIEnabled(bool enabled) { m_voxelGIEnabled = enabled; }
     
     void initImGui(GLFWwindow* window);
     void beginImGuiFrame();
@@ -88,23 +89,20 @@ public:
     const DecalCameraBuffer& getDecalCameraBuffer() const { return m_decalCameraBuffer; }
     const GodRaySettings& getGodRaySettings() const { return m_godRaySettings; }
     std::vector<ASH::Buffer*> getUboBuffers() const;
-    ASH::Texture* getVoxelTexture() const { return m_voxelGI.getVoxelTexture(); }
-    ASH::Sampler* getVoxelSampler() const { return m_voxelGI.getVoxelSampler(); }
-    ASH::Buffer* getVoxelGridBuffer() const { return m_voxelGridBuffer.get(); }
     std::vector<ASH::Buffer*> getLightBuffers() const;
     uint32_t getFramesInFlight() const { return MAX_FRAMES_IN_FLIGHT; }
     ASH::DescriptorSetLayout* getSkinnedDescriptorSetLayout() const { return m_skinnedPipeline.getDescriptorSetLayout(); }
     float getAspect() const;
+    ASH::Texture* getVoxelAtlasTexture() const { return m_voxelGI.getAtlasTexture(); }
+    ASH::Sampler* getVoxelAtlasSampler() const { return m_voxelGI.getAtlasSampler(); }
+    ASH::Buffer* getVoxelPageTableBuffer() const { return m_voxelGI.getPageTableBuffer(); }
+    ASH::Buffer* getVoxelGridInfoBuffer() const { return m_voxelGridInfoBuffer.get(); }
+
+    void enableVoxelGI(float chunkSize, uint32_t chunkResolution, int32_t visibilityRadiusChunks);
+
 
     std::vector<const GameObject*> parallelCull(const Scene& scene, const std::array<glm::vec4, 6>& planes) const;
     bool isVisible(const GameObject& obj, const std::array<glm::vec4, 6>& planes) const;
-
-    void enableVoxelGI(glm::vec3 gridMin, glm::vec3 gridSize, uint32_t resolution = 128);
-    void stampVoxelProxy(DynamicVoxelProxy& proxy, glm::vec3 worldPosition);
-    std::unique_ptr<DynamicVoxelProxy> createVoxelProxy(Mesh* mesh, Material* material);
-
-    std::unique_ptr<DynamicVoxelProxy> createSkeletalVoxelProxy(SkeletalMesh* mesh, Material* material, ASH::Buffer* boneBuffer);
-    void rebakeSkeletalVoxelProxy(DynamicVoxelProxy& proxy, SkeletalMesh* mesh, Material* material, ASH::Buffer* boneBuffer);
 
 private:
     void recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
@@ -187,11 +185,9 @@ private:
     //VoxelGI
     VoxelGI m_voxelGI;
     bool m_hasVoxelGI = false;
-    std::unique_ptr<ASH::Buffer> m_voxelGridBuffer;
+    bool m_voxelGIEnabled = true;
     std::unique_ptr<ASH::Buffer> m_voxelizeShadowDataBuffer;
-    uint32_t m_voxelizeInterval = 8;
-    struct PendingStamp { DynamicVoxelProxy* proxy; glm::vec3 worldPosition; };
-    std::vector<PendingStamp> m_pendingStamps;
+    std::unique_ptr<ASH::Buffer> m_voxelGridInfoBuffer;
 
     //HDR
     HdrTarget m_hdrTarget;

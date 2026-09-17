@@ -1,14 +1,17 @@
 #include "Vulkan/HdrTexture.h"
+#include "Core/Path.h"
 #include <stb_image.h>
 #include <cstring>
 #include <stdexcept>
 
 void HdrTexture::initialize(ASH::Device* device, const std::string& path)
 {
+    std::string fullPath = (Paths::assetDir() / path).string();
+
     int width, height, channels;
-    float* pixels = stbi_loadf(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+    float* pixels = stbi_loadf(fullPath.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     if (!pixels)
-        throw std::runtime_error("failed to load HDR texture: " + path);
+        throw std::runtime_error("failed to load HDR texture: " + fullPath);
 
     m_width = (uint32_t)width;
     m_height = (uint32_t)height;

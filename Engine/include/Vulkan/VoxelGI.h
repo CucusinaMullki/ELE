@@ -1,85 +1,60 @@
 #pragma once
 #include "ASH/ASH.h"
 #include "Vulkan/VoxelTexture3D.h"
+#include "Vulkan/VoxelChunkManager.h"
 #include "Vulkan/ComputePipeline.h"
+#include "Vulkan/Pipeline.h"
 #include "Vulkan/VoxelizeRenderPass.h"
-#include "Scene/SkeletalMesh.h"
-#include "Vulkan/DynamicVoxelProxy.h"
-#include "Vulkan/RenderPass.h"
-#include <glm/glm.hpp>
 #include <memory>
-#include <vector>
+#include <glm/glm.hpp>
 
 class Scene;
-
-struct VoxelizePush
-{
-    glm::mat4 model;
-    glm::vec4 voxelGridMin;
-    glm::vec4 voxelGridSize;
-};
 
 class VoxelGI
 {
 public:
-    void initialize(ASH::Device* device, uint32_t resolution, glm::vec3 gridMin, glm::vec3 gridSize);
+    void initialize(ASH::Device* device, float chunkSize, uint32_t chunkResolution,
+        int32_t visibilityRadiusChunks);
     void cleanup();
 
-    void clearVoxels(ASH::CommandBuffer* cmd);
-
-    void stampProxy(ASH::CommandBuffer* cmd, DynamicVoxelProxy& proxy, glm::vec3 worldPosition);
-
-    void bakeLocalProxy(ASH::Device* device, Mesh* mesh, Material* material, DynamicVoxelProxy& proxy,
+    void update(ASH::CommandBuffer* cmd, const Scene& scene, glm::vec3 cameraPosition,
         ASH::Buffer* lightBuffer,
         ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
         ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
         ASH::Buffer* shadowDataBuffer);
 
-    std::unique_ptr<DynamicVoxelProxy> createLocalProxy(ASH::Device* device, Mesh* mesh, Material* material,
-        ASH::Buffer* lightBuffer,
-        ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
-        ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
-        ASH::Buffer* shadowDataBuffer);
+    ASH::Texture* getAtlasTexture() const { return m_atlas.getTexture(); }
+    ASH::Sampler* getAtlasSampler() const { return m_atlas.getSampler(); }
+    ChunkCoord getCameraChunkCoord() const { return m_lastCameraChunk; }
+    ASH::Buffer* getPageTableBuffer() const { return m_pageTableBuffer.get(); }
 
-    void voxelizeScene(ASH::CommandBuffer* cmd, const Scene& scene,
-        ASH::Buffer* lightBuffer,
-        ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
-        ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
-        ASH::Buffer* shadowDataBuffer);
-
-    void bakeLocalProxySkinned(ASH::Device* device, SkeletalMesh* mesh, Material* material, DynamicVoxelProxy& proxy,
-        ASH::Buffer* boneBuffer,
-        ASH::Buffer* lightBuffer,
-        ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
-        ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
-        ASH::Buffer* shadowDataBuffer);
-
-    void buildMipChain(ASH::CommandBuffer* cmd);
-
-    ASH::Texture* getVoxelTexture() const { return m_voxelTexture.getTexture(); }
-    ASH::Sampler* getVoxelSampler() const { return m_voxelTexture.getSampler(); }
-    glm::vec3 getGridMin() const { return m_gridMin; }
-    glm::vec3 getGridSize() const { return m_gridSize; }
-    uint32_t getResolution() const { return m_resolution; }
+    float getChunkSize() const { return m_chunkManager.getChunkSize(); }
+    uint32_t getChunkResolution() const { return m_chunkResolution; }
+    int32_t getAtlasSlotsPerAxis() const { return m_chunkManager.getAtlasSlotsPerAxis(); }
 
 private:
-    VoxelTexture3D m_voxelTexture;
-    ComputePipeline m_clearPipeline;
-    ComputePipeline m_downsamplePipeline;
-    ComputePipeline m_stampPipeline;
-    std::unique_ptr<ASH::DescriptorSet> m_stampDescriptorSet;
-    Pipeline m_voxelizePipeline;
-    Pipeline m_voxelizeSkinnedPipeline;
-    std::unique_ptr<ASH::DescriptorSet> m_clearDescriptorSet;
+    void bakeChunk(ASH::CommandBuffer* cmd, ChunkCoord coord, int32_t atlasSlot, const Scene& scene,
+        ASH::Buffer* lightBuffer,
+        ASH::Texture* shadowTexture, ASH::Sampler* shadowSampler,
+        ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
+        ASH::Buffer* shadowDataBuffer);
+    void updatePageTable(ASH::Device* device);
+
+    static constexpr uint32_t PADDING = 1;
+    
+    VoxelChunkManager m_chunkManager;
+    VoxelTexture3D m_atlas;
+    uint32_t m_chunkResolution = 32;
+
     VoxelizeRenderPass m_voxelizeRenderPass;
-    std::unique_ptr<ASH::Framebuffer> m_voxelizeFramebuffer;
-    std::vector<std::unique_ptr<ASH::DescriptorSet>> m_perObjectDescriptorSets;
-    std::vector<std::unique_ptr<ASH::DescriptorSet>> m_downsampleDescriptorSets;
+    Pipeline m_voxelizePipeline;
+    std::unique_ptr<ASH::Framebuffer> m_chunkFramebuffer;
+    std::vector<std::unique_ptr<ASH::DescriptorSet>> m_bakeDescriptorSets;
 
-    bool m_descriptorsInitialized = false;
-    uint32_t m_lastKnownSceneVersion = 0xFFFFFFFF;
+    ComputePipeline m_clearPipeline;
 
-    uint32_t m_resolution = 0;
-    glm::vec3 m_gridMin{};
-    glm::vec3 m_gridSize{};
+    std::unique_ptr<ASH::Buffer> m_pageTableBuffer;
+    ChunkCoord m_lastCameraChunk{ INT32_MIN, INT32_MIN, INT32_MIN };
+
+    ASH::Device* m_device = nullptr;
 };

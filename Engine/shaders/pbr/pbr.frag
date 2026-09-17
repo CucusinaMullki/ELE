@@ -35,11 +35,15 @@ layout(binding = 8) uniform sampler2D lightmapMap;
 layout(binding = 9) uniform samplerCube irradianceMap;
 layout(binding = 10) uniform sampler3D voxelTexture;
 
-layout(binding = 11) uniform VoxelGrid {
-    vec4 gridMin;
-    vec4 gridSize;
-    vec4 resolution;
-} voxelGrid;
+layout(binding = 11) readonly buffer PageTable {
+    int slots[];
+} pageTable;
+
+layout(binding = 12) uniform VoxelGridInfo {
+    vec4 chunkParams;
+    ivec4 cameraChunkCoord;
+    vec4 flags;
+} voxelInfo;
 
 layout(location = 0) in vec3 fragWorldPos;
 layout(location = 1) in vec2 fragTexCoord;
@@ -59,34 +63,39 @@ const vec3 GROUND      = vec3(0.05, 0.05, 0.06);
 
 const float POINT_SHADOW_FAR_PLANE = 25.0;
 
-vec3 traceConeVoxel(vec3 startPos, vec3 direction, float coneAperture, float maxDistance)
+vec3 sampleAtlasVoxel(vec3 worldPos)
 {
-    vec3 result = vec3(0.0);
-    float alpha = 0.0;
+    float chunkSize = voxelInfo.chunkParams.x;
+    int chunkResolution = int(voxelInfo.chunkParams.y);
+    int slotsPerAxis = int(voxelInfo.chunkParams.z);
+    int radius = int(voxelInfo.chunkParams.w);
+    int paddedResolution = voxelInfo.cameraChunkCoord.w;
 
-    float voxelSize = voxelGrid.gridSize.x / voxelGrid.resolution.x;
-    float dist = voxelSize * 2.0;
+    ivec3 chunkCoord = ivec3(floor(worldPos / chunkSize));
+    ivec3 relCoord = chunkCoord - voxelInfo.cameraChunkCoord.xyz + ivec3(radius);
 
-    while (dist < maxDistance && alpha < 1.0)
-    {
-        float diameter = max(voxelSize, 2.0 * coneAperture * dist);
-        float mipLevel = log2(diameter / voxelSize);
+    if (any(lessThan(relCoord, ivec3(0))) || any(greaterThanEqual(relCoord, ivec3(slotsPerAxis))))
+        return vec3(0.0);
 
-        vec3 samplePos = startPos + direction * dist;
-        vec3 normalizedPos = (samplePos - voxelGrid.gridMin.xyz) / voxelGrid.gridSize.xyz;
+    int pageIndex = relCoord.x + relCoord.y * slotsPerAxis + relCoord.z * slotsPerAxis * slotsPerAxis;
+    int atlasSlot = pageTable.slots[pageIndex];
 
-        if (any(lessThan(normalizedPos, vec3(0.0))) || any(greaterThan(normalizedPos, vec3(1.0))))
-            break;
+    if (atlasSlot < 0)
+        return vec3(0.0);
 
-        vec4 voxelSample = textureLod(voxelTexture, normalizedPos, mipLevel);
+    int slotZ = atlasSlot / (slotsPerAxis * slotsPerAxis);
+    int slotY = (atlasSlot / slotsPerAxis) % slotsPerAxis;
+    int slotX = atlasSlot % slotsPerAxis;
 
-        result += (1.0 - alpha) * voxelSample.rgb;
-        alpha += (1.0 - alpha) * voxelSample.a;
+    vec3 chunkWorldMin = vec3(chunkCoord) * chunkSize;
+    vec3 localPos = (worldPos - chunkWorldMin) / chunkSize;
 
-        dist += diameter * 0.5;
-    }
+    float paddingFrac = 1.0 / float(paddedResolution);
+    vec3 paddedLocalPos = paddingFrac + localPos * (1.0 - 2.0 * paddingFrac);
 
-    return result;
+    vec3 atlasUV = (vec3(slotX, slotY, slotZ) + paddedLocalPos) / float(slotsPerAxis);
+
+    return texture(voxelTexture, atlasUV).rgb;
 }
 
 vec3 calculateVoxelGI(vec3 worldPos, vec3 N)
@@ -107,15 +116,36 @@ vec3 calculateVoxelGI(vec3 worldPos, vec3 N)
         vec3(-0.588, 0.588, 0.555),
         vec3(0.0, -0.809, 0.588)
     );
-    float coneWeights[NUM_CONES] = float[](
-        0.16, 0.10, 0.10, 0.10, 0.10, 0.10, 0.11, 0.11, 0.12
-    );
+    float coneWeights[NUM_CONES] = float[](0.16, 0.10, 0.10, 0.10, 0.10, 0.10, 0.11, 0.11, 0.12);
 
     vec3 result = vec3(0.0);
+    float chunkSize = voxelInfo.chunkParams.x;
+    float voxelSize = chunkSize / voxelInfo.chunkParams.y;
+
     for (int i = 0; i < NUM_CONES; i++)
     {
         vec3 dir = coneDirs[i].x * right + coneDirs[i].y * up + coneDirs[i].z * N;
-        result += traceConeVoxel(worldPos, dir, 0.5, 8.0) * coneWeights[i];
+
+        float dist = voxelSize * 0.5;
+        float maxDist = chunkSize * 1.2;
+
+        for (int step = 0; step < 30; step++)
+        {
+            if (dist > maxDist) break;
+
+            vec3 samplePos = worldPos + dir * dist;
+            vec3 s = sampleAtlasVoxel(samplePos);
+
+            if (length(s) > 0.001)
+            {
+                vec3 sNext = sampleAtlasVoxel(worldPos + dir * (dist + voxelSize));
+                vec3 blended = (length(sNext) > 0.001) ? (s + sNext) * 0.5 : s;
+                result += blended * coneWeights[i];
+                break;
+            }
+
+            dist += voxelSize * 0.5f;
+        }
     }
 
     return result;
@@ -328,16 +358,14 @@ void main()
     //vec3 ambientDiffuse = irradiance * albedo * (1.0 - metallic) * cam.iblParams.x;
     //vec3 ambient = ambientDiffuse * ao;
     
-    vec3 voxelNormalizedPos = (fragWorldPos - voxelGrid.gridMin.xyz) / voxelGrid.gridSize.xyz;
-    bool insideVoxelGrid = all(greaterThanEqual(voxelNormalizedPos, vec3(0.0))) && all(lessThanEqual(voxelNormalizedPos, vec3(1.0)));
-
+    bool insideVoxelGrid = voxelInfo.flags.x > 0.5;
     vec3 iblAmbient = texture(irradianceMap, N).rgb * albedo * (1.0 - metallic) * cam.iblParams.x;
 
     vec3 indirectDiffuse;
     if (insideVoxelGrid)
     {
         vec3 voxelBounce = calculateVoxelGI(fragWorldPos, N) * albedo * (1.0 - metallic);
-        indirectDiffuse = mix(iblAmbient, voxelBounce, 0.35);
+        indirectDiffuse = mix(iblAmbient, voxelBounce, 0.7);
     }
     else
     {
@@ -350,10 +378,11 @@ void main()
 
     vec3 lightmapColor = texture(lightmapMap, fragLightmapUV).rgb;
     color += lightmapColor * 0.05 * ao;
-
-    vec3 voxelDebugColor = texture(voxelTexture, voxelNormalizedPos).rgb;
-    // color = voxelDebugColor; // debug: uncomment to visualize voxel grid
     
+    //vec3 rawVoxel = sampleAtlasVoxel(fragWorldPos);
+    //outColor = vec4(rawVoxel * 2.0, 1.0);
+    //return;
+
     float alpha = texture(albedoMap, fragTexCoord).a;
     outColor = vec4(color, alpha);
 

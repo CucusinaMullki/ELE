@@ -5,7 +5,6 @@
 #include "Components/DoorComponent.h"
 #include "Components/PlayerComponent.h"
 #include "Components/InputComponent.h"
-#include "Components/VoxelProxyComponent.h"
 #include "Components/CameraComponent.h"
 #include "Components/TransformComponent.h"
 #include "Components/RigidBodyComponent.h"
@@ -35,7 +34,6 @@ GameObject* createCube(Engine& engine, glm::vec3 pos)
     auto& audioComp = cube.addComponent<AudioComponent>(engine.getAudio(), engine.getPhysics(), "test");
     audioComp.play();
 
-    cube.addComponent<VoxelProxyComponent>(engine.getRenderer(), mesh.get(), material.get());
 
     return &cube;
 }
@@ -135,11 +133,7 @@ int main()
     engine.setExposure(1.0f);
     InputInScene(engine);
     
-    engine.getRenderer().enableVoxelGI(glm::vec3(-30.0f, -5.0f, -30.0f), glm::vec3(60.0f, 20.0f, 60.0f), 256);
-
-    //engine.loadEnvironmentMap("assets/hdri/some_env.hdr");
-//
-    //engine.addDirectionalLight(glm::vec3(0.25f, -0.25f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 5.0f);
+    engine.getRenderer().setVoxelGIEnabled(false);
 
     IBLSettings iblSettings{};
     iblSettings.diffuseIntensity = 0.25f;

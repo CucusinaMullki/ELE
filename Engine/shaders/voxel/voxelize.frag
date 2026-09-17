@@ -32,6 +32,7 @@ layout(push_constant) uniform Push
     mat4 model;
     vec4 voxelGridMin;
     vec4 voxelGridSize;
+    ivec4 atlasOffset;
 } push;
 
 float calculateShadow(vec3 worldPos, vec3 N, vec3 L)
@@ -50,10 +51,13 @@ float calculateShadow(vec3 worldPos, vec3 N, vec3 L)
 void main()
 {
     vec3 normalizedPos = (fragWorldPos - push.voxelGridMin.xyz) / push.voxelGridSize.xyz;
-    ivec3 voxelCoord = ivec3(normalizedPos * float(imageSize(voxelTexture).x));
+    int chunkResolution = push.atlasOffset.w;
+    ivec3 localVoxelCoord = ivec3(normalizedPos * float(chunkResolution));
 
-    if (any(lessThan(voxelCoord, ivec3(0))) || any(greaterThanEqual(voxelCoord, imageSize(voxelTexture))))
+    if (any(lessThan(localVoxelCoord, ivec3(0))) || any(greaterThanEqual(localVoxelCoord, ivec3(chunkResolution))))
         return;
+
+    ivec3 voxelCoord = push.atlasOffset.xyz + localVoxelCoord;
 
     vec3 albedo = texture(albedoMap, fragTexCoord).rgb;
     vec3 N = normalize(fragNormal);
@@ -93,6 +97,6 @@ void main()
     float luminance = dot(result, vec3(0.2126, 0.7152, 0.0722));
     if (luminance > maxBrightness)
         result *= maxBrightness / luminance;
-    
+
     imageStore(voxelTexture, voxelCoord, vec4(result, 1.0));
 }

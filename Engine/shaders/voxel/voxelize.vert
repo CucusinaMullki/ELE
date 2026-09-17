@@ -23,5 +23,5 @@ void main()
     fragTexCoord = inTexCoord;
 
     vec3 normalizedPos = (worldPos.xyz - push.voxelGridMin.xyz) / push.voxelGridSize.xyz;
-    gl_Position = vec4(normalizedPos * 2.0 - 1.0, 1.0);
+    gl_Position = vec4(normalizedPos.xy * 2.0 - 1.0, normalizedPos.z, 1.0);
 }
