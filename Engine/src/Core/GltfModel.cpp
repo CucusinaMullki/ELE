@@ -46,9 +46,9 @@ void GltfModel::load(const std::string& path)
     std::unordered_set<int> collisionOnlyMeshIndices;
     for (const auto& node : model.nodes)
     {
-        if (node.extras.Has("collision_shape") && node.mesh >= 0)
+        if ((node.extras.Has("collision_shape") || node.extras.Has("nav_volume")) && node.mesh >= 0)
             collisionOnlyMeshIndices.insert(node.mesh);
-    }    
+    }  
 
     for (const auto& mesh : model.meshes)
     {
