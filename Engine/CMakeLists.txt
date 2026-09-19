@@ -10,6 +10,7 @@ add_library(ELE STATIC
     src/Core/Path.cpp
     src/Vulkan/VertexBuffer.cpp
     src/Vulkan/IndexBuffer.cpp
+    src/Core/LevelLoader.cpp
     src/Vulkan/DepthBuffer.cpp
     src/Core/Input.cpp
     src/Core/Camera.cpp

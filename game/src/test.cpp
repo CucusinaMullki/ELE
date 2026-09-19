@@ -9,7 +9,7 @@ int main()
 
     engine.getRenderer().enableVoxelGI(8.0f, 32, 2);
 
-    auto& scene = engine.loadGltfObject("assets/models/BlenderModel.glb");
+    auto& scene = engine.loadLevel("Levels/BlenderLevel.elvl");
     engine.getScene().flush();
     engine.setCameraControlMode(true);
 

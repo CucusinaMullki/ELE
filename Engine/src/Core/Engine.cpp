@@ -1,7 +1,11 @@
 #include "Core/Engine.h"
+#include "Core/LevelLoader.h"
+#include <stb_image.h>
+#include <cstdio>
 #include "Core/Log.h"
 #include "Nav/SimpleNavMeshBuilder.h"
 #include "Scene/SkeletalGltfLoader.h"
+#include "Components/TriggerComponent.h"
 #include "Components/RigidBodyComponent.h"
 #include "Components/TransformComponent.h"
 
@@ -260,7 +264,7 @@ GameObject& Engine::loadGltfObject(const std::string& path)
     static const unsigned char white[4] = { 255, 255, 255, 255 };
     static const unsigned char normalPx[4] = { 128, 128, 255, 255 };
     static const unsigned char defaultMR[4] = {0, 128, 0, 255};
-    static const unsigned char black[4] = { 0, 0, 0, 255 };   // ← новое, fallback для лайтмапа
+    static const unsigned char black[4] = { 0, 0, 0, 255 };
 
     std::vector<std::shared_ptr<Material>> materials;
     for (const auto& gm : model.getMaterials())
@@ -405,6 +409,176 @@ void Engine::addDirectionalLight(glm::vec3 direction, glm::vec3 color, float int
     m_lights.lights[i].position = glm::vec4(direction, 0.0f);
     m_lights.lights[i].color = glm::vec4(color, intensity);
     m_lights.count.x++;
+}
+
+GameObject& Engine::loadLevel(const std::string& path)
+{
+    LevelLoader loader;
+    loader.load(path);
+
+    std::vector<std::shared_ptr<Mesh>> meshes;
+    for (const auto& levelMesh : loader.getMeshes())
+    {
+        std::vector<Submesh> submeshes;
+        for (const auto& sm : levelMesh.submeshes)
+        {
+            Submesh submesh{};
+            submesh.materialIndex = sm.materialIndex;
+            submesh.firstIndex = sm.indexOffset;
+            submesh.indexCount = sm.indexCount;
+            submesh.boundsMin = sm.boundsMin;
+            submesh.boundsMax = sm.boundsMax;
+            submeshes.push_back(submesh);
+        }
+
+        auto mesh = std::make_shared<Mesh>();
+        mesh->loadFromData(m_renderer.getDevice(), levelMesh.vertices, levelMesh.indices, submeshes);
+        meshes.push_back(mesh);
+    }
+
+    static const unsigned char white[4] = { 255, 255, 255, 255 };
+    static const unsigned char normalPx[4] = { 128, 128, 255, 255 };
+    static const unsigned char defaultMR[4] = { 0, 128, 0, 255 };
+    static const unsigned char black[4] = { 0, 0, 0, 255 };
+
+    std::vector<std::shared_ptr<Material>> materials;
+    for (const auto& levelMat : loader.getMaterials())
+    {
+        int aw, ah, nw, nh, mw, mh;
+
+        unsigned char* aPixels = levelMat.albedoPath.empty() ? nullptr :
+            stbi_load(levelMat.albedoPath.c_str(), &aw, &ah, nullptr, STBI_rgb_alpha);
+        const unsigned char* aPx = aPixels ? aPixels : white;
+        if (!aPixels) { aw = 1; ah = 1; }
+
+        unsigned char* nPixels = levelMat.normalPath.empty() ? nullptr :
+            stbi_load(levelMat.normalPath.c_str(), &nw, &nh, nullptr, STBI_rgb_alpha);
+        const unsigned char* nPx = nPixels ? nPixels : normalPx;
+        if (!nPixels) { nw = 1; nh = 1; }
+
+        unsigned char* mPixels = levelMat.metallicRoughnessPath.empty() ? nullptr :
+            stbi_load(levelMat.metallicRoughnessPath.c_str(), &mw, &mh, nullptr, STBI_rgb_alpha);
+        const unsigned char* mPx = mPixels ? mPixels : defaultMR;
+        if (!mPixels) { mw = 1; mh = 1; }
+
+        if (mPixels)
+        {
+            size_t pixelCount = (size_t)mw * (size_t)mh;
+            for (size_t i = 0; i < pixelCount; i++)
+                mPixels[i * 4 + 2] = mPixels[i * 4 + 2] / 2;
+        }
+
+        auto mat = std::make_shared<Material>();
+        mat->loadFromPixels(m_renderer.getDevice(),
+            aPx, aw, ah, nPx, nw, nh, mPx, mw, mh, white, 1, 1,
+            black, 1, 1, false);
+
+        createMaterialDescriptorSet(mat);
+        m_resources.registerMaterial(mat);
+        materials.push_back(mat);
+
+        if (aPixels) stbi_image_free(aPixels);
+        if (nPixels) stbi_image_free(nPixels);
+        if (mPixels) stbi_image_free(mPixels);
+    }
+
+    GameObject* rootObject = nullptr;
+
+    for (const auto& levelObj : loader.getObjects())
+    {
+        auto& obj = m_scene.addObject();
+        obj.name = levelObj.name;
+
+        if (levelObj.meshIndex < 0)
+        {
+            glm::vec3 pos = glm::vec3(levelObj.transform[3]);
+            obj.transform.position = pos;
+        }
+
+        auto entityTypeIt = levelObj.customProperties.find("entity_type");
+        if (entityTypeIt != levelObj.customProperties.end())
+            obj.entityType = entityTypeIt->second;
+
+        if (!rootObject) rootObject = &obj;
+
+        if (levelObj.meshIndex >= 0 && levelObj.meshIndex < (int)meshes.size())
+        {
+            obj.mesh = meshes[levelObj.meshIndex];
+
+            for (const auto& sm : obj.mesh->getSubmeshes())
+            {
+                if (sm.materialIndex >= 0 && sm.materialIndex < (int)materials.size())
+                    obj.setMaterial(materials[sm.materialIndex]);
+            }
+        }
+
+        if (obj.name == "Bed" && obj.mesh && !obj.mesh->getSubmeshes().empty())
+        {
+            const auto& sm = obj.mesh->getSubmeshes()[0];
+            LOG("LevelLoader: Bed boundsMin=(" << sm.boundsMin.x << "," << sm.boundsMin.y << "," << sm.boundsMin.z << ")"
+                << " boundsMax=(" << sm.boundsMax.x << "," << sm.boundsMax.y << "," << sm.boundsMax.z << ")");
+        }
+
+        auto it = levelObj.customProperties.find("collision_shape");
+        if (it != levelObj.customProperties.end())
+        {
+            std::string shape = it->second;
+            std::string motion = levelObj.customProperties.count("collision_motion")
+                ? levelObj.customProperties.at("collision_motion") : "static";
+            float mass = levelObj.customProperties.count("collision_mass")
+                ? std::stof(levelObj.customProperties.at("collision_mass")) : 1.0f;
+
+            RigidBodyComponent::Shape shapeEnum = (shape == "sphere")
+                ? RigidBodyComponent::Shape::Sphere : RigidBodyComponent::Shape::Box;
+            RigidBodyComponent::Motion motionEnum = (motion == "dynamic")
+                ? RigidBodyComponent::Motion::Dynamic
+                : (motion == "kinematic" ? RigidBodyComponent::Motion::Kinematic : RigidBodyComponent::Motion::Static);
+
+            glm::vec3 halfExtent(0.5f);
+
+            auto sizeIt = levelObj.customProperties.find("collision_size");
+            if (sizeIt != levelObj.customProperties.end())
+            {
+                float x, y, z;
+                if (sscanf(sizeIt->second.c_str(), "%f,%f,%f", &x, &y, &z) == 3)
+                    halfExtent = glm::vec3(x, y, z);
+            }
+            else if (obj.mesh && !obj.mesh->getSubmeshes().empty())
+            {
+                const auto& sm = obj.mesh->getSubmeshes()[0];
+                halfExtent = (sm.boundsMax - sm.boundsMin) * 0.5f;
+            }
+
+            glm::vec3 pos = glm::vec3(levelObj.transform[3]);
+            obj.addComponent<TransformComponent>().setPosition(pos);
+            obj.addComponent<RigidBodyComponent>(m_physics, shapeEnum, motionEnum, nullptr, halfExtent, mass);
+        }
+
+        auto typeIt = levelObj.customProperties.find("ele_type");
+        if (typeIt != levelObj.customProperties.end())
+        {
+            if (typeIt->second == "trigger")
+            {
+                glm::vec3 halfExtent(0.5f);
+                obj.addComponent<TriggerComponent>(m_physics, halfExtent);
+            }
+        }
+    }
+
+    LOG("LevelLoader: lightCount=" << loader.getLights().size());
+    for (const auto& light : loader.getLights())
+    {
+        LOG("Level light: type=" << light.type << " intensity=" << light.intensity
+            << " pos=(" << light.position.x << "," << light.position.y << "," << light.position.z << ")");
+        switch (light.type)
+        {
+            case 0: addDirectionalLight(light.direction, light.color, light.intensity * 0.1f); break;
+            case 1: addPointLight(light.position, light.color, light.intensity * 0.1f); break;
+            default: break;
+        }
+    }
+
+    return *rootObject;
 }
 
 void Engine::addPointLight(glm::vec3 position, glm::vec3 color, float intensity)

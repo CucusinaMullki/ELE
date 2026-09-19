@@ -40,6 +40,8 @@ public:
 
     void createSkinnedMaterialDescriptorSet(std::shared_ptr<Material> material, SkeletalMeshComponent& skeletal);
 
+    GameObject& loadLevel(const std::string& path);
+
     void setFogEnabled(bool enabled);
     void setFogSettings(const FogSettings& settings);
     void setIBLSettings(const IBLSettings& settings) { m_renderer.setIBLSettings(settings); }

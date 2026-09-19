@@ -139,7 +139,7 @@ int main()
     iblSettings.diffuseIntensity = 0.25f;
     engine.setIBLSettings(iblSettings);
 
-    auto& character = engine.loadGltfObject("assets/models/Level.glb");
+    auto& level = engine.loadLevel("Levels/Level.elvl");
     engine.getScene().flush();
 
     engine.getAudio().loadSound("music", "audio/yebimenya.wav");

@@ -50,6 +50,9 @@ void Texture::upload(ASH::Device* device, const unsigned char* pixels, int width
     device->waitIdle();
 
     ASH::SamplerDesc samplerDesc{};
+    samplerDesc.addressModeU = ASH::AddressMode::ClampToEdge;
+    samplerDesc.addressModeV = ASH::AddressMode::ClampToEdge;
+    samplerDesc.addressModeW = ASH::AddressMode::ClampToEdge;
     m_sampler = device->createSampler(samplerDesc);
 }
 
