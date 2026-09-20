@@ -1154,6 +1154,9 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
             }
         }
 
+        static int frameCounter = 0;
+        if (frameCounter++ % 60 == 0)
+            LOG("Culling: visible=" << visibleCount << " / total=" << totalCount);
 
         cmd->endRenderPass();
     }

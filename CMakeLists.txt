@@ -53,6 +53,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(ash_rhi)
 
+FetchCOntent_Declare(
+    meshoptimizer
+    GIT_REPOSITORY https://github.com/zeux/meshoptimizer.git
+    GIT_TAG v0.22
+)
+FetchContent_MakeAvailable(meshoptimizer)
+
 FetchContent_Declare(
     imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git

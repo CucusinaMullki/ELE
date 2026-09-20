@@ -98,6 +98,7 @@ target_link_libraries(ELE PUBLIC
     glm::glm
     Jolt
     rhi
+    meshoptimizer
 )
 
 target_compile_definitions(ELE PUBLIC
