@@ -1,0 +1,2 @@
+add_executable(emodel_optimizer main.cpp)
+target_link_libraries(emodel_optimizer PRIVATE meshoptimizer)

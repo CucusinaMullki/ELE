@@ -581,6 +581,70 @@ GameObject& Engine::loadLevel(const std::string& path)
     return *rootObject;
 }
 
+
+LoadedModel Engine::loadModel(const std::string& path)
+{
+    ModelLoader loader;
+    loader.load(path);
+
+    std::vector<Submesh> submeshes;
+    for (const auto& sm : loader.getSubmeshes())
+    {
+        Submesh submesh{};
+        submesh.materialIndex = sm.materialIndex;
+        submesh.firstIndex = sm.indexOffset;
+        submesh.indexCount = sm.indexCount;
+        submesh.boundsMin = sm.boundsMin;
+        submesh.boundsMax = sm.boundsMax;
+        submeshes.push_back(submesh);
+    }
+
+    auto mesh = std::make_shared<Mesh>();
+    mesh->loadFromData(m_renderer.getDevice(), loader.getVertices(), loader.getIndices(), submeshes);
+    m_resources.registerMesh(mesh);
+
+    static const unsigned char white[4] = { 255, 255, 255, 255 };
+    static const unsigned char normalPx[4] = { 128, 128, 255, 255 };
+    static const unsigned char defaultMR[4] = { 0, 128, 0, 255 };
+    static const unsigned char black[4] = { 0, 0, 0, 255 };
+
+    std::vector<std::shared_ptr<Material>> materials;
+    for (const auto& modelMat : loader.getMaterials())
+    {
+        int aw, ah, nw, nh, mw, mh;
+
+        unsigned char* aPixels = modelMat.albedoPath.empty() ? nullptr :
+            stbi_load(modelMat.albedoPath.c_str(), &aw, &ah, nullptr, STBI_rgb_alpha);
+        const unsigned char* aPx = aPixels ? aPixels : white;
+        if (!aPixels) { aw = 1; ah = 1; }
+
+        unsigned char* nPixels = modelMat.normalPath.empty() ? nullptr :
+            stbi_load(modelMat.normalPath.c_str(), &nw, &nh, nullptr, STBI_rgb_alpha);
+        const unsigned char* nPx = nPixels ? nPixels : normalPx;
+        if (!nPixels) { nw = 1; nh = 1; }
+
+        unsigned char* mPixels = modelMat.metallicRoughnessPath.empty() ? nullptr :
+            stbi_load(modelMat.metallicRoughnessPath.c_str(), &mw, &mh, nullptr, STBI_rgb_alpha);
+        const unsigned char* mPx = mPixels ? mPixels : defaultMR;
+        if (!mPixels) { mw = 1; mh = 1; }
+
+        auto mat = std::make_shared<Material>();
+        mat->loadFromPixels(m_renderer.getDevice(),
+            aPx, aw, ah, nPx, nw, nh, mPx, mw, mh, white, 1, 1,
+            black, 1, 1, false);
+
+        createMaterialDescriptorSet(mat);
+        m_resources.registerMaterial(mat);
+        materials.push_back(mat);
+
+        if (aPixels) stbi_image_free(aPixels);
+        if (nPixels) stbi_image_free(nPixels);
+        if (mPixels) stbi_image_free(mPixels);
+    }
+
+    return { mesh, materials };
+}
+
 void Engine::addPointLight(glm::vec3 position, glm::vec3 color, float intensity)
 {
     int i = m_lights.count.x;

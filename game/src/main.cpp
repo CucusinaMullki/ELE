@@ -132,7 +132,7 @@ int main()
     engine.setAntialiasing(AAMethod::TAA);
     engine.setExposure(1.0f);
     InputInScene(engine);
-    
+
     engine.getRenderer().setVoxelGIEnabled(false);
 
     IBLSettings iblSettings{};
@@ -144,6 +144,17 @@ int main()
 
     engine.getAudio().loadSound("music", "audio/yebimenya.wav");
     engine.getAudio().playSound("music", 0.5f);
+
+    auto cube = engine.loadModel("assets/models/Cube.emodel");
+
+    auto& cubeobj = engine.getScene().addObject();
+    cubeobj.mesh = cube.mesh;
+    
+    for (const auto& sm : cubeobj.mesh->getSubmeshes())
+        if (sm.materialIndex >= 0 && sm.materialIndex < (int)cube.materials.size())
+            cubeobj.setMaterial(cube.materials[sm.materialIndex]);
+    
+    cubeobj.addComponent<TransformComponent>().setPosition(glm::vec3(2.0f, 0.0f, 0.0f));
 
     auto& console = engine.getUI().addWidget<DebugConsoleWidget>();
     console.setPosition(glm::vec2(10, 10));

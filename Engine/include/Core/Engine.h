@@ -10,6 +10,7 @@
 #include "UI/UISystem.h"
 #include "Core/ICameraController.h"
 #include "Nav/NavMesh.h"
+#include "Core/ModelLoader.h"
 #include "Core/FreeFlyCameraController.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Core/TimeSystem.h"
@@ -19,6 +20,11 @@
 #include <memory>
 #include <string>
 
+struct LoadedModel
+{
+    std::shared_ptr<Mesh> mesh;
+    std::vector<std::shared_ptr<Material>> materials;
+};
 
 class Engine
 {
@@ -33,6 +39,7 @@ public:
     std::shared_ptr<Mesh> loadMesh(const std::string& path, bool keepCpuData = false);
     std::shared_ptr<Material> loadMaterial(const std::string& albedo, const std::string& normal,
         const std::string& metallic, const std::string& roughness);
+    LoadedModel loadModel(const std::string& path);
 
     void setExposure(float exp) { m_renderer.setExposure(exp); }
 

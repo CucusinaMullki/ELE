@@ -80,3 +80,4 @@ endif()
 
 add_subdirectory(Engine)
 add_subdirectory(game)
+add_subdirectory(tools/emodel_optimizer)
