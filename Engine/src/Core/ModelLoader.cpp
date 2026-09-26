@@ -1,5 +1,6 @@
 #include "Core/ModelLoader.h"
 #include "Core/Path.h"
+#include "Core/Log.h"
 #include <meshoptimizer.h>
 #include <fstream>
 #include <stdexcept>
@@ -52,7 +53,19 @@ void ModelLoader::load(const std::string& path)
     uint32_t version = readValue<uint32_t>(data, offset);
     uint32_t flags = readValue<uint32_t>(data, offset);
     (void)version;
-    (void)flags;
+    bool hasSkeleton = (flags & 1) != 0;
+
+    if (hasSkeleton)
+    {
+        uint32_t boneCount = readValue<uint32_t>(data, offset);
+        m_bones.resize(boneCount);
+        for (auto& bone : m_bones)
+        {
+            bone.name = readString(data, offset);
+            bone.parentIndex = readValue<int32_t>(data, offset);
+            bone.inverseBindMatrix = readValue<glm::mat4>(data, offset);
+        }
+    }
 
     uint32_t vertexStride = readValue<uint32_t>(data, offset);
     uint32_t vertexCount = readValue<uint32_t>(data, offset);
@@ -65,8 +78,16 @@ void ModelLoader::load(const std::string& path)
         throw std::runtime_error("meshopt_decodeVertexBuffer failed for: " + fullPath);
     offset += compressedVertexSize;
 
-    m_vertices.resize(vertexCount);
-    std::memcpy(m_vertices.data(), decodedVertices.data(), decodedVertices.size());
+    if (hasSkeleton)
+    {
+        m_skinnedVertices.resize(vertexCount);
+        std::memcpy(m_skinnedVertices.data(), decodedVertices.data(), decodedVertices.size());
+    }
+    else
+    {
+        m_vertices.resize(vertexCount);
+        std::memcpy(m_vertices.data(), decodedVertices.data(), decodedVertices.size());
+    }
 
     uint32_t indexCount = readValue<uint32_t>(data, offset);
     uint32_t compressedIndexSize = readValue<uint32_t>(data, offset);
@@ -78,7 +99,9 @@ void ModelLoader::load(const std::string& path)
         throw std::runtime_error("meshopt_decodeIndexBuffer failed for: " + fullPath);
     offset += compressedIndexSize;
 
+    LOG("ModelLoader: offset before submeshCount=" << offset);
     uint32_t submeshCount = readValue<uint32_t>(data, offset);
+    LOG("ModelLoader: submeshCount=" << submeshCount);
     m_submeshes.resize(submeshCount);
     for (auto& sm : m_submeshes)
     {
@@ -89,7 +112,9 @@ void ModelLoader::load(const std::string& path)
         sm.boundsMax = readValue<glm::vec3>(data, offset);
     }
 
+    LOG("ModelLoader: offset before materialCount read=" << offset << " bufferSize=" << buffer.size());
     uint32_t materialCount = readValue<uint32_t>(data, offset);
+    LOG("ModelLoader: materialCount=" << materialCount);
     m_materials.resize(materialCount);
     for (auto& mat : m_materials)
     {

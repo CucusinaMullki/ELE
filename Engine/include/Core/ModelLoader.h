@@ -1,4 +1,5 @@
 #pragma once
+#include "Vulkan/SkinnedVertex.h"
 #include "Vulkan/Vertex.h"
 #include <vector>
 #include <string>
@@ -20,6 +21,13 @@ struct ModelMaterial
     std::string aoPath;
 };
 
+struct ModelBone
+{
+    std::string name;
+    int32_t parentIndex;
+    glm::mat4 inverseBindMatrix;
+};
+
 class ModelLoader
 {
 public:
@@ -29,10 +37,15 @@ public:
     const std::vector<uint32_t>& getIndices() const { return m_indices; }
     const std::vector<ModelSubmesh>& getSubmeshes() const { return m_submeshes; }
     const std::vector<ModelMaterial>& getMaterials() const { return m_materials; }
+    const std::vector<ModelBone>& getBones() const { return m_bones; }
+    bool hasSkeleton() const { return  !m_bones.empty(); }
+    const std::vector<SkinnedVertex>& getSkinnedVertices() const { return m_skinnedVertices; }
 
 private:
     std::vector<Vertex> m_vertices;
     std::vector<uint32_t> m_indices;
     std::vector<ModelSubmesh> m_submeshes;
     std::vector<ModelMaterial> m_materials;
+    std::vector<ModelBone> m_bones;
+    std::vector<SkinnedVertex> m_skinnedVertices;
 };

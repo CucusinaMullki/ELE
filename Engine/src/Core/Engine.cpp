@@ -599,16 +599,28 @@ LoadedModel Engine::loadModel(const std::string& path)
         submeshes.push_back(submesh);
     }
 
-    auto mesh = std::make_shared<Mesh>();
-    mesh->loadFromData(m_renderer.getDevice(), loader.getVertices(), loader.getIndices(), submeshes);
-    m_resources.registerMesh(mesh);
+    LoadedModel result{};
+    result.hasSkeleton = loader.hasSkeleton();
+
+    if (result.hasSkeleton)
+    {
+        auto skeletalMesh = std::make_shared<SkeletalMesh>();
+        skeletalMesh->loadFromData(m_renderer.getDevice(), loader.getSkinnedVertices(), loader.getIndices(), submeshes);
+        result.skeletalMesh = skeletalMesh;
+    }
+    else
+    {
+        auto mesh = std::make_shared<Mesh>();
+        mesh->loadFromData(m_renderer.getDevice(), loader.getVertices(), loader.getIndices(), submeshes);
+        m_resources.registerMesh(mesh);
+        result.mesh = mesh;
+    }
 
     static const unsigned char white[4] = { 255, 255, 255, 255 };
     static const unsigned char normalPx[4] = { 128, 128, 255, 255 };
     static const unsigned char defaultMR[4] = { 0, 128, 0, 255 };
     static const unsigned char black[4] = { 0, 0, 0, 255 };
 
-    std::vector<std::shared_ptr<Material>> materials;
     for (const auto& modelMat : loader.getMaterials())
     {
         int aw, ah, nw, nh, mw, mh;
@@ -635,14 +647,14 @@ LoadedModel Engine::loadModel(const std::string& path)
 
         createMaterialDescriptorSet(mat);
         m_resources.registerMaterial(mat);
-        materials.push_back(mat);
+        result.materials.push_back(mat);
 
         if (aPixels) stbi_image_free(aPixels);
         if (nPixels) stbi_image_free(nPixels);
         if (mPixels) stbi_image_free(mPixels);
     }
 
-    return { mesh, materials };
+    return result;
 }
 
 void Engine::addPointLight(glm::vec3 position, glm::vec3 color, float intensity)
