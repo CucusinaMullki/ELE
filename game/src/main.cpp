@@ -17,26 +17,26 @@
 #include "DebugConsoleController.h"
 
 
-GameObject* createCube(Engine& engine, glm::vec3 pos)
-{
-    auto& cube = engine.getScene().addObject();
-    auto material = engine.createDefaultMaterial();
-
-    engine.getAudio().loadSound("test", "audio/test.wav");
-
-    cube.addComponent<TransformComponent>().setPosition(pos);
-    cube.setMaterial(material);
-    auto mesh = engine.loadMesh("assets/models/cube.glb");
-    cube.addComponent<MeshComponent>().setMesh(mesh);
-    cube.addComponent<RigidBodyComponent>(engine.getPhysics(),
-        RigidBodyComponent::Shape::ConvexHull, RigidBodyComponent::Motion::Dynamic, engine.loadMesh("assets/models/cube.glb", true),
-        glm::vec3(1.0f), 1.5f);
-    auto& audioComp = cube.addComponent<AudioComponent>(engine.getAudio(), engine.getPhysics(), "test");
-    audioComp.play();
-
-
-    return &cube;
-}
+//GameObject* createCube(Engine& engine, glm::vec3 pos)
+//{
+//    auto& cube = engine.getScene().addObject();
+//    auto material = engine.createDefaultMaterial();
+//
+//    engine.getAudio().loadSound("test", "audio/test.wav");
+//
+//    cube.addComponent<TransformComponent>().setPosition(pos);
+//    cube.setMaterial(material);
+//    auto mesh = engine.loadMesh("assets/models/cube.glb");
+//    cube.addComponent<MeshComponent>().setMesh(mesh);
+//    cube.addComponent<RigidBodyComponent>(engine.getPhysics(),
+//        RigidBodyComponent::Shape::ConvexHull, RigidBodyComponent::Motion::Dynamic, engine.loadMesh("assets/models/cube.glb", true),
+//        glm::vec3(1.0f), 1.5f);
+//    auto& audioComp = cube.addComponent<AudioComponent>(engine.getAudio(), engine.getPhysics(), "test");
+//    audioComp.play();
+//
+//
+//    return &cube;
+//}
 
 void InputInScene(Engine& engine)
 {
@@ -145,18 +145,18 @@ int main()
     engine.getAudio().loadSound("music", "audio/yebimenya.wav");
     engine.getAudio().playSound("music", 0.5f);
 
-auto cube = engine.loadModel("assets/models/Cube.emodel");
-LOG("loadModel: mesh=" << (cube.mesh ? "valid" : "NULL") << " materials count=" << cube.materials.size());
-
-auto& cubeobj = engine.getScene().addObject();
-cubeobj.mesh = cube.mesh;
-for (const auto& sm : cubeobj.mesh->getSubmeshes())
-{
-    LOG("submesh materialIndex=" << sm.materialIndex);
-    if (sm.materialIndex >= 0 && sm.materialIndex < (int)cube.materials.size())
-        cubeobj.setMaterial(cube.materials[sm.materialIndex]);
-}
-cubeobj.addComponent<TransformComponent>().setPosition(glm::vec3(2.0f, 0.0f, 0.0f));
+    auto cube = engine.loadModel("assets/models/TestModel2.emodel");
+    LOG("loadModel: mesh=" << (cube.mesh ? "valid" : "NULL") << " materials count=" << cube.materials.size());
+    
+    auto& cubeobj = engine.getScene().addObject();
+    cubeobj.mesh = cube.mesh;
+    for (const auto& sm : cubeobj.mesh->getSubmeshes())
+    {
+        LOG("submesh materialIndex=" << sm.materialIndex);
+        if (sm.materialIndex >= 0 && sm.materialIndex < (int)cube.materials.size())
+            cubeobj.setMaterial(cube.materials[sm.materialIndex]);
+    }
+    cubeobj.addComponent<TransformComponent>().setPosition(glm::vec3(2.0f, 0.0f, 0.0f));
 
     auto& console = engine.getUI().addWidget<DebugConsoleWidget>();
     console.setPosition(glm::vec2(10, 10));
@@ -174,23 +174,45 @@ cubeobj.addComponent<TransformComponent>().setPosition(glm::vec3(2.0f, 0.0f, 0.0
             << player.transform.position.y << "," << player.transform.position.z);
     }
 
-    GameObject* spawnDoor = engine.getScene().findByName("Door");
-    GameObject* spawnDoor2 = engine.getScene().findByName("Door2");
-    GameObject* spawnDoor3 = engine.getScene().findByName("Door3");
-    if (spawnDoor)
-    { 
-        createDoor(engine, spawnDoor->transform.position, spawnDoor->transform.rotation);
+    auto skinnedModel = engine.loadModel("assets/models/TestMesh.emodel");
+    LOG("loadModel SKINNED: hasSkeleton=" << skinnedModel.hasSkeleton
+        << " skeletalMesh=" << (skinnedModel.skeletalMesh ? "valid" : "NULL")
+        << " materials count=" << skinnedModel.materials.size());
+
+    auto& skinnedObj = engine.getScene().addObject();
+    skinnedObj.addComponent<TransformComponent>().setPosition(glm::vec3(0.0f, -0.5f, 0.0f));
+
+    auto& skelComp = skinnedObj.addComponent<SkeletalMeshComponent>(engine.getRenderer().getDevice(), engine.getRenderer().getFramesInFlight());
+    skelComp.setSkeletalMesh(skinnedModel.skeletalMesh);
+
+    if (skinnedModel.skeletalMesh)
+    {
+        for (const auto& sm : skinnedModel.skeletalMesh->getSubmeshes())
+        {
+            LOG("skinned submesh materialIndex=" << sm.materialIndex);
+            if (sm.materialIndex >= 0 && sm.materialIndex < (int)skinnedModel.materials.size())
+            {
+                auto mat = skinnedModel.materials[sm.materialIndex];
+                skinnedObj.setMaterial(mat);
+                engine.createSkinnedMaterialDescriptorSet(mat, skelComp);
+            }
+        }
     }
 
-    if (spawnDoor2)
-    {
-        createDoor(engine, spawnDoor2->transform.position, spawnDoor2->transform.rotation);
-    }
+    auto animData = std::make_shared<Animation>(engine.loadAnimation("assets/Animations/Animation.eanim"));
+    LOG("Animation loaded: name=" << animData->name << " duration=" << animData->duration
+        << " channels=" << animData->channels.size());
 
-    if (spawnDoor3)
+    for (const auto& ch : animData->channels)
+       LOG("  animation channel joint: '" << ch.jointName << "'");
+
+    if (skinnedModel.skeletalMesh && skinnedModel.skeletalMesh->getSkeleton())
     {
-        createDoor(engine, spawnDoor3->transform.position, spawnDoor3->transform.rotation);
+        auto skeleton = skinnedModel.skeletalMesh->getSkeleton();
+        for (const auto& joint : skeleton->getJoints())
+            LOG("  skeleton joint: '" << joint.name << "'");
     }
+    skelComp.play(animData, true);
 
     player.addComponent<TransformComponent>();
     player.addComponent<InputComponent>(engine.getInput());
@@ -201,43 +223,20 @@ cubeobj.addComponent<TransformComponent>().setPosition(glm::vec3(2.0f, 0.0f, 0.0
 
     auto& testText = engine.getUI().addWidget<TextWidget>("Penis");
     testText.setFontScale(10.0f);
-
-    //auto& enemy = engine.loadSkeletalGltfObject("assets/models/testAnimModel.glb");
-    //enemy.transform.position = glm::vec3(0.0f, 1.0f, 0.0f);
-//
-    //auto enemyMaterial = engine.createDefaultMaterial();
-    //enemy.setMaterial(enemyMaterial);
-//
-    //auto* skeletalComp = enemy.getComponent<SkeletalMeshComponent>();
-    //engine.createSkinnedMaterialDescriptorSet(enemyMaterial, *skeletalComp);
-//
-    //enemy.addComponent<CharacterComponent>(engine.getPhysics(), engine.getTime(), 0.3f, 1.4f, 60.0f);
-//
-    //auto& ai = enemy.addComponent<AIController>(engine.getPhysics());
-    //ai.setVisionTarget(&player);
-    //ai.setVisionRange(15.0f);
-    //ai.setVisionFOV(100.0f);
-    //
-    //skeletalComp->playAnimationByName(enemy, "Test", true);
-//
-    //std::vector<glm::vec3> patrolPoints;
-//
-    //for (GameObject* spawnPoints : engine.getScene().findAllByType("ai_point"))
-    //{
-    //    patrolPoints.push_back(spawnPoints->transform.position);
-    //}
-//
-    //ai.pushCommand(std::make_unique<EnemyBehaviorCommand>(engine.getNavMesh(), patrolPoints, &player));
-//
     createInteractableCube(engine, glm::vec3(2.0f, 1.0f, 2.0f), [&engine]()
     {
-        createCube(engine, glm::vec3(0.0f, 10.0f, 0.0f));
+        //createCube(engine, glm::vec3(0.0f, 10.0f, 0.0f));
     });
     engine.setCameraControlMode(false);
 
     //////////////////////////////
     
     engine.run();
+
+    cube.mesh.reset();
+    cube.materials.clear();
+    skinnedModel.skeletalMesh.reset();
+    skinnedModel.materials.clear();
 
     engine.shutdown();
     return 0;

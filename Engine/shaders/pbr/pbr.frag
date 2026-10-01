@@ -266,7 +266,7 @@ float calculatePointShadow(vec3 fragPos, vec3 lightPos, vec3 N, vec2 screenXY, i
     );
 
     float shadow = 0.0;
-    float diskRadius = (1.0 + (currentDist / POINT_SHADOW_FAR_PLANE)) / 15.0;
+    float diskRadius = (1.0 + (currentDist / POINT_SHADOW_FAR_PLANE)) / 45.0;
 
     for (int i = 0; i < SAMPLES; i++)
     {

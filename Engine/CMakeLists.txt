@@ -67,6 +67,7 @@ add_library(ELE STATIC
     src/Vulkan/SkinnedVertexBuffer.cpp
     src/Scene/SkeletalMesh.cpp
     src/Core/ModelLoader.cpp
+    src/Core/AnimationLoader.cpp
     src/Scene/Animation.cpp
 )
 

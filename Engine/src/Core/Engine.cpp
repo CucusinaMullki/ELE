@@ -581,6 +581,10 @@ GameObject& Engine::loadLevel(const std::string& path)
     return *rootObject;
 }
 
+Animation Engine::loadAnimation(const std::string& path)
+{
+    return AnimationLoader::load(path);
+}
 
 LoadedModel Engine::loadModel(const std::string& path)
 {
@@ -606,6 +610,10 @@ LoadedModel Engine::loadModel(const std::string& path)
     {
         auto skeletalMesh = std::make_shared<SkeletalMesh>();
         skeletalMesh->loadFromData(m_renderer.getDevice(), loader.getSkinnedVertices(), loader.getIndices(), submeshes);
+
+        auto skeleton = std::make_shared<Skeleton>(loader.buildSkeleton());
+        skeletalMesh->setSkeleton(skeleton);
+        
         result.skeletalMesh = skeletalMesh;
     }
     else

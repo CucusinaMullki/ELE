@@ -3,6 +3,7 @@
 #include "Core/ResourceManager.h"
 #include "Core/Input.h"
 #include "Core/Camera.h"
+#include "Core/AnimationLoader.h"
 #include "Scene/Scene.h"
 #include "Physics/PhysicsSystem.h"
 #include "Scene/ScreenSpaceDecal.h"
@@ -42,6 +43,7 @@ public:
     std::shared_ptr<Material> loadMaterial(const std::string& albedo, const std::string& normal,
         const std::string& metallic, const std::string& roughness);
     LoadedModel loadModel(const std::string& path);
+    Animation loadAnimation(const std::string& path);
 
     void setExposure(float exp) { m_renderer.setExposure(exp); }
 

@@ -99,6 +99,32 @@ private:
             glm::mat4 localTransform = m_currentAnimation
                 ? m_currentAnimation->sampleJointTransform(joint.name, m_currentTime)
                 : joint.localBindTransform;
+
+            if (i == 0)
+            {
+                static float lastLoggedTime = -1.0f;
+                if (m_currentTime - lastLoggedTime > 0.3f)
+                {
+                    LOG("Bone 0 pose: t=" << m_currentTime
+                        << " col0=(" << localTransform[0][0] << "," << localTransform[0][1] << "," << localTransform[0][2] << ")"
+                        << " col1=(" << localTransform[1][0] << "," << localTransform[1][1] << "," << localTransform[1][2] << ")"
+                        << " pos=(" << localTransform[3][0] << "," << localTransform[3][1] << "," << localTransform[3][2] << ")");
+                    lastLoggedTime = m_currentTime;
+                }
+            }
+
+            if (i == 1)
+            {
+                static float lastLoggedTime = -1.0f;
+                if (m_currentTime - lastLoggedTime > 0.3f)
+                {
+                    LOG("Bone 1 pose: t=" << m_currentTime
+                        << " col0=(" << localTransform[0][0] << "," << localTransform[0][1] << "," << localTransform[0][2] << ")"
+                        << " pos=(" << localTransform[3][0] << "," << localTransform[3][1] << "," << localTransform[3][2] << ")");
+                    lastLoggedTime = m_currentTime;
+                }
+            }
+            
             if (joint.parentIndex >= 0)
                 m_globalTransforms[i] = m_globalTransforms[joint.parentIndex] * localTransform;
             else

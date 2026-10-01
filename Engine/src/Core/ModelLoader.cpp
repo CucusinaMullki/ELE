@@ -61,9 +61,11 @@ void ModelLoader::load(const std::string& path)
         m_bones.resize(boneCount);
         for (auto& bone : m_bones)
         {
+            LOG("ModelLoader: reading bone name at offset=" << offset << " bufferSize=" << buffer.size());
             bone.name = readString(data, offset);
             bone.parentIndex = readValue<int32_t>(data, offset);
             bone.inverseBindMatrix = readValue<glm::mat4>(data, offset);
+            bone.localBindMatrix = readValue<glm::mat4>(data, offset);
         }
     }
 
@@ -123,4 +125,23 @@ void ModelLoader::load(const std::string& path)
         mat.metallicRoughnessPath = readString(data, offset);
         mat.aoPath = readString(data, offset);
     }
+}
+
+Skeleton ModelLoader::buildSkeleton() const
+{
+    Skeleton skeleton;
+    
+    for (const auto& bone : m_bones)
+    {
+        Joint joint{};
+        joint.name = bone.name;
+        joint.inverseBindMatrix = bone.inverseBindMatrix;
+        joint.localBindTransform = bone.localBindMatrix;
+        skeleton.addJoint(joint);
+    }
+
+    for (size_t i = 0; i < m_bones.size(); i++)
+        skeleton.setJointParent((int)i, m_bones[i].parentIndex);
+
+    return skeleton;
 }

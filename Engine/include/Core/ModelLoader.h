@@ -1,4 +1,5 @@
 #pragma once
+#include "Scene/Skeleton.h"
 #include "Vulkan/SkinnedVertex.h"
 #include "Vulkan/Vertex.h"
 #include <vector>
@@ -26,6 +27,7 @@ struct ModelBone
     std::string name;
     int32_t parentIndex;
     glm::mat4 inverseBindMatrix;
+    glm::mat4 localBindMatrix;
 };
 
 class ModelLoader
@@ -39,6 +41,7 @@ public:
     const std::vector<ModelMaterial>& getMaterials() const { return m_materials; }
     const std::vector<ModelBone>& getBones() const { return m_bones; }
     bool hasSkeleton() const { return  !m_bones.empty(); }
+    Skeleton buildSkeleton() const;
     const std::vector<SkinnedVertex>& getSkinnedVertices() const { return m_skinnedVertices; }
 
 private:
