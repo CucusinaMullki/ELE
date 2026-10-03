@@ -48,6 +48,10 @@
 #include <thread>
 #include <memory>
 
+class SkeletalMeshComponent;
+class SkeletalMesh;
+class GameObject;
+
 class Renderer
 {
 public:
@@ -135,6 +139,13 @@ private:
     ShadowMap m_shadowMap;
     ShadowRenderPass m_shadowRenderPass;
     Pipeline m_shadowPipeline;
+    struct SkinnedShadowCaster
+    {
+        GameObject* obj;
+        SkeletalMeshComponent* skeletal;
+        std::shared_ptr<SkeletalMesh> mesh;
+    };
+    std::vector<SkinnedShadowCaster> m_skinnedShadowCasters;
     Pipeline m_skinnedShadowPipeline;
     Pipeline m_skinnedPointShadowPipeline;
     std::unique_ptr<ASH::Framebuffer> m_shadowFramebuffer;

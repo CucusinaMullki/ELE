@@ -924,6 +924,16 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
 {
     cmd->begin();
 
+    m_skinnedShadowCasters.clear();
+    for (const auto& obj : scene.getObjects())
+    {
+        auto* skeletal = obj->getComponent<SkeletalMeshComponent>();
+        if (!skeletal) continue;
+        auto skeletalMesh = skeletal->getSkeletalMesh();
+        if (!skeletalMesh) continue;
+        m_skinnedShadowCasters.push_back({ obj.get(), skeletal, skeletalMesh });
+    }
+
     auto transition = [&](ASH::Texture* tex, ASH::ResourceState from, ASH::ResourceState to)
     {
         ASH::TextureBarrier tb{};
@@ -969,25 +979,11 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         }
 
         cmd->bindPipeline(m_skinnedShadowPipeline.getPipeline());
-        for (const auto& obj : scene.getObjects())
+        for (auto& caster : m_skinnedShadowCasters)
         {
-            auto* skeletal = obj->getComponent<SkeletalMeshComponent>();
-            if (!skeletal) continue;
-
-            auto skeletalMesh = skeletal->getSkeletalMesh();
-            if (!skeletalMesh) continue;
-
-            LOG("skinnedMesh submesh count=" << skeletalMesh->getSubmeshes().size());
-            for (const auto& sm : skeletalMesh->getSubmeshes())
-                LOG("  bounds min=(" << sm.boundsMin.x << "," << sm.boundsMin.y << "," << sm.boundsMin.z
-                    << ") max=(" << sm.boundsMax.x << "," << sm.boundsMax.y << "," << sm.boundsMax.z << ")");
-
-            static bool loggedOnce = false;
-            if (!loggedOnce)
-            {
-                LOG("Rendering skinned shadow for object, descSet=" << (skeletal->getShadowDescriptorSet(m_currentFrame) ? "valid" : "NULL"));
-                loggedOnce = true;
-            }
+            GameObject* obj = caster.obj;
+            SkeletalMeshComponent* skeletal = caster.skeletal;
+            auto& skeletalMesh = caster.mesh;
 
             skeletalMesh->bind(cmd);
 
@@ -1087,13 +1083,11 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
                 }
 
                 cmd->bindPipeline(m_skinnedPointShadowPipeline.getPipeline());
-                for (const auto& obj : scene.getObjects())
+                for (auto& caster : m_skinnedShadowCasters)
                 {
-                    auto* skeletal = obj->getComponent<SkeletalMeshComponent>();
-                    if (!skeletal) continue;
-
-                    auto skeletalMesh = skeletal->getSkeletalMesh();
-                    if (!skeletalMesh) continue;
+                    GameObject* obj = caster.obj;
+                    SkeletalMeshComponent* skeletal = caster.skeletal;
+                    auto& skeletalMesh = caster.mesh;    
 
                     skeletalMesh->bind(cmd);
 
@@ -1953,6 +1947,8 @@ void Renderer::setAAMethod(AAMethod method)
 
 void Renderer::cleanup()
 {
+    m_skinnedShadowCasters.clear();
+
     m_taaDescriptorSets[0].clear();
     m_taaDescriptorSets[1].clear();
     m_brightDescriptorSets[0].clear();

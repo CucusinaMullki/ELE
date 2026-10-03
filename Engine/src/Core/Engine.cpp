@@ -206,7 +206,6 @@ void Engine::shutdown()
     m_cleaned = true;
 
     m_renderer.getDevice()->waitIdle();
-
     m_scene.clear();
     m_resources.cleanup();
     m_renderer.cleanup();
