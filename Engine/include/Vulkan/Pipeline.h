@@ -18,7 +18,8 @@ enum class LayoutType
     Voxelize,
     StampProxy,
     VoxelizeSkinned,
-    DownsampleVoxels
+    DownsampleVoxels,
+    SkinnedShadow,
 };
 
 struct PipelineConfig

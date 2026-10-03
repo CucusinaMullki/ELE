@@ -122,7 +122,7 @@ foreach(GLSL ${GLSL_FILES})
     set(SPIRV "${CMAKE_BINARY_DIR}/game/shaders/${FILE_NAME}.spv")
     add_custom_command(
         OUTPUT ${SPIRV}
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/game/shaders"ss
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/game/shaders"
         COMMAND ${GLSLC} -I "${CMAKE_CURRENT_SOURCE_DIR}/shaders/common" ${GLSL} -o ${SPIRV}
         DEPENDS ${GLSL}
         COMMENT "Shader compiling ${FILE_NAME}"

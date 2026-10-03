@@ -92,6 +92,7 @@ public:
     std::vector<ASH::Buffer*> getLightBuffers() const;
     uint32_t getFramesInFlight() const { return MAX_FRAMES_IN_FLIGHT; }
     ASH::DescriptorSetLayout* getSkinnedDescriptorSetLayout() const { return m_skinnedPipeline.getDescriptorSetLayout(); }
+    ASH::DescriptorSetLayout* getSkinnedShadowDescriptorSetLayout() const { return m_skinnedShadowPipeline.getDescriptorSetLayout(); }
     float getAspect() const;
     ASH::Texture* getVoxelAtlasTexture() const { return m_voxelGI.getAtlasTexture(); }
     ASH::Sampler* getVoxelAtlasSampler() const { return m_voxelGI.getAtlasSampler(); }
@@ -134,6 +135,8 @@ private:
     ShadowMap m_shadowMap;
     ShadowRenderPass m_shadowRenderPass;
     Pipeline m_shadowPipeline;
+    Pipeline m_skinnedShadowPipeline;
+    Pipeline m_skinnedPointShadowPipeline;
     std::unique_ptr<ASH::Framebuffer> m_shadowFramebuffer;
     glm::mat4 m_lightSpaceMatrix{1.0f};
 

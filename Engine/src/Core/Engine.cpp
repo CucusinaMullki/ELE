@@ -245,8 +245,6 @@ GameObject& Engine::loadSkeletalGltfObject(const std::string& path)
         skeletalComp.play(loaded.animations[0], true);
 
     LOG("loadSkeletalGltfObject: loaded '" << path << "' with " << obj.animations.size() << " animations:");
-    for (auto& [name, anim] : obj.animations)
-        LOG("  - " << name << " (duration=" << anim->duration << "s)");
 
     return obj;
 }
@@ -512,12 +510,6 @@ GameObject& Engine::loadLevel(const std::string& path)
             }
         }
 
-        if (obj.name == "Bed" && obj.mesh && !obj.mesh->getSubmeshes().empty())
-        {
-            const auto& sm = obj.mesh->getSubmeshes()[0];
-            LOG("LevelLoader: Bed boundsMin=(" << sm.boundsMin.x << "," << sm.boundsMin.y << "," << sm.boundsMin.z << ")"
-                << " boundsMax=(" << sm.boundsMax.x << "," << sm.boundsMax.y << "," << sm.boundsMax.z << ")");
-        }
 
         auto it = levelObj.customProperties.find("collision_shape");
         if (it != levelObj.customProperties.end())

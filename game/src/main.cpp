@@ -54,26 +54,26 @@ void InputInScene(Engine& engine)
     engine.getInput().bindAction("Interact", InputBinding::fromKey(Key::E));
 }
 
-GameObject* createInteractableCube(Engine& engine, glm::vec3 pos, std::function<void()> onInteract)
-{
-    auto& cube = engine.getScene().addObject();
-    cube.name = "InteractButton";
-    auto material = engine.createDefaultMaterial();
-    auto mesh = engine.loadMesh("assets/models/cube.glb");
-
-    cube.addComponent<TransformComponent>().setPosition(pos);
-    cube.setMaterial(material);
-    cube.addComponent<MeshComponent>().setMesh(mesh);
-
-    cube.addComponent<RigidBodyComponent>(engine.getPhysics(),
-        RigidBodyComponent::Shape::Box, RigidBodyComponent::Motion::Static, nullptr,
-        glm::vec3(1.0f), 0.0f);
-
-    auto& interact = cube.addComponent<InteractableComponent>();
-    interact.onInteract = onInteract;
-
-    return &cube;
-}
+//GameObject* createInteractableCube(Engine& engine, glm::vec3 pos, std::function<void()> onInteract)
+//{
+//    auto& cube = engine.getScene().addObject();
+//    cube.name = "InteractButton";
+//    auto material = engine.createDefaultMaterial();
+//    auto mesh = engine.loadMesh("assets/models/cube.glb");
+//
+//    cube.addComponent<TransformComponent>().setPosition(pos);
+//    cube.setMaterial(material);
+//    cube.addComponent<MeshComponent>().setMesh(mesh);
+//
+//    cube.addComponent<RigidBodyComponent>(engine.getPhysics(),
+//        RigidBodyComponent::Shape::Box, RigidBodyComponent::Motion::Static, nullptr,
+//        glm::vec3(1.0f), 0.0f);
+//
+//    auto& interact = cube.addComponent<InteractableComponent>();
+//    interact.onInteract = onInteract;
+//
+//    return &cube;
+//}
 
 GameObject* createDoor(Engine& engine, glm::vec3 pos, glm::vec3 rot, std::function<void()> onInteractExtra = nullptr)
 {
@@ -197,6 +197,10 @@ int main()
                 engine.createSkinnedMaterialDescriptorSet(mat, skelComp);
             }
         }
+
+        skelComp.createShadowDescriptorSets(engine.getRenderer().getDevice(),
+            engine.getRenderer().getSkinnedShadowDescriptorSetLayout(),
+            engine.getRenderer().getFramesInFlight());
     }
 
     auto animData = std::make_shared<Animation>(engine.loadAnimation("assets/Animations/Animation.eanim"));
@@ -223,10 +227,10 @@ int main()
 
     auto& testText = engine.getUI().addWidget<TextWidget>("Penis");
     testText.setFontScale(10.0f);
-    createInteractableCube(engine, glm::vec3(2.0f, 1.0f, 2.0f), [&engine]()
-    {
-        //createCube(engine, glm::vec3(0.0f, 10.0f, 0.0f));
-    });
+    //createInteractableCube(engine, glm::vec3(2.0f, 1.0f, 2.0f), [&engine]()
+    //{
+    //    //createCube(engine, glm::vec3(0.0f, 10.0f, 0.0f));
+    //});
     engine.setCameraControlMode(false);
 
     //////////////////////////////

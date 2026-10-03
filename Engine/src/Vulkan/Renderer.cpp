@@ -504,7 +504,35 @@ void Renderer::initialize(GLFWwindow* window)
     shadowConfig.depthBiasSlope = 1.75f;
     m_shadowPipeline.initialize(device, shadowConfig);
 
+    PipelineConfig skinnedShadowConfig{};
+    skinnedShadowConfig.vertexShader = "skinned_shadow";
+    skinnedShadowConfig.fragmentShader = "";
+    skinnedShadowConfig.renderPass = m_shadowRenderPass.getRenderPass();
+    skinnedShadowConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
+    skinnedShadowConfig.layoutType = LayoutType::SkinnedShadow;
+    skinnedShadowConfig.colorAttachmentCount = 0;
+    skinnedShadowConfig.cullMode = ASH::CullMode::None;
+    skinnedShadowConfig.depthBiasEnable = true;
+    skinnedShadowConfig.depthBiasConstant = 1.25f;
+    skinnedShadowConfig.depthBiasSlope = 1.75f;
+    m_skinnedShadowPipeline.initialize(device, skinnedShadowConfig);
+
     m_pointShadowRenderPass.initialize(device, ASH::Format::D32_Float);
+
+    PipelineConfig skinnedPointShadowConfig{};
+    skinnedPointShadowConfig.vertexShader = "skinned_point_shadow";
+    skinnedPointShadowConfig.fragmentShader = "point_shadow";
+    skinnedPointShadowConfig.renderPass = m_pointShadowRenderPass.getRenderPass();
+    skinnedPointShadowConfig.frameCount = MAX_FRAMES_IN_FLIGHT;
+    skinnedPointShadowConfig.layoutType = LayoutType::SkinnedShadow;
+    skinnedPointShadowConfig.colorAttachmentCount = 0;
+    skinnedPointShadowConfig.cullMode = ASH::CullMode::Front;
+    skinnedPointShadowConfig.depthBiasEnable = true;
+    skinnedPointShadowConfig.depthBiasConstant = 1.25f;
+    skinnedPointShadowConfig.depthBiasSlope = 1.75f;
+    skinnedPointShadowConfig.pushConstantSize = sizeof(glm::mat4) * 2 + sizeof(glm::vec4);
+    skinnedPointShadowConfig.pushStage = ASH::ShaderStage::Vertex | ASH::ShaderStage::Fragment;
+    m_skinnedPointShadowPipeline.initialize(device, skinnedPointShadowConfig);
 
     m_shadowAtlas.initialize(device);
     m_voxelGI.initialize(device, 4.0f, 8, 1);
@@ -939,7 +967,45 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
             for (const auto& sm : obj->mesh->getSubmeshes())
                 obj->mesh->drawSubmesh(cmd, sm);
         }
+
+        cmd->bindPipeline(m_skinnedShadowPipeline.getPipeline());
+        for (const auto& obj : scene.getObjects())
+        {
+            auto* skeletal = obj->getComponent<SkeletalMeshComponent>();
+            if (!skeletal) continue;
+
+            auto skeletalMesh = skeletal->getSkeletalMesh();
+            if (!skeletalMesh) continue;
+
+            LOG("skinnedMesh submesh count=" << skeletalMesh->getSubmeshes().size());
+            for (const auto& sm : skeletalMesh->getSubmeshes())
+                LOG("  bounds min=(" << sm.boundsMin.x << "," << sm.boundsMin.y << "," << sm.boundsMin.z
+                    << ") max=(" << sm.boundsMax.x << "," << sm.boundsMax.y << "," << sm.boundsMax.z << ")");
+
+            static bool loggedOnce = false;
+            if (!loggedOnce)
+            {
+                LOG("Rendering skinned shadow for object, descSet=" << (skeletal->getShadowDescriptorSet(m_currentFrame) ? "valid" : "NULL"));
+                loggedOnce = true;
+            }
+
+            skeletalMesh->bind(cmd);
+
+            auto skinnedDescSet = skeletal->getShadowDescriptorSet(m_currentFrame);
+            if (skinnedDescSet)
+                cmd->bindDescriptorSet(m_skinnedShadowPipeline.getPipeline(), 0, skinnedDescSet);
+
+            struct ShadowPush { glm::mat4 lightSpace; glm::mat4 model; } spush;
+            spush.lightSpace = m_lightSpaceMatrix;
+            spush.model = obj->transform.getMatrix();
+            cmd->pushConstants(m_skinnedShadowPipeline.getPipeline(), ASH::ShaderStage::Vertex, 0, sizeof(ShadowPush), &spush);
+
+            for (const auto& sm : skeletalMesh->getSubmeshes())
+                skeletalMesh->drawSubmesh(cmd, sm);
+        }
+   
         cmd->endRenderPass();
+
         transition(m_shadowMap.getTexture(), ASH::ResourceState::DepthStencilAttachment, ASH::ResourceState::ShaderReadOnly);
     }
 
@@ -978,7 +1044,6 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         atlasPass.depthStencilClear = &shadowClear;
 
         cmd->beginRenderPass(atlasPass);
-        cmd->bindPipeline(m_pointShadowPipeline.getPipeline());
 
         for (int slot = 0; slot < m_numActivePointShadows; slot++)
         {
@@ -995,6 +1060,8 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
 
                 auto facePlanes = extractFrustumPlanes(m_pointLightViewProjArr[slot][face]);
 
+
+                cmd->bindPipeline(m_pointShadowPipeline.getPipeline());
                 for (const auto& obj : scene.getObjects())
                 {
                     if (!obj->mesh) continue;
@@ -1016,6 +1083,40 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
                         if (!isSubmeshVisible(modelMatrix, sm, facePlanes))
                             continue;
                         obj->mesh->drawSubmesh(cmd, sm);
+                    }
+                }
+
+                cmd->bindPipeline(m_skinnedPointShadowPipeline.getPipeline());
+                for (const auto& obj : scene.getObjects())
+                {
+                    auto* skeletal = obj->getComponent<SkeletalMeshComponent>();
+                    if (!skeletal) continue;
+
+                    auto skeletalMesh = skeletal->getSkeletalMesh();
+                    if (!skeletalMesh) continue;
+
+                    skeletalMesh->bind(cmd);
+
+                    auto skinnedDescSet = skeletal->getShadowDescriptorSet(m_currentFrame);
+                    if (skinnedDescSet)
+                        cmd->bindDescriptorSet(m_skinnedPointShadowPipeline.getPipeline(), 0, skinnedDescSet);
+
+                    glm::mat4 modelMatrix = obj->transform.getMatrix();
+
+                    PointShadowPush pspush{};
+                    pspush.lightViewProj = m_pointLightViewProjArr[slot][face];
+                    pspush.model = modelMatrix;
+                    pspush.lightPos = glm::vec4(m_activePointLightPos[slot], m_pointShadowFarPlane);
+
+                    cmd->pushConstants(m_skinnedPointShadowPipeline.getPipeline(),
+                        ASH::ShaderStage::Vertex | ASH::ShaderStage::Fragment,
+                        0, sizeof(PointShadowPush), &pspush);
+
+                    for (const auto& sm : skeletalMesh->getSubmeshes())
+                    {
+                        if (!isSubmeshVisible(modelMatrix, sm, facePlanes))
+                            continue;
+                        skeletalMesh->drawSubmesh(cmd, sm);
                     }
                 }
             }
@@ -1154,9 +1255,6 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
             }
         }
 
-        static int frameCounter = 0;
-        if (frameCounter++ % 60 == 0)
-            LOG("Culling: visible=" << visibleCount << " / total=" << totalCount);
 
         cmd->endRenderPass();
     }
@@ -1951,6 +2049,8 @@ void Renderer::cleanup()
 
     m_shadowFramebuffer.reset();
     m_shadowPipeline.cleanup();
+    m_skinnedPointShadowPipeline.cleanup();
+    m_skinnedShadowPipeline.cleanup();
     m_shadowRenderPass.cleanup();
     m_shadowMap.cleanup();
     

@@ -31,6 +31,30 @@ public:
     void setSkeletalMesh(std::shared_ptr<SkeletalMesh> mesh) { m_skeletalMesh = mesh; }
     std::shared_ptr<SkeletalMesh> getSkeletalMesh() const { return m_skeletalMesh; }
 
+    void createShadowDescriptorSets(ASH::Device* device, ASH::DescriptorSetLayout* layout, uint32_t frameCount)
+    {
+        m_shadowDescriptroSets.resize(frameCount);
+        for (uint32_t i = 0; i < frameCount; i++)
+        {
+            m_shadowDescriptroSets[i] = device->createDescriptorSet(layout);
+
+            ASH::DescriptorBufferInfo boneInfo{ m_boneBuffer.getBuffer(i), 0, m_boneBuffer.getBuffer(i)->getSize() };
+
+            ASH::DescriptorWrite write{};
+            write.binding = 9;
+            write.type = ASH::DescriptorType::UniformBuffer;
+            write.bufferInfo = &boneInfo;
+
+            m_shadowDescriptroSets[i]->update(&write, 1);
+        }
+    }
+
+    ASH::DescriptorSet* getShadowDescriptorSet(uint32_t frameIndex) const
+    {
+        if (frameIndex >= m_shadowDescriptroSets.size()) return nullptr;
+        return m_shadowDescriptroSets[frameIndex].get();
+    }
+
     void play(std::shared_ptr<Animation> animation, bool loop = true)
     {
         m_currentAnimation = animation;
@@ -141,5 +165,6 @@ private:
     bool m_playing = false;
     std::vector<glm::mat4> m_globalTransforms;
     std::vector<glm::mat4> m_boneMatrices;
+    std::vector<std::unique_ptr<ASH::DescriptorSet>> m_shadowDescriptroSets;
     BoneMatrixBuffer m_boneBuffer;
 };

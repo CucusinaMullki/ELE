@@ -190,6 +190,14 @@ void main()
     N = N * 2.0 - 1.0;
     N = normalize(fragTBN * N);
 
+//  Debug start
+//    vec3 geoN = normalize(fragTBN[2]);
+//    vec3 debugL = normalize(-vec3(0.0, -1.0, 0.0));
+//    float debugVis = calculateShadow(fragLightSpacePos, geoN, debugL, gl_FragCoord.xy);
+//    outColor = vec4(vec3(debugVis), 1.0);
+//    return;
+//  Debug end
+
     vec3 V = normalize(cam.camPos.xyz - fragWorldPos);
     vec3 R = reflect(-V, N);
     vec3 F0 = mix(vec3(0.04), albedo, metallic);

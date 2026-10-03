@@ -37,7 +37,7 @@ void Pipeline::initialize(ASH::Device* device, const PipelineConfig& config)
 
     if (config.useVertexInput)
     {
-        if (config.layoutType == LayoutType::Skinned)
+        if (config.layoutType == LayoutType::Skinned || config.layoutType == LayoutType::SkinnedShadow)
         {
             auto binding = SkinnedVertex::getBindingDescriptorASH();
             auto arr = SkinnedVertex::getAttributeDescriptionsASH();
@@ -201,6 +201,10 @@ ASH::DescriptorSetLayoutDesc buildLayoutDesc(LayoutType layoutType)
     case LayoutType::DownsampleVoxels:
         addBinding(0, ASH::DescriptorType::StorageImage, ASH::ShaderStage::Compute);
         addBinding(1, ASH::DescriptorType::StorageImage, ASH::ShaderStage::Compute);
+        break;
+
+    case LayoutType::SkinnedShadow:
+        addBinding(9, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex);
         break;
 
     case LayoutType::None:
