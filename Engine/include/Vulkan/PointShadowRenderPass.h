@@ -5,7 +5,7 @@
 class PointShadowRenderPass
 {
 public:
-    void initialize(ASH::Device* device, ASH::Format depthFormat);
+    void initialize(ASH::Device* device, ASH::Format depthFormat, bool loadExisting = false);
     void cleanup();
 
     ASH::RenderPass* getRenderPass() const { return m_renderPass.get(); }

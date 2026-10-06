@@ -12,8 +12,12 @@ void AudioSystem::initialize()
 
     ma_result ctxResult = ma_context_init(backends, 2, nullptr, &m_context);
     LOG("ma_context_init result=" << (int)ctxResult);
-    if (ctxResult == MA_SUCCESS)
-        LOG("selected backend=" << (int)m_context.backend);
+    if (ctxResult != MA_SUCCESS)
+    {
+        LOG("audio disabled: no backend");
+        return;
+    }
+    LOG("selected backend=" << (int)m_context.backend);
 
     ma_engine_config engineConfig = ma_engine_config_init();
     engineConfig.pContext = &m_context;
@@ -21,10 +25,12 @@ void AudioSystem::initialize()
     ma_result result = ma_engine_init(&engineConfig, &m_engine);
     if (result != MA_SUCCESS)
     {
-        LOG("ma_engine_init FAILED, result=" << (int)result);
-        throw std::runtime_error("failed to initialize miniaudio engine");
+        LOG("ma_engine_init FAILED, result=" << (int)result << ", audio disabled");
+        ma_context_uninit(&m_context);
+        return;
     }
     LOG("ma_engine_init succeeded");
+    m_ready = true;
 
     ma_device* device = ma_engine_get_device(&m_engine);
     if (device)
@@ -33,6 +39,8 @@ void AudioSystem::initialize()
 
 void AudioSystem::cleanup()
 {
+    if (!m_ready) return;
+    m_ready = false;
     m_sounds.clear();
     ma_engine_uninit(&m_engine);
     ma_context_uninit(&m_context);
@@ -40,6 +48,7 @@ void AudioSystem::cleanup()
 
 bool AudioSystem::loadSound(const std::string& name, const std::string& path)
 {
+    if (!m_ready) return false;
     if (m_sounds.find(name) != m_sounds.end())
         return true;
     
@@ -110,6 +119,7 @@ void AudioSystem::setOcclusion(const std::string& name, float occlusionFactor)
 
 void AudioSystem::setListenerPosition(glm::vec3 position, glm::vec3 forward, glm::vec3 up)
 {
+    if (!m_ready) return;
     ma_engine_listener_set_position(&m_engine, 0, position.x, position.y, position.z);
     ma_engine_listener_set_direction(&m_engine, 0, forward.x, forward.y, forward.z);
     ma_engine_listener_set_world_up(&m_engine, 0, up.x, up.y, up.z);

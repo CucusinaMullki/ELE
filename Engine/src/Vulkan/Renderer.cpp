@@ -518,6 +518,7 @@ void Renderer::initialize(GLFWwindow* window)
     m_skinnedShadowPipeline.initialize(device, skinnedShadowConfig);
 
     m_pointShadowRenderPass.initialize(device, ASH::Format::D32_Float);
+    m_pointShadowRenderPassLoad.initialize(device, ASH::Format::D32_Float, true);
 
     PipelineConfig skinnedPointShadowConfig{};
     skinnedPointShadowConfig.vertexShader = "skinned_point_shadow";
@@ -535,6 +536,7 @@ void Renderer::initialize(GLFWwindow* window)
     m_skinnedPointShadowPipeline.initialize(device, skinnedPointShadowConfig);
 
     m_shadowAtlas.initialize(device);
+    m_staticShadowAtlas.initialize(device); 
     m_voxelGI.initialize(device, 4.0f, 8, 1);
 
     struct VoxelGridInfoData { glm::vec4 chunkParams; glm::ivec4 cameraChunkCoord; glm::vec4 flags; };
@@ -559,6 +561,9 @@ void Renderer::initialize(GLFWwindow* window)
     atlasFbDesc.extent = { m_shadowAtlas.getWidth(), m_shadowAtlas.getHeight() };
     atlasFbDesc.layers = 1;
     m_shadowAtlasFramebuffer = device->createFramebuffer(atlasFbDesc);
+    ASH::FramebufferDesc staticFbDesc = atlasFbDesc;
+    staticFbDesc.depthStencilAttachment = m_staticShadowAtlas.getTexture();
+    m_staticShadowFramebuffer = device->createFramebuffer(staticFbDesc);
 
     PipelineConfig pointShadowConfig{};
     pointShadowConfig.vertexShader = "point_shadow";
@@ -1033,61 +1038,136 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
     {
         ASH::ClearDepthStencil shadowClear{ 1.0f, 0 };
 
+        bool staticDirty = !m_staticShadowValid
+            || m_staticCachedCount != m_numActivePointShadows
+            || m_staticCachedObjectCount != (int)scene.getObjects().size();
+        for (int slot = 0; slot < m_numActivePointShadows && !staticDirty; slot++)
+        {
+            if (m_staticCachedLightIndex[slot] != m_activePointLightIndex[slot]
+                || m_staticCachedLightPos[slot] != m_activePointLightPos[slot])
+                staticDirty = true;
+        }
+
+        using CasterList = std::vector<std::pair<GameObject*, glm::mat4>>;
+        CasterList staticCasters[NUM_POINT_SHADOWS];
+        CasterList dynamicCasters[NUM_POINT_SHADOWS];
+
+        for (const auto& obj : scene.getObjects())
+        {
+            if (!obj->mesh) continue;
+            const bool isStatic = !obj->isDynamic && !obj->hasComponent<SkeletalMeshComponent>();
+            if (isStatic && !staticDirty) continue;
+            const glm::mat4 model = obj->transform.getMatrix();
+            for (int slot = 0; slot < m_numActivePointShadows; slot++)
+            {
+                for (const auto& sm : obj->mesh->getSubmeshes())
+                {
+                    if (isSubmeshLightRange(model, sm, m_activePointLightPos[slot], m_pointShadowFarPlane))
+                    {
+                        (isStatic ? staticCasters[slot] : dynamicCasters[slot]).emplace_back(obj.get(), model);
+                        break;
+                    }
+                }
+            }
+        }
+
+        auto setTile = [&](int slot, uint32_t face)
+        {
+            ASH::Rect2D tile = m_shadowAtlas.getTileRect(slot, face);
+            ASH::Viewport vp{};
+            vp.x = (float)tile.x; vp.y = (float)tile.y;
+            vp.width = (float)tile.width; vp.height = (float)tile.height;
+            vp.minDepth = 0.0f; vp.maxDepth = 1.0f;
+            cmd->setViewport(vp);
+            cmd->setScissor(tile);
+        };
+
+        auto drawMeshes = [&](int slot, uint32_t face, const std::array<glm::vec4, 6>& facePlanes, const CasterList& casters)
+        {
+            cmd->bindPipeline(m_pointShadowPipeline.getPipeline());
+            for (const auto& [obj, modelMatrix] : casters)
+            {
+                bool bound = false;
+                for (const auto& sm : obj->mesh->getSubmeshes())
+                {
+                    if (!isSubmeshVisible(modelMatrix, sm, facePlanes))
+                        continue;
+                    if (!bound)
+                    {
+                        obj->mesh->bind(cmd);
+                        PointShadowPush pspush{};
+                        pspush.lightViewProj = m_pointLightViewProjArr[slot][face];
+                        pspush.model = modelMatrix;
+                        pspush.lightPos = glm::vec4(m_activePointLightPos[slot], m_pointShadowFarPlane);
+                        cmd->pushConstants(m_pointShadowPipeline.getPipeline(),
+                            ASH::ShaderStage::Vertex | ASH::ShaderStage::Fragment,
+                            0, sizeof(PointShadowPush), &pspush);
+                        bound = true;
+                    }
+                    obj->mesh->drawSubmesh(cmd, sm);
+                }
+            }
+        };
+
+        if (staticDirty)
+        {
+            if (m_staticAtlasInTransferSrc)
+                transition(m_staticShadowAtlas.getTexture(), ASH::ResourceState::TransferSrc, ASH::ResourceState::DepthStencilAttachment);
+
+            ASH::RenderPassBeginInfo staticPass{};
+            staticPass.renderPass = m_pointShadowRenderPass.getRenderPass();
+            staticPass.framebuffer = m_staticShadowFramebuffer.get();
+            staticPass.renderArea = { 0, 0, m_staticShadowAtlas.getWidth(), m_staticShadowAtlas.getHeight() };
+            staticPass.depthStencilClear = &shadowClear;
+            cmd->beginRenderPass(staticPass);
+            for (int slot = 0; slot < m_numActivePointShadows; slot++)
+            {
+                for (uint32_t face = 0; face < 6; face++)
+                {
+                    setTile(slot, face);
+                    auto facePlanes = extractFrustumPlanes(m_pointLightViewProjArr[slot][face]);
+                    drawMeshes(slot, face, facePlanes, staticCasters[slot]);
+                }
+            }
+            cmd->endRenderPass();
+            transition(m_staticShadowAtlas.getTexture(), ASH::ResourceState::DepthStencilAttachment, ASH::ResourceState::TransferSrc);
+            m_staticAtlasInTransferSrc = true;
+
+            for (int slot = 0; slot < m_numActivePointShadows; slot++)
+            {
+                m_staticCachedLightIndex[slot] = m_activePointLightIndex[slot];
+                m_staticCachedLightPos[slot] = m_activePointLightPos[slot];
+            }
+            m_staticCachedCount = m_numActivePointShadows;
+            m_staticCachedObjectCount = (int)scene.getObjects().size();
+            m_staticShadowValid = true;
+        }
+
+        transition(m_shadowAtlas.getTexture(), m_pointAtlasState, ASH::ResourceState::TransferDst);
+        cmd->copyTexture(m_staticShadowAtlas.getTexture(), m_shadowAtlas.getTexture());
+        transition(m_shadowAtlas.getTexture(), ASH::ResourceState::TransferDst, ASH::ResourceState::DepthStencilAttachment);
+
         ASH::RenderPassBeginInfo atlasPass{};
-        atlasPass.renderPass = m_pointShadowRenderPass.getRenderPass();
+        atlasPass.renderPass = m_pointShadowRenderPassLoad.getRenderPass();
         atlasPass.framebuffer = m_shadowAtlasFramebuffer.get();
         atlasPass.renderArea = { 0, 0, m_shadowAtlas.getWidth(), m_shadowAtlas.getHeight() };
-        atlasPass.depthStencilClear = &shadowClear;
-
         cmd->beginRenderPass(atlasPass);
 
         for (int slot = 0; slot < m_numActivePointShadows; slot++)
         {
             for (uint32_t face = 0; face < 6; face++)
             {
-                ASH::Rect2D tile = m_shadowAtlas.getTileRect(slot, face);
-
-                ASH::Viewport vp{};
-                vp.x = (float)tile.x; vp.y = (float)tile.y;
-                vp.width = (float)tile.width; vp.height = (float)tile.height;
-                vp.minDepth = 0.0f; vp.maxDepth = 1.0f;
-                cmd->setViewport(vp);
-                cmd->setScissor(tile);
-
+                setTile(slot, face);
                 auto facePlanes = extractFrustumPlanes(m_pointLightViewProjArr[slot][face]);
 
-
-                cmd->bindPipeline(m_pointShadowPipeline.getPipeline());
-                for (const auto& obj : scene.getObjects())
-                {
-                    if (!obj->mesh) continue;
-                    obj->mesh->bind(cmd);
-
-                    glm::mat4 modelMatrix = obj->transform.getMatrix();
-
-                    PointShadowPush pspush{};
-                    pspush.lightViewProj = m_pointLightViewProjArr[slot][face];
-                    pspush.model = modelMatrix;
-                    pspush.lightPos = glm::vec4(m_activePointLightPos[slot], m_pointShadowFarPlane);
-
-                    cmd->pushConstants(m_pointShadowPipeline.getPipeline(),
-                        ASH::ShaderStage::Vertex | ASH::ShaderStage::Fragment,
-                        0, sizeof(PointShadowPush), &pspush);
-
-                    for (const auto& sm : obj->mesh->getSubmeshes())
-                    {
-                        if (!isSubmeshVisible(modelMatrix, sm, facePlanes))
-                            continue;
-                        obj->mesh->drawSubmesh(cmd, sm);
-                    }
-                }
+                drawMeshes(slot, face, facePlanes, dynamicCasters[slot]);
 
                 cmd->bindPipeline(m_skinnedPointShadowPipeline.getPipeline());
                 for (auto& caster : m_skinnedShadowCasters)
                 {
                     GameObject* obj = caster.obj;
                     SkeletalMeshComponent* skeletal = caster.skeletal;
-                    auto& skeletalMesh = caster.mesh;    
+                    auto& skeletalMesh = caster.mesh;
 
                     skeletalMesh->bind(cmd);
 
@@ -1117,6 +1197,7 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         }
         cmd->endRenderPass();
         transition(m_shadowAtlas.getTexture(), ASH::ResourceState::DepthStencilAttachment, ASH::ResourceState::ShaderReadOnly);
+        m_pointAtlasState = ASH::ResourceState::ShaderReadOnly;
     }
     else
     {
@@ -1127,6 +1208,7 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         atlasPass.framebuffer = m_shadowAtlasFramebuffer.get();
         atlasPass.renderArea = { 0, 0, m_shadowAtlas.getWidth(), m_shadowAtlas.getHeight() };
         atlasPass.depthStencilClear = &shadowClear;
+        m_pointAtlasState = ASH::ResourceState::DepthStencilAttachment;
 
         cmd->beginRenderPass(atlasPass);
         cmd->endRenderPass();
@@ -2022,6 +2104,9 @@ void Renderer::cleanup()
     m_pointShadowRenderPass.cleanup();
     m_shadowAtlasFramebuffer.reset();
     m_shadowAtlas.cleanup();
+    m_staticShadowFramebuffer.reset();
+    m_staticShadowAtlas.cleanup();
+    m_pointShadowRenderPassLoad.cleanup();
 
     for (auto& decal : m_screenSpaceDecals)
         decal->cleanup();
@@ -2082,6 +2167,23 @@ std::array<glm::vec4, 6> Renderer::extractFrustumPlanes(const glm::mat4& viewPro
         p /= glm::length(glm::vec3(p));
 
     return planes;
+}
+
+bool Renderer::isSubmeshLightRange(const glm::mat4& modelMatrix, const Submesh& sm, const glm::vec3& lightPos, float radius) const
+{
+    glm::vec3 wmin(std::numeric_limits<float>::max());
+    glm::vec3 wmax(std::numeric_limits<float>::lowest());
+    for (int i = 0; i < 8; i++)
+    {
+        glm::vec3 c((i & 1) ? sm.boundsMax.x : sm.boundsMin.x,
+                    (i & 2) ? sm.boundsMax.y : sm.boundsMin.y,
+                    (i & 4) ? sm.boundsMax.z : sm.boundsMin.z);
+        glm::vec3 w = glm::vec3(modelMatrix * glm::vec4(c, 1.0f));
+        wmin = glm::min(wmin, w);
+        wmax = glm::max(wmax, w);
+    }
+    glm::vec3 d = glm::clamp(lightPos, wmin, wmax) - lightPos;
+    return glm::dot(d, d) <= radius * radius;
 }
 
 bool Renderer::isSubmeshVisible(const glm::mat4& modelMatrix, const Submesh& sm, const std::array<glm::vec4, 6>& planes) const

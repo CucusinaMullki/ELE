@@ -26,6 +26,7 @@ public:
     glm::vec3 getListenerWorldPosition() const { return m_listenerPos; }
 
 private:
+    bool m_ready = true;
     glm::vec3 m_listenerPos{0.0f};
     ma_context m_context;
     ma_engine m_engine;

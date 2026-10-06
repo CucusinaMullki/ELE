@@ -6,7 +6,10 @@ void ShadowAtlas::initialize(ASH::Device* device)
     texDesc.type = ASH::TextureType::Texture2D;
     texDesc.format = m_format;
     texDesc.extent = { getWidth(), getHeight(), 1 };
-    texDesc.usage = ASH::TextureUsage::DepthStencilAttachment | ASH::TextureUsage::Sampled;
+    texDesc.usage = ASH::TextureUsage::DepthStencilAttachment
+        | ASH::TextureUsage::Sampled
+        | ASH::TextureUsage::TransferSrc
+        | ASH::TextureUsage::TransferDst;
 
     m_texture = device->createTexture(texDesc);
 

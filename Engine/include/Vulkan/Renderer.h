@@ -109,7 +109,9 @@ public:
     std::vector<const GameObject*> parallelCull(const Scene& scene, const std::array<glm::vec4, 6>& planes) const;
     bool isVisible(const GameObject& obj, const std::array<glm::vec4, 6>& planes) const;
 
+    void invalidateStaticShadows() { m_staticShadowValid = false;}
 private:
+
     void recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         const Scene& scene, const Camera& camera);
 
@@ -171,6 +173,18 @@ private:
     int m_numActivePointShadows = 0;
     std::array<glm::vec3, NUM_POINT_SHADOWS> m_activePointLightPos;
     std::array<int, NUM_POINT_SHADOWS> m_activePointLightIndex;
+
+    ShadowAtlas m_staticShadowAtlas;
+    std::unique_ptr<ASH::Framebuffer> m_staticShadowFramebuffer;
+    PointShadowRenderPass m_pointShadowRenderPassLoad;
+
+    int m_staticCachedLightIndex[NUM_POINT_SHADOWS] = { -1, -1, -1 };
+    glm::vec3 m_staticCachedLightPos[NUM_POINT_SHADOWS]{};
+    int m_staticCachedCount = -1;
+    int m_staticCachedObjectCount = -1;
+    bool m_staticShadowValid = false;
+    bool m_staticAtlasInTransferSrc = false;
+    ASH::ResourceState m_pointAtlasState = ASH::ResourceState::Undefined;
 
     //Bloom
     BloomTarget m_brightTarget;
@@ -284,6 +298,7 @@ private:
 
     std::array<glm::vec4, 6> extractFrustumPlanes(const glm::mat4& viewProj) const;
     bool isSubmeshVisible(const glm::mat4& modelMatrix, const Submesh& sm, const std::array<glm::vec4, 6>& planes) const;
+    bool isSubmeshLightRange(const glm::mat4& modelMatrix, const Submesh& sm, const glm::vec3& lightPos, float radius) const;
 
     vk::UniqueDescriptorPool m_imguiDescriptorPool;
 };

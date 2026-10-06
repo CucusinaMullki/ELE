@@ -54,10 +54,30 @@ public:
         if (m_character)
             m_character->syncTransform(deltaTime);
 
-        glm::vec2 look = m_input->getLookDelta();
-        m_owner->transform.rotation.y += look.x * m_lookSensitivity;
+        if (!m_lookInitialized)
+        {
+            m_targetYaw   = m_owner->transform.rotation.y;
+            m_targetPitch = m_pitch;
+            m_lookInitialized = true;
+        }
 
-        m_pitch = glm::clamp(m_pitch + look.y * m_lookSensitivity, -89.0f, 89.0f);
+        glm::vec2 look = m_input->getLookDelta();
+        m_targetYaw  += look.x * m_lookSensitivity;
+        m_targetPitch = glm::clamp(m_targetPitch + look.y * m_lookSensitivity, -89.0f, 89.0f);
+
+        if (m_lookSmoothing > 0.0f)
+        {
+            const float dt = glm::min(deltaTime, 0.05f);
+            const float t  = 1.0f - std::exp(-m_lookSmoothing * dt);
+            m_owner->transform.rotation.y += (m_targetYaw   - m_owner->transform.rotation.y) * t;
+            m_pitch                       += (m_targetPitch - m_pitch) * t;
+        }
+        else
+        {
+            m_owner->transform.rotation.y = m_targetYaw;
+            m_pitch = m_targetPitch;
+        }
+
         if (m_camera)
             m_camera->setPitch(m_pitch);
 
@@ -116,6 +136,7 @@ public:
             m_camera->applyToCamera();
     }
 
+    void setLookSmoothing(float s) { m_lookSmoothing = s; }
     void setLookSensitivity(float s) { m_lookSensitivity = s; }
     void setMoveSpeed(float s) { m_moveSpeed = s; }
     void setJumpSpeed(float s) { m_jumpSpeed = s; }
@@ -134,4 +155,8 @@ private:
     float m_lookSensitivity = 0.1f;
     float m_moveSpeed = 2.5f;
     float m_jumpSpeed = 5.0f;
+    float m_targetYaw = 0.0f;
+    float m_targetPitch = 0.0f;
+    bool  m_lookInitialized = false;
+    float m_lookSmoothing = 20.0f;
 };
