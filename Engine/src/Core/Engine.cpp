@@ -441,42 +441,13 @@ GameObject& Engine::loadLevel(const std::string& path)
     std::vector<std::shared_ptr<Material>> materials;
     for (const auto& levelMat : loader.getMaterials())
     {
-        int aw, ah, nw, nh, mw, mh;
-
-        unsigned char* aPixels = levelMat.albedoPath.empty() ? nullptr :
-            stbi_load(levelMat.albedoPath.c_str(), &aw, &ah, nullptr, STBI_rgb_alpha);
-        const unsigned char* aPx = aPixels ? aPixels : white;
-        if (!aPixels) { aw = 1; ah = 1; }
-
-        unsigned char* nPixels = levelMat.normalPath.empty() ? nullptr :
-            stbi_load(levelMat.normalPath.c_str(), &nw, &nh, nullptr, STBI_rgb_alpha);
-        const unsigned char* nPx = nPixels ? nPixels : normalPx;
-        if (!nPixels) { nw = 1; nh = 1; }
-
-        unsigned char* mPixels = levelMat.metallicRoughnessPath.empty() ? nullptr :
-            stbi_load(levelMat.metallicRoughnessPath.c_str(), &mw, &mh, nullptr, STBI_rgb_alpha);
-        const unsigned char* mPx = mPixels ? mPixels : defaultMR;
-        if (!mPixels) { mw = 1; mh = 1; }
-
-        if (mPixels)
-        {
-            size_t pixelCount = (size_t)mw * (size_t)mh;
-            for (size_t i = 0; i < pixelCount; i++)
-                mPixels[i * 4 + 2] = mPixels[i * 4 + 2] / 2;
-        }
-
         auto mat = std::make_shared<Material>();
-        mat->loadFromPixels(m_renderer.getDevice(),
-            aPx, aw, ah, nPx, nw, nh, mPx, mw, mh, white, 1, 1,
-            black, 1, 1, false);
+        mat->loadFromFiles(m_renderer.getDevice(),
+            levelMat.albedoPath, levelMat.normalPath, levelMat.metallicRoughnessPath);
 
         createMaterialDescriptorSet(mat);
         m_resources.registerMaterial(mat);
         materials.push_back(mat);
-
-        if (aPixels) stbi_image_free(aPixels);
-        if (nPixels) stbi_image_free(nPixels);
-        if (mPixels) stbi_image_free(mPixels);
     }
 
     GameObject* rootObject = nullptr;

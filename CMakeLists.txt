@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
-project(ELE LANGUAGES CXX)
+project(ELE LANGUAGES C CXX)
+
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -81,3 +85,12 @@ endif()
 add_subdirectory(Engine)
 add_subdirectory(game)
 add_subdirectory(tools/emodel_optimizer)
+add_subdirectory(tools/texconv)
+
+set(ELE_TEXTURE_DIRS "${CMAKE_BINARY_DIR}/game/Levels" CACHE STRING
+    "Папки/файлы с PNG/JPG, которые конвертируются в KTX2 при сборке")
+
+add_custom_target(ConvertTextures ALL
+    COMMAND ele_texconv ${ELE_TEXTURE_DIRS}
+    COMMENT "Converting textures to KTX2"
+    VERBATIM)

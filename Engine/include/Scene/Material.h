@@ -14,6 +14,11 @@ public:
         const std::string& metallicPath,
         const std::string& roughnessPath);
 
+    void loadFromFiles(ASH::Device* device,
+        const std::string& albedoPath,
+        const std::string& normalPath,
+        const std::string& metallicRoughnessPath);
+
     void loadFromPixels(ASH::Device* device,
         const unsigned char* albedoPx, int aw, int ah,
         const unsigned char* normalPx, int nw, int nh,

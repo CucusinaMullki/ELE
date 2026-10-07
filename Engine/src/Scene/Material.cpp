@@ -1,5 +1,8 @@
 #include "Scene/Material.h"
 #include <array>
+#include <stb_image.h>
+#include <filesystem>
+#include <cstdio>
 
 void Material::load(ASH::Device* device,
     const std::string& albedoPath,
@@ -66,6 +69,52 @@ void Material::createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout
 
         m_descriptorSets[i]->update(writes.data(), (uint32_t)writes.size());
     }
+}
+
+void Material::loadFromFiles(ASH::Device* device,
+    const std::string& albedoPath,
+    const std::string& normalPath,
+    const std::string& metallicRoughnessPath)
+{
+    static const unsigned char white[4] = { 255, 255, 255, 255 };
+    static const unsigned char normalPx[4] = { 128, 128, 255, 255 };
+    static const unsigned char defaultMR[4] = { 0, 128, 0, 255 };
+    static const unsigned char black[4] = { 0, 0, 0, 255 };
+
+    auto loadSlot = [&](Texture& tex, const std::string& path, bool srgb,
+        const unsigned char* fallback, bool halfBlue, const char* slot)
+    {
+        if (!path.empty())
+        {
+            std::filesystem::path k(path);
+            k.replace_extension(".ktx2");
+            if (std::filesystem::exists(k) && tex.initializeKtx2(device, k.string()))
+                return;
+
+            int w = 0, h = 0;
+            unsigned char* px = stbi_load(path.c_str(), &w, &h, nullptr, STBI_rgb_alpha);
+            if (px)
+            {
+                if (halfBlue)
+                {
+                    size_t n = (size_t)w * (size_t)h;
+                    for (size_t i = 0; i < n; i++) px[i * 4 + 2] = px[i * 4 + 2] / 2;
+                }
+                std::fprintf(stderr, "[Tex] PNG %s %s\n", slot, path.c_str());
+                tex.initializeFromMemory(device, px, w, h, srgb);
+                stbi_image_free(px);
+                return;
+            }
+        }
+        tex.initializeFromMemory(device, fallback, 1, 1, srgb);
+    };
+
+    loadSlot(m_albedo, albedoPath, true,  white, false, "albedo");
+    loadSlot(m_normal, normalPath, false, normalPx, false, "normal");
+    loadSlot(m_metallicRoughness, metallicRoughnessPath, false, defaultMR, true,  "mr");
+    m_ao.initializeFromMemory(device, white, 1, 1, false);
+    m_lightmap.initializeFromMemory(device, black, 1, 1, true);
+    m_hasLightmap = false;
 }
 
 void Material::cleanup()

@@ -9,7 +9,7 @@ void SwapChain::initialize(VulkanContext& context, GLFWwindow* window)
     desc.extent = { (uint32_t)width, (uint32_t)height };
     desc.format = m_format;
     desc.imageCount = 3;
-    desc.presentMode = ASH::PresentMode::Mailbox;
+    desc.presentMode = ASH::PresentMode::Fifo;
 
     m_swapChain = context.getDevice()->createSwapChain(desc);
 }

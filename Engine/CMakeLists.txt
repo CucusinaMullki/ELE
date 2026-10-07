@@ -131,3 +131,28 @@ foreach(GLSL ${GLSL_FILES})
 endforeach()
 
 add_custom_target(Shaders ALL DEPENDS ${SPIRV_FILES})
+
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(KTX QUIET IMPORTED_TARGET ktx)
+endif()
+
+if(TARGET PkgConfig::KTX)
+    message(STATUS "libktx: using system library")
+    target_link_libraries(ELE PUBLIC PkgConfig::KTX)
+else()
+    message(STATUS "libktx: fetching KTX-Software")
+    include(FetchContent)
+    set(KTX_FEATURE_TOOLS         OFF CACHE BOOL "" FORCE)
+    set(KTX_FEATURE_TESTS         OFF CACHE BOOL "" FORCE)
+    set(KTX_FEATURE_LOADTEST_APPS OFF CACHE BOOL "" FORCE)
+    set(KTX_FEATURE_DOC           OFF CACHE BOOL "" FORCE)
+    set(KTX_FEATURE_STATIC_LIBRARY ON CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        ktx_software
+        GIT_REPOSITORY https://github.com/KhronosGroup/KTX-Software.git
+        GIT_TAG        v4.4.0
+    )
+    FetchContent_MakeAvailable(ktx_software)
+    target_link_libraries(ELE PUBLIC ktx)
+endif()
