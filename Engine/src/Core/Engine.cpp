@@ -416,12 +416,16 @@ void Engine::addDirectionalLight(glm::vec3 direction, glm::vec3 color, float int
 
 GameObject& Engine::loadLevel(const std::string& path)
 {
-    LevelLoader loader;
-    loader.load(path);
+    std::filesystem::path levelFile(path);
+    if (levelFile.is_relative() && std::filesystem::exists(Paths::assetDir() / levelFile))
+        levelFile = Paths::assetDir() / levelFile;
+    const std::filesystem::path levelDir = levelFile.parent_path();
 
-    std::filesystem::path probePath = std::filesystem::path(path).replace_extension(".eprobes");
-    if (probePath.is_relative())
-        probePath = Paths::assetDir() / probePath;
+    LevelLoader loader;
+    loader.load(levelFile.string());
+
+    std::filesystem::path probePath = levelFile;
+    probePath.replace_extension(".eprobes");
     m_probes.load(probePath.string());
 
     std::vector<std::shared_ptr<Mesh>> meshes;
@@ -454,7 +458,9 @@ GameObject& Engine::loadLevel(const std::string& path)
     {
         auto mat = std::make_shared<Material>();
         mat->loadFromFiles(m_renderer.getDevice(),
-            levelMat.albedoPath, levelMat.normalPath, levelMat.metallicRoughnessPath);
+            Paths::resolveAsset(levelMat.albedoPath, levelDir).string(),
+            Paths::resolveAsset(levelMat.normalPath, levelDir).string(),
+            Paths::resolveAsset(levelMat.metallicRoughnessPath, levelDir).string());
 
         createMaterialDescriptorSet(mat);
         m_resources.registerMaterial(mat);
