@@ -130,13 +130,12 @@ int main()
     Engine engine;
     engine.initialize(800, 600, "ELE Game");
     engine.setAntialiasing(AAMethod::TAA);
-    engine.setExposure(1.0f);
     InputInScene(engine);
 
     engine.getRenderer().setVoxelGIEnabled(false);
 
     IBLSettings iblSettings{};
-    iblSettings.diffuseIntensity = 0.25f;
+    iblSettings.diffuseIntensity = 1.0;
     engine.setIBLSettings(iblSettings);
 
     auto& level = engine.loadLevel("Levels/Level.elvl");
@@ -225,15 +224,14 @@ int main()
     player.addComponent<HeadBobComponent>(glm::vec3(0.0f, 1.6f, 0.0f));
     player.addComponent<PlayerComponent>(engine.getPhysics());
 
-    auto& testText = engine.getUI().addWidget<TextWidget>("Penis");
-    testText.setFontScale(10.0f);
+    //auto& testText = engine.getUI().addWidget<TextWidget>("Penis");
+    //testText.setFontScale(10.0f);
     //createInteractableCube(engine, glm::vec3(2.0f, 1.0f, 2.0f), [&engine]()
     //{
     //    //createCube(engine, glm::vec3(0.0f, 10.0f, 0.0f));
     //});
     engine.setCameraControlMode(false);
 
-    //////////////////////////////
     
     engine.run();
 

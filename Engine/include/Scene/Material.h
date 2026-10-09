@@ -46,6 +46,7 @@ public:
         ASH::Texture* irradianceTexture, ASH::Sampler* irradianceSampler,
         ASH::Texture* voxelTexture, ASH::Sampler* voxelSampler, ASH::Buffer* voxelGridBuffer,
         ASH::Buffer* voxelGridInfoBuffer,
+        ASH::Buffer* probeData, ASH::Buffer* probeInfo,
         uint32_t frameCount);
 
 

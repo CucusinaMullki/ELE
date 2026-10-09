@@ -68,6 +68,7 @@ add_library(ELE STATIC
     src/Scene/SkeletalMesh.cpp
     src/Core/ModelLoader.cpp
     src/Core/AnimationLoader.cpp
+    src/Scene/ProbeSystem.cpp
     src/Scene/Animation.cpp
 )
 

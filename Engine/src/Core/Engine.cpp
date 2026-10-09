@@ -1,8 +1,10 @@
 #include "Core/Engine.h"
 #include "Core/LevelLoader.h"
 #include <stb_image.h>
+#include <filesystem>
 #include <cstdio>
 #include "Core/Log.h"
+#include "Core/Path.h"
 #include "Nav/SimpleNavMeshBuilder.h"
 #include "Scene/SkeletalGltfLoader.h"
 #include "Components/TriggerComponent.h"
@@ -50,6 +52,7 @@ void Engine::initialize(int width, int height, const std::string& title)
     });
     m_renderer.initialize(m_window);
     m_renderer.initImGui(m_window);
+    m_probes.initialize(m_renderer.getDevice());
     m_resources.initialize(m_renderer.getDevice());
     m_cameraController = std::make_unique<FreeFlyCameraController>();
     m_input.initialize(m_window);
@@ -80,6 +83,7 @@ std::shared_ptr<Material> Engine::loadMaterial(const std::string& albedo, const 
 
 void Engine::createMaterialDescriptorSet(std::shared_ptr<Material> material)
 {
+    m_renderer.getDevice()->waitIdle();
     material->createDescriptorSet(m_renderer.getDevice(),
         m_renderer.getDescriptorSetLayout(),
         m_renderer.getUboBuffers(), m_renderer.getLightBuffers(),
@@ -88,6 +92,7 @@ void Engine::createMaterialDescriptorSet(std::shared_ptr<Material> material)
         m_renderer.getIrradianceView(), m_renderer.getIrradianceSampler(),
         m_renderer.getVoxelAtlasTexture(), m_renderer.getVoxelAtlasSampler(), m_renderer.getVoxelPageTableBuffer(),
         m_renderer.getVoxelGridInfoBuffer(),
+        m_probes.getDataBuffer(), m_probes.getInfoBuffer(),
         m_renderer.getFramesInFlight());
 }
 
@@ -206,6 +211,7 @@ void Engine::shutdown()
     m_cleaned = true;
 
     m_renderer.getDevice()->waitIdle();
+    m_probes.shutdown();
     m_scene.clear();
     m_resources.cleanup();
     m_renderer.cleanup();
@@ -412,6 +418,11 @@ GameObject& Engine::loadLevel(const std::string& path)
 {
     LevelLoader loader;
     loader.load(path);
+
+    std::filesystem::path probePath = std::filesystem::path(path).replace_extension(".eprobes");
+    if (probePath.is_relative())
+        probePath = Paths::assetDir() / probePath;
+    m_probes.load(probePath.string());
 
     std::vector<std::shared_ptr<Mesh>> meshes;
     for (const auto& levelMesh : loader.getMeshes())

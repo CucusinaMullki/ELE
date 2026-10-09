@@ -27,6 +27,7 @@ void Material::createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout
     ASH::Texture* irradianceTexture, ASH::Sampler* irradianceSampler,
     ASH::Texture* voxelTexture, ASH::Sampler* voxelSampler, ASH::Buffer* voxelGridBuffer,
     ASH::Buffer* voxelGridInfoBuffer,
+    ASH::Buffer* probeData, ASH::Buffer* probeInfo,
     uint32_t frameCount)
 {
     m_descriptorSets.clear();
@@ -50,8 +51,10 @@ void Material::createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout
         ASH::DescriptorImageInfo voxelInfo{ voxelTexture, voxelSampler };
         ASH::DescriptorBufferInfo voxelGridInfo{ voxelGridBuffer, 0, voxelGridBuffer->getSize() };
         ASH::DescriptorBufferInfo voxelInfoBufInfo{ voxelGridInfoBuffer, 0, voxelGridInfoBuffer->getSize() };
+        ASH::DescriptorBufferInfo probeDataInfo{ probeData, 0, probeData->getSize() };
+        ASH::DescriptorBufferInfo probeInfoData{ probeInfo, 0, probeInfo->getSize() };
 
-        std::array<ASH::DescriptorWrite, 13> writes{};
+        std::array<ASH::DescriptorWrite, 15> writes{};
 
         writes[0] = { 0, ASH::DescriptorType::UniformBuffer, 0, &uboInfo, nullptr };
         writes[1] = { 1, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &albedoInfo };
@@ -66,6 +69,8 @@ void Material::createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout
         writes[10] = {10, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &voxelInfo };
         writes[11] = { 11, ASH::DescriptorType::StorageBuffer, 0, &voxelGridInfo, nullptr };
         writes[12] = { 12, ASH::DescriptorType::UniformBuffer, 0, &voxelInfoBufInfo, nullptr };
+        writes[13] = { 13, ASH::DescriptorType::StorageBuffer, 0, &probeDataInfo, nullptr };
+        writes[14] = { 14, ASH::DescriptorType::UniformBuffer, 0, &probeInfoData, nullptr };
 
         m_descriptorSets[i]->update(writes.data(), (uint32_t)writes.size());
     }

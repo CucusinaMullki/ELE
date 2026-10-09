@@ -11,6 +11,7 @@
 #include "UI/UISystem.h"
 #include "Core/ICameraController.h"
 #include "Nav/NavMesh.h"
+#include "Scene/ProbeSystem.h"
 #include "Core/ModelLoader.h"
 #include "Core/FreeFlyCameraController.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -116,5 +117,6 @@ private:
     bool m_useCameraController = true;
     PhysicsSystem m_physics;
     NavMesh m_navMesh;
+    ProbeSystem m_probes;
 
 };
