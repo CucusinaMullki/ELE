@@ -1,0 +1,155 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+
+layout(local_size_x = 64) in;
+
+#define EFFECT_BINDING 0
+#include "particle_record.glsl"
+
+layout(std430, binding = 1) writeonly buffer OutBuffer { ParticleInstance instances[]; };
+
+layout(push_constant) uniform Push
+{
+    vec4  offsetTime;
+    uvec4 info;
+} pc;
+
+uint pcg(uint v)
+{
+    uint state = v * 747796405u + 2891336453u;
+    uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return (word >> 22u) ^ word;
+}
+uint streamBase(uint seed, uint i, uint k)
+{
+    uint s = seed * 0x9E3779B1u;
+    return pcg(s ^ pcg(i) ^ pcg(k + 0x68E31DA4u));
+}
+float rnd(uint base, uint n)
+{
+    uint h = pcg(base + n * 0x9E3779B9u);
+    return float(h >> 8u) * (1.0 / 16777216.0);
+}
+float lerpRange(vec2 r, float x) { return mix(min(r.x, r.y), max(r.x, r.y), x); }
+
+void main()
+{
+    uint rec  = pc.info.x * REC_WORDS;
+    uint i    = gl_GlobalInvocationID.x;
+    uint n    = ru(rec, O_COUNT);
+    if (i >= n) return;
+
+    uint outIdx = pc.info.y + i;
+    instances[outIdx].misc = vec4(0.0);
+
+    uint  flags = ru(rec, O_FLAGS);
+    bool  loop  = (flags & PFLAG_LOOP) != 0u;
+    float rate  = max(rf(rec, O_RATE), 1e-4);
+    float period = float(n) / rate;
+    float tt    = pc.offsetTime.w + ((loop && (flags & PFLAG_PREWARM) != 0u) ? period : 0.0);
+    float birth = float(i) / rate;
+    float kf    = floor((tt - birth) / period);
+    bool  valid = kf >= 0.0;
+    if (!loop)
+    {
+        float dur = rf(rec, O_DURATION);
+        float emitEnd = dur > 0.0 ? dur : period;
+        valid = valid && (kf == 0.0) && (birth < emitEnd);
+    }
+    if (!valid) return;
+
+    float age = tt - birth - kf * period;
+    uint  k   = uint(max(kf, 0.0));
+    uint  sb  = streamBase(ru(rec, O_SEED), i, k);
+
+    float life = lerpRange(rv2(rec, O_LIFE), rnd(sb, 0u));
+    if (age < 0.0 || age >= life) return;
+    float u = clamp(age / max(life, 1e-6), 0.0, 1.0);
+
+    float speed = lerpRange(rv2(rec, O_SPEED), rnd(sb, 1u));
+
+    uint  shape = ru(rec, O_SHAPE);
+    vec3  size3 = rv3(rec, O_SHAPESIZE);
+    vec3  p = vec3(0.0);
+    if (shape == 1u)
+    {
+        float z  = 2.0 * rnd(sb, 2u) - 1.0;
+        float ph = TWO_PI * rnd(sb, 3u);
+        float s  = sqrt(max(0.0, 1.0 - z * z));
+        p = vec3(s * cos(ph), s * sin(ph), z) * (size3.x * pow(rnd(sb, 4u), 1.0 / 3.0));
+    }
+    else if (shape == 2u)
+    {
+        p = (2.0 * vec3(rnd(sb, 2u), rnd(sb, 3u), rnd(sb, 4u)) - 1.0) * size3;
+    }
+    else if (shape == 3u)
+    {
+        float ph  = TWO_PI * rnd(sb, 2u);
+        float rad = size3.x * sqrt(rnd(sb, 3u));
+        p = vec3(rad * cos(ph), rad * sin(ph), 0.0);
+    }
+
+    float cmax  = cos(clamp(rf(rec, O_CONE), 0.0, 3.14159265));
+    float cosT  = 1.0 - rnd(sb, 5u) * (1.0 - cmax);
+    float sinT  = sqrt(max(0.0, 1.0 - cosT * cosT));
+    float phi   = TWO_PI * rnd(sb, 6u);
+    vec3  d     = vec3(sinT * cos(phi), sinT * sin(phi), cosT);
+    if ((flags & PFLAG_RADIAL) != 0u)
+    {
+        float pl = length(p);
+        if (pl > 1e-6) d = p / pl;
+    }
+
+    vec3 ex = rv3(rec, O_BASIS);
+    vec3 ey = rv3(rec, O_BASIS + 3u);
+    vec3 ez = rv3(rec, O_BASIS + 6u);
+    vec3 origin = rv3(rec, O_POS);
+    vec3 p0 = origin + p.x * ex + p.y * ey + p.z * ez;
+    vec3 v0 = (d.x * ex + d.y * ey + d.z * ez) * speed;
+
+    vec3  g  = rv3(rec, O_GRAVITY);
+    float dd = rf(rec, O_DRAG);
+    vec3  x;
+    if (dd < 1e-4)
+        x = v0 * age + 0.5 * g * age * age;
+    else
+    {
+        vec3 vt = g / dd;
+        x = vt * age + (v0 - vt) * ((1.0 - exp(-dd * age)) / dd);
+    }
+
+    float wobAmp = rf(rec, O_WOBAMP);
+    if (wobAmp > 0.0)
+    {
+        vec3 phs = TWO_PI * vec3(rnd(sb, 11u), rnd(sb, 12u), rnd(sb, 13u));
+        vec3 w   = rf(rec, O_WOBFREQ) * age * vec3(1.0, 1.13, 0.87);
+        x += wobAmp * sin(w + phs) * min(age, 1.0);
+    }
+
+    vec3 pos = p0 + x + pc.offsetTime.xyz;
+
+    float s0 = lerpRange(rv2(rec, O_SIZE0), rnd(sb, 7u));
+    float s1 = lerpRange(rv2(rec, O_SIZE1), rnd(sb, 8u));
+    float size = mix(s0, s1, u);
+    float rot  = lerpRange(rv2(rec, O_ROT0), rnd(sb, 9u)) + lerpRange(rv2(rec, O_ROTSPEED), rnd(sb, 10u)) * age;
+
+    vec4 st = rv4(rec, O_STOPS);
+    vec4 c0 = rv4(rec, O_COLORS);
+    vec4 c1 = rv4(rec, O_COLORS + 4u);
+    vec4 c2 = rv4(rec, O_COLORS + 8u);
+    vec4 c3 = rv4(rec, O_COLORS + 12u);
+    vec4 col;
+    if (u <= st.x)      col = c0;
+    else if (u >= st.w) col = c3;
+    else if (u <= st.y) col = mix(c0, c1, (u - st.x) / max(st.y - st.x, 1e-6));
+    else if (u <= st.z) col = mix(c1, c2, (u - st.y) / max(st.z - st.y, 1e-6));
+    else                col = mix(c2, c3, (u - st.z) / max(st.w - st.z, 1e-6));
+
+    int frames = max(1, int(ru(rec, O_FLIPC)) * int(ru(rec, O_FLIPR)));
+    float fps = rf(rec, O_FLIPFPS);
+    int frame = fps > 0.0 ? (int(floor(age * fps)) % frames) : min(int(floor(u * float(frames))), frames - 1);
+
+    instances[outIdx].posSize = vec4(pos, size);
+    instances[outIdx].color   = col;
+    instances[outIdx].misc    = vec4(rot, float(frame), 1.0, u);
+}

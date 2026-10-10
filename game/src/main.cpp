@@ -14,6 +14,7 @@
 #include "Components/AudioComponent.h"
 #include "Components/TriggerComponent.h"
 #include "UI/DebugConsoleWidget.h"
+#include "Components/ParticlesComponent.h"
 #include "DebugConsoleController.h"
 
 
@@ -143,6 +144,14 @@ int main()
 
     engine.getAudio().loadSound("music", "audio/yebimenya.wav");
     engine.getAudio().playSound("music", 0.5f);
+
+    ParticlesComponent dust;
+    dust.bind(engine.getRenderer().getParticles(), "PFX_smoke");
+    dust.play();
+
+    ParticlesComponent dust2;
+    dust2.bind(engine.getRenderer().getParticles(), "PFX_smoke.001");
+    dust2.play();
 
     auto cube = engine.loadModel("assets/models/TestModel2.emodel");
     LOG("loadModel: mesh=" << (cube.mesh ? "valid" : "NULL") << " materials count=" << cube.materials.size());

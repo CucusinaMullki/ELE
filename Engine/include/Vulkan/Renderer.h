@@ -39,6 +39,7 @@
 #include "Vulkan/FXAA.h"
 #include "Vulkan/DecalBox.h"
 #include "Vulkan/DecalCameraBuffer.h"
+#include "Vulkan/Particles.h"
 #include "Scene/ScreenSpaceDecal.h"
 #include "Core/Camera.h"
 #include "ASH/ASH.h"
@@ -102,9 +103,9 @@ public:
     ASH::Sampler* getVoxelAtlasSampler() const { return m_voxelGI.getAtlasSampler(); }
     ASH::Buffer* getVoxelPageTableBuffer() const { return m_voxelGI.getPageTableBuffer(); }
     ASH::Buffer* getVoxelGridInfoBuffer() const { return m_voxelGridInfoBuffer.get(); }
+    Particles& getParticles() { return m_particles; }
 
     void enableVoxelGI(float chunkSize, uint32_t chunkResolution, int32_t visibilityRadiusChunks);
-
 
     std::vector<const GameObject*> parallelCull(const Scene& scene, const std::array<glm::vec4, 6>& planes) const;
     bool isVisible(const GameObject& obj, const std::array<glm::vec4, 6>& planes) const;
@@ -261,6 +262,9 @@ private:
     std::vector<std::shared_ptr<ScreenSpaceDecal>> m_screenSpaceDecals;
     PostRenderPass m_hdrDecalRenderPass;
     std::unique_ptr<ASH::Framebuffer> m_hdrDecalFramebuffer;
+
+    //Particles
+    Particles m_particles;
 
     //Volumetric fog
     Pipeline m_fogPipeline;

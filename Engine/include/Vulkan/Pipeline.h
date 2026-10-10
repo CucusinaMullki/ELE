@@ -20,6 +20,8 @@ enum class LayoutType
     VoxelizeSkinned,
     DownsampleVoxels,
     SkinnedShadow,
+    ParticleCompute,
+    ParticelDraw,
 };
 
 struct PipelineConfig

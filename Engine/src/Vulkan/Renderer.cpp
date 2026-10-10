@@ -475,6 +475,8 @@ void Renderer::initialize(GLFWwindow* window)
     m_decalCameraBuffer.initialize(device, MAX_FRAMES_IN_FLIGHT);
     m_decalPipeline.initialize(device, decalConfig);
 
+    m_particles.initialize(device, m_hdrDecalRenderPass.getRenderPass(), MAX_FRAMES_IN_FLIGHT, m_depthBuffer.getTexture(), m_depthBuffer.getSampler(), m_decalCameraBuffer);
+
     m_lightBuffer.initialize(device, MAX_FRAMES_IN_FLIGHT);
 
     m_commandManager.initialize(device, MAX_FRAMES_IN_FLIGHT);
@@ -1335,6 +1337,8 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         cmd->endRenderPass();
     }
 
+    m_particles.recordCompute(cmd, (uint32_t)m_currentFrame, m_totalTime);
+
     if (!m_screenSpaceDecals.empty())
     {
         ASH::RenderPassBeginInfo decalPass{};
@@ -1372,6 +1376,33 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         }
 
         cmd->endRenderPass();
+    }
+
+    if (m_particles.hasWork())
+    {
+        transition(m_depthBuffer.getTexture(),
+            ASH::ResourceState::DepthStencilAttachment, ASH::ResourceState::ShaderReadOnly);
+
+        ASH::RenderPassBeginInfo partPass{};
+        partPass.renderPass = m_hdrDecalRenderPass.getRenderPass();
+        partPass.framebuffer = m_hdrDecalFramebuffer.get();
+        partPass.renderArea = { 0, 0, m_swapchain.getExtent().width, m_swapchain.getExtent().height };
+
+        cmd->beginRenderPass(partPass);
+
+        ASH::Viewport pvp{};
+        pvp.width = (float)m_swapchain.getExtent().width;
+        pvp.height = (float)m_swapchain.getExtent().height;
+        pvp.minDepth = 0.0f; pvp.maxDepth = 1.0f;
+        cmd->setViewport(pvp);
+        ASH::Rect2D psc{ 0, 0, m_swapchain.getExtent().width, m_swapchain.getExtent().height };
+        cmd->setScissor(psc);
+
+        m_particles.recordDraw(cmd, (uint32_t)m_currentFrame);
+        cmd->endRenderPass();
+
+        transition(m_depthBuffer.getTexture(),
+            ASH::ResourceState::ShaderReadOnly, ASH::ResourceState::DepthStencilAttachment);
     }
 
     if (m_fogSettings.enabled)
@@ -1800,6 +1831,8 @@ void Renderer::recreateSwapchain()
 
     createFogDescriptorSets();
 
+    m_particles.rebuildDescriptors(m_depthBuffer.getTexture(), m_depthBuffer.getSampler());
+
     m_velocityTarget.cleanup();
     m_velocityTarget.initialize(device, extent);
 
@@ -2079,6 +2112,7 @@ void Renderer::cleanup()
     m_godRayMaskTarget.cleanup();
     m_godRayBlurTarget.cleanup();
 
+    m_particles.cleanup();
     m_decalPipeline.cleanup();
     m_fxaa.cleanup();
     m_ldrFramebuffer.reset();

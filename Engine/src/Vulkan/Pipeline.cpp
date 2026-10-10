@@ -211,6 +211,19 @@ ASH::DescriptorSetLayoutDesc buildLayoutDesc(LayoutType layoutType)
 
     case LayoutType::None:
         break;
+
+    case LayoutType::ParticleCompute:
+        addBinding(0, ASH::DescriptorType::StorageBuffer, ASH::ShaderStage::Compute);
+        addBinding(1, ASH::DescriptorType::StorageBuffer, ASH::ShaderStage::Compute);
+        break;
+
+    case LayoutType::ParticelDraw:
+        addBinding(0, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(1, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(2, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex | ASH::ShaderStage::Fragment);
+        addBinding(3, ASH::DescriptorType::StorageBuffer, ASH::ShaderStage::Vertex);
+        addBinding(4, ASH::DescriptorType::StorageBuffer, ASH::ShaderStage::Vertex);
+        break;
     }
 
     return layoutDesc;

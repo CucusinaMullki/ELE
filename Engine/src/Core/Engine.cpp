@@ -428,6 +428,13 @@ GameObject& Engine::loadLevel(const std::string& path)
     probePath.replace_extension(".eprobes");
     m_probes.load(probePath.string());
 
+    {
+        std::filesystem::path partPath = levelFile;
+        partPath.replace_extension(".eparticles");
+        if (std::filesystem::exists(partPath))
+            m_renderer.getParticles().load(partPath.string());
+    }
+
     std::vector<std::shared_ptr<Mesh>> meshes;
     for (const auto& levelMesh : loader.getMeshes())
     {
