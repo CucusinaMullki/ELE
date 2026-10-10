@@ -55,6 +55,14 @@ layout(binding = 14) uniform ProbeInfo
 const float PROBE_STRENGTH = 0.5;
 const float PROBE_NORMAL_BIAS = 0.3;
 const float IBL_WITH_PROBES = 0.3;
+const float AMBIENT_BLACK = 0.002;
+const float AMBIENT_CONTRAST = 1.25;
+
+vec3 shapeAmbient(vec3 a)
+{
+    a = max(a - vec3(AMBIENT_BLACK), vec3(0.0));
+    return pow(a, vec3(AMBIENT_CONTRAST));
+}
 
 vec3 probeIrradianceOne(uint idx, vec3 n)
 {
@@ -439,7 +447,7 @@ void main()
         indirectDiffuse = mix(iblAmbient, inside, pr.a);
     }
 
-    vec3 ambient = indirectDiffuse * ao;
+    vec3 ambient = shapeAmbient(indirectDiffuse) * ao;
     
     vec3 color = ambient + Lo;
 
