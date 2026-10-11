@@ -23,6 +23,8 @@ layout(location = 0) out vec4  vColor;
 layout(location = 1) out vec2  vUV;
 layout(location = 2) out float vViewDepth;
 layout(location = 3) flat out float vSoft;
+layout(location = 4) out vec3  vWorld;
+layout(location = 5) flat out float vProbe;
 
 const vec2 QUAD[6] = vec2[6](
     vec2(-1.0, -1.0), vec2( 1.0, -1.0), vec2( 1.0,  1.0),
@@ -34,7 +36,7 @@ void main()
     uint corner = uint(gl_VertexIndex) % 6u;
     ParticleInstance ins = instances[pc.info.y + slot];
 
-    vColor = vec4(0.0); vUV = vec2(0.0); vViewDepth = 0.0; vSoft = 0.0;
+    vColor = vec4(0.0); vUV = vec2(0.0); vViewDepth = 0.0; vSoft = 0.0; vWorld = vec3(0.0); vProbe = 0.0;
     if (ins.misc.z < 0.5 || ins.color.a <= 0.001)
     {
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
@@ -63,5 +65,7 @@ void main()
     vViewDepth = -viewPos.z;
     vColor = ins.color;
     vSoft = ((flags & PFLAG_SOFT) != 0u) ? max(rf(rec, O_SOFT), 1e-3) : 0.0;
+    vProbe = ((flags & PFLAG_PROBES) != 0u) ? clamp(rf(rec, O_PROBEINF), 0.0, 1.0) : 0.0;
+    vWorld = ins.posSize.xyz;
     gl_Position = cam.proj * viewPos;
 }

@@ -217,12 +217,14 @@ ASH::DescriptorSetLayoutDesc buildLayoutDesc(LayoutType layoutType)
         addBinding(1, ASH::DescriptorType::StorageBuffer, ASH::ShaderStage::Compute);
         break;
 
-    case LayoutType::ParticelDraw:
+    case LayoutType::ParticleDraw:
         addBinding(0, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         addBinding(1, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         addBinding(2, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex | ASH::ShaderStage::Fragment);
         addBinding(3, ASH::DescriptorType::StorageBuffer, ASH::ShaderStage::Vertex);
         addBinding(4, ASH::DescriptorType::StorageBuffer, ASH::ShaderStage::Vertex);
+        addBinding(5, ASH::DescriptorType::StorageBuffer, ASH::ShaderStage::Fragment);
+        addBinding(6, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
         break;
     }
 

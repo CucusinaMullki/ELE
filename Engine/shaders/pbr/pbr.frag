@@ -56,7 +56,7 @@ const float PROBE_STRENGTH = 0.5;
 const float PROBE_NORMAL_BIAS = 0.3;
 const float IBL_WITH_PROBES = 0.3;
 const float AMBIENT_BLACK = 0.002;
-const float AMBIENT_CONTRAST = 1.25;
+const float AMBIENT_CONTRAST = 1.0;
 
 vec3 shapeAmbient(vec3 a)
 {

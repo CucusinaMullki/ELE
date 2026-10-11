@@ -9,11 +9,11 @@
 
 namespace
 {
+
 std::vector<unsigned char> makeSoftCircle(int n)
 {
     std::vector<unsigned char> px((size_t)n * n * 4);
     for (int y = 0; y < n; ++y)
-    {
         for (int x = 0; x < n; ++x)
         {
             float dx = ((float)x + 0.5f) / n * 2.0f - 1.0f;
@@ -25,12 +25,13 @@ std::vector<unsigned char> makeSoftCircle(int n)
             p[0] = p[1] = p[2] = 255;
             p[3] = (unsigned char)(a * 255.0f + 0.5f);
         }
-    }
     return px;
 }
 }
 
-void Particles::initialize(ASH::Device* device, ASH::RenderPass* renderPass, uint32_t frameCount, ASH::Texture* depthTexture, ASH::Sampler* depthSampler, const DecalCameraBuffer& cameraBuffer)
+void Particles::initialize(ASH::Device* device, ASH::RenderPass* renderPass, uint32_t frameCount,
+   ASH::Texture* depthTexture, ASH::Sampler* depthSampler,
+   const DecalCameraBuffer& cameraBuffer)
 {
     m_device = device;
     m_renderPass = renderPass;
@@ -51,7 +52,7 @@ void Particles::initialize(ASH::Device* device, ASH::RenderPass* renderPass, uin
     dc.fragmentShader = "particles";
     dc.renderPass = renderPass;
     dc.frameCount = frameCount;
-    dc.layoutType = LayoutType::ParticelDraw;
+    dc.layoutType = LayoutType::ParticleDraw;
     dc.colorAttachmentCount = 1;
     dc.useVertexInput = false;
     dc.depthTest = false;
@@ -69,20 +70,49 @@ void Particles::initialize(ASH::Device* device, ASH::RenderPass* renderPass, uin
     dc.blendDstFactor = ASH::BlendFactor::One;
     m_drawAdditive.initialize(device, dc);
 
+    {
+        ASH::BufferDesc d{};
+        d.size = sizeof(float) * 28;
+        d.usage = ASH::BufferUsage::StorageBuffer;
+        d.memory = ASH::MemoryUsage::CpuToGpu;
+        m_dummyProbeData = device->createBuffer(d);
+        void* m = m_dummyProbeData->map(); std::memset(m, 0, d.size); m_dummyProbeData->unmap();
+
+        ASH::BufferDesc u{};
+        u.size = sizeof(float) * 8;
+        u.usage = ASH::BufferUsage::UniformBuffer;
+        u.memory = ASH::MemoryUsage::CpuToGpu;
+        m_dummyProbeInfo = device->createBuffer(u);
+        m = m_dummyProbeInfo->map(); std::memset(m, 0, u.size); m_dummyProbeInfo->unmap();
+    }
+
     auto px = makeSoftCircle(64);
     m_defaultSprite.initializeFromMemory(device, px.data(), 64, 64, false);
+}
+
+void Particles::setProbeBuffers(ASH::Buffer* probeData, ASH::Buffer* probeInfo)
+{
+    m_probeData = probeData;
+    m_probeInfo = probeInfo;
+    if (m_effectBuffer)
+    {
+        if (m_device) m_device->waitIdle();
+        createDescriptorSets();
+    }
 }
 
 void Particles::cleanup()
 {
     unload();
+    m_dummyProbeData.reset();
+    m_dummyProbeInfo.reset();
     m_sprites.clear();
     m_defaultSprite.cleanup();
     m_drawAdditive.cleanup();
     m_drawAlpha.cleanup();
     m_compute.cleanup();
 }
- 
+
 void Particles::unload()
 {
     if (m_device) m_device->waitIdle();
@@ -101,29 +131,29 @@ void Particles::unload()
 Texture* Particles::loadSprite(const std::string& rawName, const std::string& baseDir)
 {
     if (rawName.empty()) return &m_defaultSprite;
- 
+
     std::filesystem::path p = Paths::resolveAsset(rawName, baseDir);
     if (!std::filesystem::exists(p))
     {
         LOG("[Particles] texture not found: " << rawName << " (using default sprite)");
         return &m_defaultSprite;
     }
- 
+
     const std::string key = p.string();
     auto it = m_sprites.find(key);
     if (it != m_sprites.end()) return it->second.get();
- 
+
     auto tex = std::make_unique<Texture>();
     tex->initialize(m_device, key, true);
     Texture* raw = tex.get();
     m_sprites[key] = std::move(tex);
     return raw;
 }
- 
+
 bool Particles::load(const std::string& path)
 {
     unload();
- 
+
     std::string err;
     if (!ParticlesLoader::load(path, m_records, &err))
     {
@@ -132,9 +162,9 @@ bool Particles::load(const std::string& path)
         return false;
     }
     if (m_records.empty()) return true;
- 
+
     const std::string baseDir = std::filesystem::path(path).parent_path().string();
- 
+
     uint32_t base = 0;
     for (uint32_t i = 0; i < (uint32_t)m_records.size(); ++i)
     {
@@ -149,7 +179,7 @@ bool Particles::load(const std::string& path)
         base += r.particleCount;
     }
     m_totalSlots = base;
- 
+
     {
         ASH::BufferDesc d{};
         d.size = sizeof(ParticleEffectRecord) * m_records.size();
@@ -160,7 +190,7 @@ bool Particles::load(const std::string& path)
         std::memcpy(mapped, m_records.data(), d.size);
         m_effectBuffer->unmap();
     }
- 
+
     m_outBuffers.resize(m_frameCount);
     for (uint32_t f = 0; f < m_frameCount; ++f)
     {
@@ -173,36 +203,36 @@ bool Particles::load(const std::string& path)
         std::memset(mapped, 0, d.size);
         m_outBuffers[f]->unmap();
     }
- 
+
     for (const auto& r : m_records)
         m_emitterSprite.push_back(loadSprite(r.texture, baseDir));
- 
+
     createDescriptorSets();
- 
+
     LOG("[Particles] " << path << ": " << m_records.size() << " effects, " << m_totalSlots << " particle slots");
     return true;
 }
- 
+
 void Particles::createDescriptorSets()
 {
     m_computeSets.clear();
     m_drawSets.clear();
     if (!m_effectBuffer) return;
- 
+
     ASH::DescriptorBufferInfo effInfo{ m_effectBuffer.get(), 0, m_effectBuffer->getSize() };
- 
+
     m_computeSets.resize(m_frameCount);
     for (uint32_t f = 0; f < m_frameCount; ++f)
     {
         m_computeSets[f] = m_compute.createDescriptorSet();
         ASH::DescriptorBufferInfo outInfo{ m_outBuffers[f].get(), 0, m_outBuffers[f]->getSize() };
- 
+
         std::array<ASH::DescriptorWrite, 2> w{};
         w[0] = { 0, ASH::DescriptorType::StorageBuffer, 0, &effInfo, nullptr };
         w[1] = { 1, ASH::DescriptorType::StorageBuffer, 0, &outInfo, nullptr };
         m_computeSets[f]->update(w.data(), (uint32_t)w.size());
     }
- 
+
     m_drawSets.resize(m_emitters.size());
     for (size_t e = 0; e < m_emitters.size(); ++e)
     {
@@ -210,24 +240,31 @@ void Particles::createDescriptorSets()
         for (uint32_t f = 0; f < m_frameCount; ++f)
         {
             m_drawSets[e][f] = m_drawAlpha.createDescriptorSet();
- 
+
             Texture* sprite = m_emitterSprite[e];
             ASH::DescriptorImageInfo spriteInfo{ sprite->getTexture(), sprite->getSampler() };
             ASH::DescriptorImageInfo depthInfo{ m_depthTexture, m_depthSampler };
             ASH::DescriptorBufferInfo camInfo{ m_camera->getBuffer(f), 0, m_camera->getBuffer(f)->getSize() };
             ASH::DescriptorBufferInfo outInfo{ m_outBuffers[f].get(), 0, m_outBuffers[f]->getSize() };
- 
-            std::array<ASH::DescriptorWrite, 5> w{};
+
+            ASH::Buffer* pd = m_probeData ? m_probeData : m_dummyProbeData.get();
+            ASH::Buffer* pi = m_probeInfo ? m_probeInfo : m_dummyProbeInfo.get();
+            ASH::DescriptorBufferInfo probeDataInfo{ pd, 0, pd->getSize() };
+            ASH::DescriptorBufferInfo probeInfoInfo{ pi, 0, pi->getSize() };
+
+            std::array<ASH::DescriptorWrite, 7> w{};
             w[0] = { 0, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &spriteInfo };
             w[1] = { 1, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &depthInfo };
             w[2] = { 2, ASH::DescriptorType::UniformBuffer, 0, &camInfo, nullptr };
             w[3] = { 3, ASH::DescriptorType::StorageBuffer, 0, &outInfo, nullptr };
             w[4] = { 4, ASH::DescriptorType::StorageBuffer, 0, &effInfo, nullptr };
+            w[5] = { 5, ASH::DescriptorType::StorageBuffer, 0, &probeDataInfo, nullptr };
+            w[6] = { 6, ASH::DescriptorType::UniformBuffer, 0, &probeInfoInfo, nullptr };
             m_drawSets[e][f]->update(w.data(), (uint32_t)w.size());
         }
     }
 }
- 
+
 void Particles::rebuildDescriptors(ASH::Texture* depthTexture, ASH::Sampler* depthSampler)
 {
     m_depthTexture = depthTexture;
@@ -235,7 +272,7 @@ void Particles::rebuildDescriptors(ASH::Texture* depthTexture, ASH::Sampler* dep
     if (m_device) m_device->waitIdle();
     createDescriptorSets();
 }
- 
+
 bool Particles::hasWork() const
 {
     if (!m_effectBuffer) return false;
@@ -243,23 +280,23 @@ bool Particles::hasWork() const
         if (e.active) return true;
     return false;
 }
- 
+
 int Particles::findEmitter(const std::string& name) const
 {
     for (size_t i = 0; i < m_emitters.size(); ++i)
         if (m_emitters[i].name == name) return (int)i;
     return -1;
 }
- 
+
 void Particles::recordCompute(ASH::CommandBuffer* cmd, uint32_t frameIndex, float totalTime)
 {
     m_time = totalTime;
     if (!hasWork()) return;
- 
+
     ASH::Pipeline* pipe = m_compute.getPipeline();
     cmd->bindPipeline(pipe);
     cmd->bindDescriptorSet(pipe, 0, m_computeSets[frameIndex].get());
- 
+
     for (const auto& e : m_emitters)
     {
         if (!e.active) continue;
@@ -270,30 +307,30 @@ void Particles::recordCompute(ASH::CommandBuffer* cmd, uint32_t frameIndex, floa
         cmd->pushConstants(pipe, ASH::ShaderStage::Compute, 0, sizeof(pc), &pc);
         cmd->dispatch((e.count + 63u) / 64u, 1, 1);
     }
- 
+
     ASH::BufferBarrier bb{};
     bb.buffer = m_outBuffers[frameIndex].get();
     cmd->barrier(nullptr, 0, &bb, 1);
 }
- 
+
 void Particles::recordDraw(ASH::CommandBuffer* cmd, uint32_t frameIndex)
 {
     if (!hasWork()) return;
- 
+
     for (int pass = 0; pass < 2; ++pass)
     {
         const bool additive = (pass == 1);
         ASH::Pipeline* pipe = additive ? m_drawAdditive.getPipeline() : m_drawAlpha.getPipeline();
         bool bound = false;
- 
+
         for (size_t i = 0; i < m_emitters.size(); ++i)
         {
             const Emitter& e = m_emitters[i];
             if (!e.active || e.additive != additive) continue;
- 
+
             if (!bound) { cmd->bindPipeline(pipe); bound = true; }
             cmd->bindDescriptorSet(pipe, 0, m_drawSets[i][frameIndex].get());
- 
+
             DrawPush dp{};
             dp.info[0] = e.effect;
             dp.info[1] = e.outBase;

@@ -1,5 +1,5 @@
 #pragma once
-
+// Engine/include/Vulkan/Particles.h
 #include "ASH/ASH.h"
 #include "Vulkan/Pipeline.h"
 #include "Vulkan/ComputePipeline.h"
@@ -12,6 +12,9 @@
 #include <string>
 #include <vector>
 
+// Частицы на GPU. На CPU ничего не считается: в видеокарту уходят записи из .eparticles
+// (один SSBO), compute-шейдер считает состояние каждой частицы в выходной SSBO,
+// графический проход рисует билборды из него.
 class Particles
 {
 public:
@@ -25,30 +28,33 @@ public:
         glm::vec3 offset{0.0f};
         float startTime = 0.0f;
         bool active = true;
-    }; 
+    };
 
-    void initialize(ASH::Device* device, ASH::RenderPass* renderPass, uint32_t frameCount, ASH::Texture* depthTexture, ASH::Sampler* depthSampler, const DecalCameraBuffer& cameraBuffer);
+    void initialize(ASH::Device* device, ASH::RenderPass* renderPass, uint32_t frameCount,
+        ASH::Texture* depthTexture, ASH::Sampler* depthSampler,
+        const DecalCameraBuffer& cameraBuffer);
     void cleanup();
 
     bool load(const std::string& path);
     void unload();
 
+    void setProbeBuffers(ASH::Buffer* probeData, ASH::Buffer* probeInfo);
+
     void rebuildDescriptors(ASH::Texture* depthTexture, ASH::Sampler* depthSampler);
 
     void recordCompute(ASH::CommandBuffer* cmd, uint32_t frameIndex, float totalTime);
-
     void recordDraw(ASH::CommandBuffer* cmd, uint32_t frameIndex);
 
     bool hasWork() const;
     float now() const { return m_time; }
 
-    int findEmitter(const std::string& name) const;
+    int      findEmitter(const std::string& name) const;
     Emitter* getEmitter(int index) { return (index >= 0 && index < (int)m_emitters.size()) ? &m_emitters[index] : nullptr; }
-    size_t emitterCount() const { return m_emitters.size(); }
+    size_t   emitterCount() const { return m_emitters.size(); }
 
 private:
-    struct ComputePush  { glm::vec4 offsetTime; uint32_t info[4]; };
-    struct DrawPush { uint32_t info[4]; };
+    struct ComputePush { glm::vec4 offsetTime; uint32_t info[4]; };
+    struct DrawPush    { uint32_t info[4]; };
     static constexpr uint32_t kInstanceStride = sizeof(float) * 12;
 
     void createDescriptorSets();
@@ -68,6 +74,11 @@ private:
 
     std::vector<ParticleEffectRecord> m_records;
     std::vector<Emitter> m_emitters;
+
+    ASH::Buffer* m_probeData = nullptr;
+    ASH::Buffer* m_probeInfo = nullptr;
+    std::unique_ptr<ASH::Buffer> m_dummyProbeData;
+    std::unique_ptr<ASH::Buffer> m_dummyProbeInfo;
 
     std::unique_ptr<ASH::Buffer> m_effectBuffer;
     std::vector<std::unique_ptr<ASH::Buffer>> m_outBuffers;

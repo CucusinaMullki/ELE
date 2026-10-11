@@ -53,6 +53,7 @@ void Engine::initialize(int width, int height, const std::string& title)
     m_renderer.initialize(m_window);
     m_renderer.initImGui(m_window);
     m_probes.initialize(m_renderer.getDevice());
+    m_renderer.getParticles().setProbeBuffers(m_probes.getDataBuffer(), m_probes.getInfoBuffer());
     m_resources.initialize(m_renderer.getDevice());
     m_cameraController = std::make_unique<FreeFlyCameraController>();
     m_input.initialize(m_window);
