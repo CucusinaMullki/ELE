@@ -45,6 +45,7 @@
 #include "ASH/ASH.h"
 #include <vulkan/vulkan.hpp>
 #include <GLFW/glfw3.h>
+#include <functional>
 #include <future>
 #include <thread>
 #include <memory>
@@ -105,6 +106,10 @@ public:
     ASH::Buffer* getVoxelGridInfoBuffer() const { return m_voxelGridInfoBuffer.get(); }
     Particles& getParticles() { return m_particles; }
 
+    using PreMainPassHook = std::function<void(ASH::CommandBuffer*, uint32_t frame)>;
+    void setPreMainPassHook(PreMainPassHook h) { m_preMainPassHook = std::move(h); }
+    const UniformBuffer& getUniformBuffer() const { return m_uniformBuffer; }
+
     void enableVoxelGI(float chunkSize, uint32_t chunkResolution, int32_t visibilityRadiusChunks);
 
     std::vector<const GameObject*> parallelCull(const Scene& scene, const std::array<glm::vec4, 6>& planes) const;
@@ -137,6 +142,8 @@ private:
     DepthBuffer m_depthBuffer;
 
     Pipeline m_skinnedPipeline;
+
+    PreMainPassHook m_preMainPassHook;
 
     //Shadows
     ShadowMap m_shadowMap;

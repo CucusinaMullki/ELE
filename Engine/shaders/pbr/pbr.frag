@@ -52,6 +52,8 @@ layout(binding = 14) uniform ProbeInfo
     uvec4 dims;
 } probeInfo;
 
+layout(binding = 15) uniform sampler2D rtShadowMask;
+
 const float PROBE_STRENGTH = 0.5;
 const float PROBE_NORMAL_BIAS = 0.3;
 const float IBL_WITH_PROBES = 0.3;
@@ -358,6 +360,22 @@ float calculatePointShadow(vec3 fragPos, vec3 lightPos, vec3 N, vec2 screenXY, i
     return shadow / float(SAMPLES);
 }
 
+const int RT_BLUR_RADIUS = 2;
+
+vec4 sampleRtMask(ivec2 p, ivec2 sz)
+{
+    vec4 center = texelFetch(rtShadowMask, clamp(p, ivec2(0), sz - 1), 0);
+    if (RT_BLUR_RADIUS == 0) return center;
+
+    vec3 sum = vec3(0.0);
+    for (int y = -RT_BLUR_RADIUS; y <= RT_BLUR_RADIUS; ++y)
+        for (int x = -RT_BLUR_RADIUS; x <= RT_BLUR_RADIUS; ++x)
+            sum += texelFetch(rtShadowMask, clamp(p + ivec2(x, y), ivec2(0), sz - 1), 0).gba;
+
+    float n = float((2 * RT_BLUR_RADIUS + 1) * (2 * RT_BLUR_RADIUS + 1));
+    return vec4(center.r, sum / n);
+}
+
 void main()
 {
     vec3 albedo = pow(texture(albedoMap, fragTexCoord).rgb, vec3(2.2));
@@ -365,6 +383,14 @@ void main()
     float roughness = clamp(mr.g, 0.4, 1.0);
     float metallic = mr.b;
     float ao = texture(aoMap, fragTexCoord).r;
+
+    bool rtShadows = textureSize(rtShadowMask, 0).x > 1;
+    vec4 rtMask = vec4(1.0);
+    if (rtShadows)
+    {
+        ivec2 sz = textureSize(rtShadowMask, 0);
+        rtMask = sampleRtMask(ivec2(gl_FragCoord.xy), sz);
+    }
 
     vec3 N = texture(normalMap, fragTexCoord).rgb;
     N = N * 2.0 - 1.0;
@@ -400,8 +426,13 @@ void main()
 
             if (shadowSlot >= 0)
             {
-                float pShadow = calculatePointShadow(fragWorldPos, light.position.xyz, N, gl_FragCoord.xy, shadowSlot);
-                radiance *= (1.0 - pShadow);
+                if (rtShadows)
+                    radiance *= rtMask[shadowSlot + 1];
+                else
+                {
+                    float pShadow = calculatePointShadow(fragWorldPos, light.position.xyz, N, gl_FragCoord.xy, shadowSlot);
+                    radiance *= (1.0 - pShadow);
+                }
             }
         }
 
@@ -425,7 +456,7 @@ void main()
             float visibility = 1.0;
             if (i == 0 && light.position.w < 0.5) {
                 vec3 geoN = normalize(fragTBN[2]);
-                visibility = calculateShadow(fragLightSpacePos, geoN, L, gl_FragCoord.xy);
+                visibility = rtShadows ? rtMask.r : calculateShadow(fragLightSpacePos, geoN, L, gl_FragCoord.xy);
             }
 
             Lo += (kD * albedo / PI + specular) * radiance * NdotL * visibility;
@@ -459,6 +490,7 @@ void main()
     //return;
 
     //if (probeInfo.dims.w != 0u) { outColor = vec4(sampleProbes(fragWorldPos, N).rgb, 0.05); return; }
+    //if (rtShadows) { outColor = vec4(rtMask.gba, 1.0); return; }
 
     float alpha = texture(albedoMap, fragTexCoord).a;
     outColor = vec4(color, alpha);

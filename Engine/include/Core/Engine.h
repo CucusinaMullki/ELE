@@ -15,6 +15,7 @@
 #include "Core/ModelLoader.h"
 #include "Core/FreeFlyCameraController.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "RT/RTWorld.h"
 #include "Core/TimeSystem.h"
 #include "Audio/AudioSystem.h"
 #include "Core/GltfModel.h"
@@ -106,6 +107,10 @@ private:
     AudioSystem m_audio;
     TimeSystem m_time;
     Renderer m_renderer;
+    std::unique_ptr<RT::World> m_rt;
+    std::vector<std::weak_ptr<Material>> m_rtMaterials;
+    Texture m_dummyMask;
+    std::unique_ptr<ASH::Sampler> m_rtMaskSampler;
     ResourceManager m_resources;
     Input m_input;
     Camera m_camera;

@@ -2,9 +2,12 @@
 #include "Core/LevelLoader.h"
 #include <stb_image.h>
 #include <filesystem>
+#include <iostream>
 #include <cstdio>
 #include "Core/Log.h"
 #include "Core/Path.h"
+#include "RT/Blas.h"
+#include "RT/RTContext.h"
 #include "Nav/SimpleNavMeshBuilder.h"
 #include "Scene/SkeletalGltfLoader.h"
 #include "Components/TriggerComponent.h"
@@ -59,12 +62,59 @@ void Engine::initialize(int width, int height, const std::string& title)
     m_input.initialize(m_window);
     m_camera.initialize(glm::vec3(0.0f, 0.0f, 3.0f));
     m_camera.setAspect(m_renderer.getAspect());
+    {
+        auto rt = std::make_unique<RT::World>();
+        if (rt->init(m_renderer.getDevice())) { m_rt = std::move(rt); std::cout << "RT: enabled\n"; }
+        else { std::cout << "RT: not supported, add-on not loaded\n"; }
+    }
+    static const unsigned char white[4] = { 255, 255, 255, 255 };
+    m_dummyMask.initializeFromMemory(m_renderer.getDevice(), white, 1, 1, false);
+
+    ASH::SamplerDesc rtSd{};
+    rtSd.magFilter = ASH::Filter::Nearest;
+    rtSd.minFilter = ASH::Filter::Nearest;
+    rtSd.addressModeU = ASH::AddressMode::ClampToEdge;
+    rtSd.addressModeV = ASH::AddressMode::ClampToEdge;
+    rtSd.addressModeW = ASH::AddressMode::ClampToEdge;
+    rtSd.compareEnable = false;
+    m_rtMaskSampler = m_renderer.getDevice()->createSampler(rtSd);
+
+    if (m_rt)
+    {
+        const uint32_t frames = m_renderer.getFramesInFlight();
+        int fw = 0, fh = 0;
+        glfwGetFramebufferSize(m_window, &fw, &fh);
+        m_rt->shadows().createResources(m_rt->context(), frames, (uint32_t)fw, (uint32_t)fh);
+        for (uint32_t i = 0; i < frames; ++i)
+            m_rt->shadows().bindFrameBuffers(m_rt->context(), i,
+                m_renderer.getUniformBuffer().getBuffer(i),
+                m_renderer.getLightBuffer().getBuffer(i));
+
+        m_renderer.setPreMainPassHook([this](ASH::CommandBuffer* cmd, uint32_t frame) {
+            if (m_rt) m_rt->recordShadows(cmd, frame);
+        });
+
+        m_rt->sync(m_scene);
+    }
 }
 
 void Engine::onFramebufferResize()
 {
     m_renderer.onResize();
     m_camera.setAspect(m_renderer.getAspect());
+
+    if (m_rt)
+    {
+        int fw = 0, fh = 0;
+        glfwGetFramebufferSize(m_window, &fw, &fh);
+        m_rt->shadows().resize(m_rt->context(), (uint32_t)fw, (uint32_t)fh);
+
+        const uint32_t frames = m_renderer.getFramesInFlight();
+        for (auto& wp : m_rtMaterials)
+            if (auto m = wp.lock())
+                for (uint32_t i = 0; i < frames; ++i)
+                    m->writeRtMask(i, m_rt->shadows().mask(i), m_rtMaskSampler.get());
+    }
 }
 
 std::shared_ptr<Mesh> Engine::loadMesh(const std::string& path, bool keepCpuData)
@@ -95,6 +145,13 @@ void Engine::createMaterialDescriptorSet(std::shared_ptr<Material> material)
         m_renderer.getVoxelGridInfoBuffer(),
         m_probes.getDataBuffer(), m_probes.getInfoBuffer(),
         m_renderer.getFramesInFlight());
+
+    const uint32_t frames = m_renderer.getFramesInFlight();
+    for (uint32_t i = 0; i < frames; ++i) {
+        ASH::Texture* t = m_rt ? m_rt->shadows().mask(i) : m_dummyMask.getTexture();
+        material->writeRtMask(i, t, m_rtMaskSampler.get());
+    }
+    m_rtMaterials.push_back(material);
 }
 
 std::shared_ptr<Material> Engine::createDefaultMaterial()
@@ -211,6 +268,11 @@ void Engine::shutdown()
     if (m_cleaned) return;
     m_cleaned = true;
 
+    m_renderer.setPreMainPassHook(nullptr);
+    m_rtMaterials.clear();
+    m_rtMaskSampler.reset();
+    m_dummyMask.cleanup();
+    m_rt.reset();
     m_renderer.getDevice()->waitIdle();
     m_probes.shutdown();
     m_scene.clear();
@@ -454,6 +516,7 @@ GameObject& Engine::loadLevel(const std::string& path)
         auto mesh = std::make_shared<Mesh>();
         mesh->loadFromData(m_renderer.getDevice(), levelMesh.vertices, levelMesh.indices, submeshes);
         meshes.push_back(mesh);
+        if (m_rt) m_rt->addMesh(mesh.get(), levelMesh.vertices, levelMesh.indices, submeshes);
     }
 
     static const unsigned char white[4] = { 255, 255, 255, 255 };
@@ -563,6 +626,13 @@ GameObject& Engine::loadLevel(const std::string& path)
             case 1: addPointLight(light.position, light.color, light.intensity * 0.1f); break;
             default: break;
         }
+    }
+
+    if (m_rt)
+    {
+        m_scene.flush();
+        m_rt->sync(m_scene);
+        LOG("RT: TLAS instances = " << m_rt->instanceCount() << "\n");
     }
 
     return *rootObject;

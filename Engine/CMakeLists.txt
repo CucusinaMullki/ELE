@@ -65,6 +65,10 @@ add_library(ELE STATIC
     src/Vulkan/Particles.cpp
     src/Vulkan/BoneMatrixBuffer.cpp
     src/Scene/SkeletalGltfLoader.cpp
+    src/RT/RTContext.cpp
+    src/RT/Blas.cpp
+    src/RT/RTWorld.cpp
+    src/RT/RTShadowPass.cpp
     src/Vulkan/SkinnedVertexBuffer.cpp
     src/Scene/SkeletalMesh.cpp
     src/Core/ModelLoader.cpp
@@ -117,15 +121,24 @@ file(GLOB_RECURSE GLSL_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert"
     "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag"
     "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.comp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.rgen"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.rmiss"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.rchit"
 )
 
 foreach(GLSL ${GLSL_FILES})
     get_filename_component(FILE_NAME ${GLSL} NAME)
     set(SPIRV "${CMAKE_BINARY_DIR}/game/shaders/${FILE_NAME}.spv")
+
+    set(TARGET_ENV "")
+    if(GLSL MATCHES "\\.(rgen|rmiss|rchit)$")
+        set(TARGET_ENV --target-env=vulkan1.3)
+    endif()
+
     add_custom_command(
         OUTPUT ${SPIRV}
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/game/shaders"
-        COMMAND ${GLSLC} -I "${CMAKE_CURRENT_SOURCE_DIR}/shaders/common" ${GLSL} -o ${SPIRV}
+        COMMAND ${GLSLC} ${TARGET_ENV} -I "${CMAKE_CURRENT_SOURCE_DIR}/shaders/common" ${GLSL} -o ${SPIRV}
         DEPENDS ${GLSL}
         COMMENT "Shader compiling ${FILE_NAME}"
     )

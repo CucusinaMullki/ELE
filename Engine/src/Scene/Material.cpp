@@ -19,6 +19,15 @@ void Material::load(ASH::Device* device,
     m_lightmap.initializeFromMemory(device, black, 1, 1, false);
 }
 
+void Material::writeRtMask(uint32_t frame, ASH::Texture* tex, ASH::Sampler* sampler)
+{
+    if (!m_hasRtBinding) return;
+    if (frame >= m_descriptorSets.size() || !m_descriptorSets[frame]) return;
+    ASH::DescriptorImageInfo img{ tex, sampler };
+    ASH::DescriptorWrite w{ 15, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &img };
+    m_descriptorSets[frame]->update(&w, 1);
+}
+
 void Material::createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout* layout,
     const std::vector<ASH::Buffer*>& uboBuffers,
     const std::vector<ASH::Buffer*>& lightBuffers,
@@ -74,6 +83,7 @@ void Material::createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout
 
         m_descriptorSets[i]->update(writes.data(), (uint32_t)writes.size());
     }
+    m_hasRtBinding = true;
 }
 
 void Material::loadFromFiles(ASH::Device* device,
@@ -192,4 +202,5 @@ void Material::createSkinnedDescriptorSet(ASH::Device* device, ASH::DescriptorSe
 
         m_descriptorSets[i]->update(writes.data(), (uint32_t)writes.size());
     }
+    m_hasRtBinding = false;
 }

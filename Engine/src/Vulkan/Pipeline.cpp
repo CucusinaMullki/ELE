@@ -162,6 +162,7 @@ ASH::DescriptorSetLayoutDesc buildLayoutDesc(LayoutType layoutType)
         addBinding(12, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
         addBinding(13, ASH::DescriptorType::StorageBuffer, ASH::ShaderStage::Fragment);
         addBinding(14, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
+        addBinding(15, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         break;
 
     case LayoutType::SingleTexture:

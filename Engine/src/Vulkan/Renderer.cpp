@@ -1215,6 +1215,7 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         cmd->beginRenderPass(atlasPass);
         cmd->endRenderPass();
     }
+    if (m_preMainPassHook) m_preMainPassHook(cmd, (uint32_t)m_currentFrame);
     {
         ASH::ClearColor colorClear0{};
         colorClear0.f32[0] = 0.0f; colorClear0.f32[1] = 0.0f; colorClear0.f32[2] = 0.0f; colorClear0.f32[3] = 1.0f;
