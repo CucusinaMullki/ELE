@@ -68,10 +68,13 @@ add_library(ELE STATIC
     src/RT/RTContext.cpp
     src/RT/Blas.cpp
     src/RT/RTWorld.cpp
+    src/RT/RTSkinPass.cpp
     src/RT/RTShadowPass.cpp
+    src/RT/RTReflectionPass.cpp
     src/Vulkan/SkinnedVertexBuffer.cpp
     src/Scene/SkeletalMesh.cpp
     src/Core/ModelLoader.cpp
+    src/RT/SkinnedBlas.cpp
     src/Core/AnimationLoader.cpp
     src/Scene/ProbeSystem.cpp
     src/Scene/Animation.cpp
@@ -123,6 +126,7 @@ file(GLOB_RECURSE GLSL_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.comp"
     "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.rgen"
     "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.rmiss"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.rahit"
     "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.rchit"
 )
 
@@ -131,7 +135,7 @@ foreach(GLSL ${GLSL_FILES})
     set(SPIRV "${CMAKE_BINARY_DIR}/game/shaders/${FILE_NAME}.spv")
 
     set(TARGET_ENV "")
-    if(GLSL MATCHES "\\.(rgen|rmiss|rchit)$")
+    if(GLSL MATCHES "\\.(rgen|rmiss|rchit|rahit)$" OR GLSL MATCHES "/shaders/rt/")
         set(TARGET_ENV --target-env=vulkan1.3)
     endif()
 

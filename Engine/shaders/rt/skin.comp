@@ -1,0 +1,52 @@
+#version 460
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_buffer_reference_uvec2 : require
+
+layout(local_size_x = 64) in;
+
+layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer SrcBuf { float s[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4) buffer DstBuf { float d[]; };
+
+layout(set = 0, binding = 0) uniform Bones { mat4 bones[100]; } boneData;
+
+layout(push_constant) uniform Push { uvec2 src; uvec2 dst; uint count; } pc;
+
+const uint SRC_STRIDE = 19u;
+const uint DST_STRIDE = 16u;
+
+void main()
+{
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= pc.count) return;
+    
+    SrcBuf sb = SrcBuf(pc.src);
+    DstBuf db = DstBuf(pc.dst);
+
+    uint so = i * SRC_STRIDE;
+    vec3 pos = vec3(sb.s[so + 0u], sb.s[so + 1u], sb.s[so + 2u]);
+    vec3 nor = vec3(sb.s[so + 3u], sb.s[so + 4u], sb.s[so + 5u]);
+    vec2 uv = vec2(sb.s[so + 6u], sb.s[so + 7u]);
+    vec3 tan = vec3(sb.s[so + 8u], sb.s[so + 9u], sb.s[so + 10u]);
+    vec4 bi = vec4(sb.s[so + 11u], sb.s[so + 12u], sb.s[so + 13u], sb.s[so + 14u]);
+    vec4 bw = vec4(sb.s[so + 15u], sb.s[so + 16u], sb.s[so + 17u], sb.s[so + 18u]);
+
+    ivec4 idx = ivec4(bi);
+    mat4 skin = 
+        bw.x * boneData.bones[idx.x] +
+        bw.y * boneData.bones[idx.y] +
+        bw.z * boneData.bones[idx.z] +
+        bw.w * boneData.bones[idx.w];
+
+    vec3 p = (skin * vec4(pos, 1.0)).xyz;
+    mat3 sm = mat3(skin);
+    vec3 t = sm * tan;
+
+vec3 n = normalize(sm * nor);
+uint o = i * DST_STRIDE;
+    db.d[o + 0u] = p.x; db.d[o + 1u] = p.y; db.d[o + 2u] = p.z;
+    db.d[o + 3u] = 1.0; db.d[o + 4u] = 1.0; db.d[o + 5u] = 1.0;
+    db.d[o + 6u] = uv.x; db.d[o + 7u] = uv.y;
+    db.d[o + 8u] = n.x; db.d[o + 9u] = n.y; db.d[o + 10u] = n.z;
+    db.d[o + 11u] = t.x; db.d[o + 12u] = t.y; db.d[o + 13u] = t.z;
+    db.d[o + 14u] = 0.0; db.d[o + 15u] = 0.0;
+}

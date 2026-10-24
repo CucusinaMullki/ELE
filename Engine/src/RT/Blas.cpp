@@ -84,6 +84,9 @@ bool Blas::build(Context& ctx, const BlasInput& in)
 
     VkAccelerationStructureDeviceAddressInfoKHR ai{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR};
     ai.accelerationStructure = m_as;
+    m_vb = std::move(vb);
+    m_ib = std::move(ib);
+    m_ranges.assign(ranges, ranges + rangeCount);
     m_address = ctx.vkGetASAddr(ctx.device(), &ai);
     return true;
 }
@@ -93,6 +96,9 @@ void Blas::destroy(Context& ctx)
     if (m_as) ctx.vkDestroyAS(ctx.device(), m_as, nullptr);
     m_as = VK_NULL_HANDLE;
     m_address = 0;
+    m_vb.reset();
+    m_ib.reset();
+    m_ranges.clear();
     m_storage.reset();
 }
 

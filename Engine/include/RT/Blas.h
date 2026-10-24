@@ -28,6 +28,9 @@ class Blas
 public:
     bool build(Context& ctx, const BlasInput& in);
     void destroy(Context& ctx);
+    uint64_t vertexAddress() const { return m_vb ? m_vb->getDeviceAddress() : 0; }
+    uint64_t indexAddress()  const { return m_ib ? m_ib->getDeviceAddress() : 0; }
+    const std::vector<BlasRange>& ranges() const { return m_ranges; }
 
     bool valid() const { return m_as != VK_NULL_HANDLE; }
     uint64_t address() const { return m_address; }
@@ -36,6 +39,8 @@ private:
     std::unique_ptr<ASH::Buffer> m_storage;
     VkAccelerationStructureKHR m_as = VK_NULL_HANDLE;
     uint64_t m_address = 0;
+    std::unique_ptr<ASH::Buffer> m_vb, m_ib;
+    std::vector<BlasRange> m_ranges;
 };
 
 }

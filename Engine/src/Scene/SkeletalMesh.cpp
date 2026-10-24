@@ -9,6 +9,8 @@ void SkeletalMesh::loadFromData(ASH::Device* device,
     m_vertexBuffer.initialize(device, vertices);
     m_indexBuffer.initialize(device, indices);
     m_submeshes = submeshes;
+    m_cpuVertices = vertices;
+    m_cpuIndices = indices;
 
     if (!vertices.empty())
     {

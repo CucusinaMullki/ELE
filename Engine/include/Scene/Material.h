@@ -35,10 +35,12 @@ public:
     ASH::Texture* getAoTexture() const { return m_ao.getTexture(); }
     ASH::Sampler* getAoSampler() const { return m_ao.getSampler(); }
     ASH::Texture* getLightmapTexture() const { return m_lightmap.getTexture(); }
+    ASH::Texture* albedoTexture() { return m_albedo.getTexture(); }
     ASH::Sampler* getLightmapSampler() const { return m_lightmap.getSampler(); }
     bool hasLightmap() const { return m_hasLightmap; }
 
     void writeRtMask(uint32_t frame, ASH::Texture* tex, ASH::Sampler* sampler);
+    void writeRtReflection(uint32_t frame, ASH::Texture* tex, ASH::Sampler* sampler);
 
     void createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout* layout,
         const std::vector<ASH::Buffer*>& uboBuffers,

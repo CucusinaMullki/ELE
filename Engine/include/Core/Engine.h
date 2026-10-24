@@ -110,6 +110,7 @@ private:
     std::unique_ptr<RT::World> m_rt;
     std::vector<std::weak_ptr<Material>> m_rtMaterials;
     Texture m_dummyMask;
+    Texture m_dummyNormal;
     std::unique_ptr<ASH::Sampler> m_rtMaskSampler;
     ResourceManager m_resources;
     Input m_input;

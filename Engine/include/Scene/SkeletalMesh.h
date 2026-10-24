@@ -30,11 +30,16 @@ public:
     void setSkeleton(std::shared_ptr<Skeleton> skeleton) { m_skeleton = skeleton; }
     std::shared_ptr<Skeleton> getSkeleton() const { return m_skeleton; }
 
+    const std::vector<SkinnedVertex>& getCpuVertices() const { return m_cpuVertices; }
+    const std::vector<uint32_t>& getCpuIndices() const { return m_cpuIndices; }
 private:
     SkinnedVertexBuffer m_vertexBuffer;
     IndexBuffer m_indexBuffer;
     std::vector<Submesh> m_submeshes;
     std::shared_ptr<Skeleton> m_skeleton;
+
+    std::vector<SkinnedVertex> m_cpuVertices;
+    std::vector<uint32_t> m_cpuIndices;
 
     glm::vec3 m_boundsMin{0.0f};
     glm::vec3 m_boundsMax{0.0f};

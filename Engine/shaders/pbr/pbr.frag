@@ -53,6 +53,7 @@ layout(binding = 14) uniform ProbeInfo
 } probeInfo;
 
 layout(binding = 15) uniform sampler2D rtShadowMask;
+layout(binding = 16) uniform sampler2D rtReflection;
 
 const float PROBE_STRENGTH = 0.5;
 const float PROBE_NORMAL_BIAS = 0.3;
@@ -361,6 +362,30 @@ float calculatePointShadow(vec3 fragPos, vec3 lightPos, vec3 N, vec2 screenXY, i
 }
 
 const int RT_BLUR_RADIUS = 2;
+const float RT_REFL_STRENGTH = 1.0;
+const int RT_REFL_TAPS = 12;
+const float RT_REFL_BLUR_PX = 28.0;
+
+vec3 sampleReflBlurred(ivec2 p, ivec2 sz, float rr)
+{
+    float radius = RT_REFL_BLUR_PX * rr * rr;
+    vec4 c = texelFetch(rtReflection, clamp(p, ivec2(0), sz - 1), 0);
+    if (radius < 0.75) return c.rgb;
+
+    float ang0 = interleavedGradientNoise(vec2(p)) * 6.2831853;
+    vec3 sum = vec3(0.0);
+    float wsum = 0.0;
+    for (int i = 0; i < RT_REFL_TAPS; ++i)
+    {
+        float r = radius * sqrt((float(i) + 0.5) / float(RT_REFL_TAPS));
+        float a = ang0 + float(i) * 2.39996323;
+        ivec2 q = clamp(p + ivec2(round(vec2(cos(a), sin(a)) * r)), ivec2(0), sz - 1);
+        vec4 s = texelFetch(rtReflection, q, 0);
+        sum += s.rgb * s.a;
+        wsum += s.a;
+    }
+    return wsum > 0.0 ? sum / wsum : c.rgb;
+}
 
 vec4 sampleRtMask(ivec2 p, ivec2 sz)
 {
@@ -391,6 +416,11 @@ void main()
         ivec2 sz = textureSize(rtShadowMask, 0);
         rtMask = sampleRtMask(ivec2(gl_FragCoord.xy), sz);
     }
+
+    bool rtRefl = textureSize(rtReflection, 0).x > 1;
+    vec4 refl = vec4(0.0);
+    if (rtRefl)
+        refl = texelFetch(rtReflection, min(ivec2(gl_FragCoord.xy), textureSize(rtReflection, 0) - 1), 0);
 
     vec3 N = texture(normalMap, fragTexCoord).rgb;
     N = N * 2.0 - 1.0;
@@ -491,7 +521,18 @@ void main()
 
     //if (probeInfo.dims.w != 0u) { outColor = vec4(sampleProbes(fragWorldPos, N).rgb, 0.05); return; }
     //if (rtShadows) { outColor = vec4(rtMask.gba, 1.0); return; }
-
+    //if (rtRefl) { outColor = vec4(refl.rgb, 1.0); return; }
+    
+    if (rtRefl)
+    {
+        float NdotV = max(dot(N, V), 0.0);
+        float rr = mr.g;
+        vec3 F = F0 + (max(vec3(1.0 - rr), F0) - F0) * pow(1.0 - NdotV, 5.0);
+        float vis = (1.0 - rr) * (1.0 - rr);
+        vec3 rc = sampleReflBlurred(ivec2(gl_FragCoord.xy), textureSize(rtReflection, 0), rr);
+        color += rc * F * vis * RT_REFL_STRENGTH;
+    }
+    
     float alpha = texture(albedoMap, fragTexCoord).a;
     outColor = vec4(color, alpha);
 

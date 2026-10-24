@@ -204,3 +204,12 @@ void Material::createSkinnedDescriptorSet(ASH::Device* device, ASH::DescriptorSe
     }
     m_hasRtBinding = false;
 }
+
+void Material::writeRtReflection(uint32_t frame, ASH::Texture* tex, ASH::Sampler* sampler)
+{
+    if (!m_hasRtBinding) return;
+    if (frame >= m_descriptorSets.size() || !m_descriptorSets[frame]) return;
+    ASH::DescriptorImageInfo img{ tex, sampler };
+    ASH::DescriptorWrite w{ 16, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &img };
+    m_descriptorSets[frame]->update(&w, 1);
+}
