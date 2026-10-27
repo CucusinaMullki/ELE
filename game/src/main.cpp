@@ -135,10 +135,6 @@ int main()
 
     engine.getRenderer().setVoxelGIEnabled(false);
 
-    IBLSettings iblSettings{};
-    iblSettings.diffuseIntensity = 1.0;
-    engine.setIBLSettings(iblSettings);
-
     auto& level = engine.loadLevel("Levels/Level.elvl");
     engine.getScene().flush();
 

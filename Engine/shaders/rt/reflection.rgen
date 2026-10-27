@@ -1,76 +1,125 @@
 #version 460
 #extension GL_EXT_ray_tracing : require
+#extension GL_GOOGLE_include_directive : require
 
-layout(set = 0, binding = 0) uniform accelerationStructureEXT tlas;
+#include "rt_common.glsl"
+
 layout(set = 0, binding = 1, rgba16f) uniform writeonly image2D reflOut;
+layout(set = 0, binding = 7, rgba8) uniform writeonly image2D aoOut;
+layout(set = 0, binding = 8, rgba32f) uniform writeonly image2D giOut;
+layout(set = 0, binding = 9) uniform sampler2D giHist;
+layout(set = 0, binding = 13, rgba32f) uniform writeonly image2D nrdDiffOut;
+layout(set = 0, binding = 14, rgba16f) uniform writeonly image2D nrdNrOut;
+layout(set = 0, binding = 15, rgba32f) uniform writeonly image2D nrdVzOut;
 
-layout(set = 0, binding = 2) uniform CameraUBO {
-    mat4 view;
-    mat4 proj;
-    mat4 lightSpaceMatrix;
-    mat4 prevViewProj;
-    mat4 viewProjNoJitter;
-    vec4 camPos;
-    vec4 iblParams;
-} cam;
+layout(push_constant) uniform Push { uint frameIndex; uint histValid; } pc;
 
-struct Light { vec4 position; vec4 color; };
-layout(set = 0, binding = 3) uniform LightUBO {
-    Light lights[16];
-    ivec4 count;
-} lightData;
+const int AO_RAYS = 6;
+const float AO_RADIUS = 1.0;
 
-struct HitPayload { float t; vec3 normal; vec2 uv; vec3 albedo; uint objectIndex; uint materialIndex; };
-layout(location = 0) rayPayloadEXT HitPayload pl;
+const float GI_RANGE = 50.0;
+const float GI_CLAMP = 2.0;
+const float GI_MAX_HIST = 32.0;
 
-const float HIT_AMBIENT = 0.04;
-const int MAX_HIT_LIGHTS = 8;
-const float SKY_STRENGTH = 0.0;
+const vec3 NRD_HIT_PARAMS = vec3(3.0, 0.1, 20.0);
 
-vec3 sky(vec3 dir)
+vec3 nrdEncodeNormalRoughness101010(vec3 n, float roughness)
 {
-    float t = smoothstep(0.0, 1.0, dir.y * 0.5 + 0.5);
-    vec3 upper = mix(vec3(0.55, 0.60, 0.65), vec3(0.20, 0.32, 0.55), t);
-    return mix(vec3(0.05, 0.05, 0.06), upper, smoothstep(-0.05, 0.05, dir.y));
+    n /= abs(n.x) + abs(n.y) + abs(n.z);
+    vec3 r;
+    r.y = n.y * 0.5 + 0.5;
+    r.x = n.x * 0.5 + r.y;
+    r.y -= n.x * 0.5;
+    roughness = max(roughness, 1.5 / 512.0);
+    float s = n.z < 0.0 ? -roughness : roughness;
+    r.z = s * 0.5 + 0.5;
+    return r;
 }
 
-bool occluded(vec3 o, vec3 d, float tmax)
+vec4 nrdPackNormalRoughness(vec3 N, float roughness)
 {
-    pl.t = 1.0;
-    traceRayEXT(tlas,
-        gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT,
-        0xFF, 0, 0, 0, o, 0.02, d, tmax, 0);
-    return pl.t > 0.0;
+    return vec4(nrdEncodeNormalRoughness101010(N, roughness), 0.0);
 }
 
-vec3 shadeHit(vec3 P, vec3 N, vec3 albedo)
+vec3 nrdLinearToYCoCg(vec3 c)
 {
-    vec3 lin = pow(albedo, vec3(2.2));
-    vec3 Lo = vec3(0.0);
-    vec3 o = P + N * 0.02;
-    int n = min(lightData.count.x, MAX_HIT_LIGHTS);
-    for (int i = 0; i < n; ++i)
+    return vec3(dot(c, vec3(0.25, 0.5, 0.25)),
+                dot(c, vec3(0.5, 0.0, -0.5)),
+                dot(c, vec3(-0.25, 0.5, -0.25)));
+}
+
+vec4 nrdPackDiffuse(vec3 radiance, float hitT, float viewZ)
+{
+    bool bad = any(isnan(radiance)) || any(isinf(radiance));
+    radiance = bad ? vec3(0.0) : clamp(radiance, vec3(0.0), vec3(65504.0));
+    float f = NRD_HIT_PARAMS.x + abs(viewZ) * NRD_HIT_PARAMS.y;
+    float nh = clamp(hitT / f, 0.0, 1.0);
+    if (isnan(nh)) nh = 0.0;
+    return vec4(nrdLinearToYCoCg(radiance), nh);
+}
+
+float ign(vec2 p)
+{
+    const vec3 m = vec3(0.06711056, 0.00583715, 52.9829189);
+    return fract(m.z * fract(dot(p, m.xy)));
+}
+
+float computeAO(vec3 P, vec3 N, vec2 px)
+{
+    vec3 up = abs(N.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 T = normalize(cross(up, N));
+    vec3 B = cross(N, T);
+    float rot = ign(px) * 6.2831853;
+
+    float vis = 0.0;
+    for (int i = 0; i < AO_RAYS; ++i)
     {
-        Light l = lightData.lights[i];
-        vec3 L, radiance;
-        float tmax;
-        if (l.position.w < 0.5) {
-            L = normalize(-l.position.xyz);
-            radiance = l.color.rgb * l.color.a;
-            tmax = 10000.0;
-        } else {
-            vec3 toL = l.position.xyz - P;
-            float d2 = max(dot(toL, toL), 0.01);
-            L = normalize(toL);
-            radiance = l.color.rgb * l.color.a / d2;
-            tmax = sqrt(d2) - 0.05;
-        }
-        float NdotL = dot(N, L);
-        if (NdotL <= 0.0 || max(radiance.r, max(radiance.g, radiance.b)) * NdotL < 0.002) continue;
-        if (occluded(o, L, tmax)) continue;
-        Lo += lin / 3.14159265 * radiance * NdotL;
+        float r = sqrt((float(i) + 0.5) / float(AO_RAYS));
+        float a = float(i) * 2.3999632 + rot;
+        vec3 d = T * (r * cos(a)) + B * (r * sin(a)) + N * sqrt(max(0.0, 1.0 - r * r));
+        if (!occluded(P + N * 0.02, d, AO_RADIUS)) vis += 1.0;
     }
-    return lin * HIT_AMBIENT + Lo;
+    return vis / float(AO_RAYS);
+}
+
+vec3 giSample(vec3 P, vec3 N, ivec2 px, out float hitT)
+{
+    vec2 u = rand2(px, pc.frameIndex);
+    float r = sqrt(u.x);
+    float phi = 6.2831853 * u.y;
+    vec3 up = abs(N.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 T = normalize(cross(up, N));
+    vec3 B = cross(N, T);
+    vec3 d = T * (r * cos(phi)) + B * (r * sin(phi)) + N * sqrt(max(0.0, 1.0 - u.x));
+
+    vec3 o = P + N * 0.02;
+    pl.t = -1.0;
+    traceRayEXT(tlas, gl_RayFlagsNoneEXT, 0xFF, 0, 0, 0, o, 0.02, d, GI_RANGE, 0);
+    if (pl.t > 0.0) {
+        vec3 hp = o + d * pl.t;
+        vec3 hn = pl.normal;
+        vec3 alb = pl.albedo;
+        hitT = pl.t;
+        return min(shadeHit(hp, hn, alb), vec3(GI_CLAMP));
+    }
+    hitT = GI_RANGE;
+    return sky(d) * SKY_STRENGTH;
+}
+
+vec4 giAccumulate(vec3 newV, vec3 P, float t0)
+{
+    if (pc.histValid == 0u) return vec4(newV, 1.0);
+    vec4 pclip = cam.prevViewProj * vec4(P, 1.0);
+    if (pclip.w <= 0.0) return vec4(newV, 1.0);
+    vec2 puv = pclip.xy / pclip.w * 0.5 + 0.5;
+    if (any(lessThan(puv, vec2(0.0))) || any(greaterThan(puv, vec2(1.0)))) return vec4(newV, 1.0);
+    ivec2 sz = textureSize(giHist, 0);
+    vec4 h = texelFetch(giHist, clamp(ivec2(puv * vec2(sz)), ivec2(0), sz - 1), 0);
+    float cnt = floor(h.a / 256.0);
+    float hd = h.a - cnt * 256.0;
+    if (cnt < 1.0 || abs(hd - t0) > 0.1 * t0 + 0.05) return vec4(newV, 1.0);
+    float n = min(cnt + 1.0, GI_MAX_HIST);
+    return vec4(mix(h.rgb, newV, 1.0 / n), n);
 }
 
 void main()
@@ -84,6 +133,16 @@ void main()
     vec3 dir = normalize(wp.xyz / wp.w - origin);
 
     vec4 outc = vec4(0.0);
+    float aoV = 1.0;
+    float aoDepth = 0.0;
+    float aoHit = 0.0;
+    vec3 giV = vec3(0.0);
+    float giCount = 0.0;
+
+    float vzSign = ((cam.view * vec4(origin + dir * 10.0, 1.0)).z < 0.0) ? -1.0 : 1.0;
+    vec4 ndOut = vec4(0.0);
+    vec4 nnOut = nrdPackNormalRoughness(vec3(0.0, 0.0, 1.0), 1.0);
+    vec4 nvOut = vec4(vzSign * 1.0e7, 0.0, 0.0, 0.0);
 
     pl.t = -1.0;
     traceRayEXT(tlas, gl_RayFlagsNoneEXT, 0xFF, 0, 0, 0, origin, 0.01, dir, 10000.0, 0);
@@ -96,6 +155,20 @@ void main()
         vec3 R = reflect(dir, N);
         float tMin = 0.02 + t0 * 0.0005;
 
+        aoV = computeAO(P, N, vec2(px));
+        aoDepth = t0;
+        aoHit = 1.0;
+        float giHit;
+        vec3 giRaw = giSample(P, N, px, giHit);
+        vec4 acc = giAccumulate(giRaw, P, t0);
+        float vz = (cam.view * vec4(P, 1.0)).z;
+        ndOut = nrdPackDiffuse(giRaw, giHit, vz);
+        nnOut = nrdPackNormalRoughness(N, 1.0);
+        nvOut.x = vz;
+        giV = acc.rgb;
+        giCount = acc.a;
+
+        
         pl.t = -1.0;
         traceRayEXT(tlas, gl_RayFlagsNoneEXT, 0xFF, 0, 0, 0, P, tMin, R, 10000.0, 0);
 
@@ -112,4 +185,15 @@ void main()
     }
 
     imageStore(reflOut, px, outc);
+
+    float q = floor(clamp(aoDepth / 128.0, 0.0, 1.0) * 65535.0 + 0.5);
+    float hi = floor(q / 256.0);
+    float lo = q - hi * 256.0;
+    imageStore(aoOut, px, vec4(aoV, hi / 255.0, lo / 255.0, aoHit));
+
+    imageStore(giOut, px, vec4(giV, giCount * 256.0 + min(aoDepth, 255.0)));
+
+    imageStore(nrdDiffOut, px, ndOut);
+    imageStore(nrdNrOut, px, nnOut);
+    imageStore(nrdVzOut, px, nvOut);
 }

@@ -20,6 +20,8 @@ bool World::init(ASH::Device* device)
     if (m_ready) {
         if (m_reflections.createPipeline(m_ctx)) LOG("RT: reflection pipeline ok\n");
         else { LOG("RT: reflection pipeline FAILED\n"); m_reflections.destroy(m_ctx); }
+        if (m_reflections.createProbePipeline(m_ctx)) LOG("RT: probe pipeline ok\n");
+        else LOG("RT: probe pipeline FAILED\n");
         if (m_skin.create(m_ctx)) LOG("RT: skin pipeline ok\n");
         else { LOG("RT: skin pipeline FAILED\n"); m_skin.destroy(m_ctx); }
     }

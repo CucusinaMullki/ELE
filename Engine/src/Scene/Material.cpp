@@ -28,6 +28,15 @@ void Material::writeRtMask(uint32_t frame, ASH::Texture* tex, ASH::Sampler* samp
     m_descriptorSets[frame]->update(&w, 1);
 }
 
+void Material::writeRtAo(uint32_t frame, ASH::Texture* tex, ASH::Sampler* sampler)
+{
+    if (!m_hasRtBinding) return;
+    if (frame >= m_descriptorSets.size() || !m_descriptorSets[frame]) return;
+    ASH::DescriptorImageInfo img{ tex, sampler };
+    ASH::DescriptorWrite w{ 17, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &img };
+    m_descriptorSets[frame]->update(&w, 1);
+}
+
 void Material::createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout* layout,
     const std::vector<ASH::Buffer*>& uboBuffers,
     const std::vector<ASH::Buffer*>& lightBuffers,
@@ -164,6 +173,7 @@ void Material::createSkinnedDescriptorSet(ASH::Device* device, ASH::DescriptorSe
     ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
     const std::vector<ASH::Buffer*>& boneBuffers,
     ASH::Texture* irradianceTexture, ASH::Sampler* irradianceSampler,
+    ASH::Buffer* probeData, ASH::Buffer* probeInfo,
     uint32_t frameCount)
 {
     m_descriptorSets.clear();
@@ -185,8 +195,10 @@ void Material::createSkinnedDescriptorSet(ASH::Device* device, ASH::DescriptorSe
         ASH::DescriptorImageInfo lightmapInfo{ m_lightmap.getTexture(), m_lightmap.getSampler() };
         ASH::DescriptorImageInfo shadowAtlasInfo{ shadowAtlasTexture, shadowAtlasSampler };
         ASH::DescriptorImageInfo irradianceInfo{ irradianceTexture, irradianceSampler };
+        ASH::DescriptorBufferInfo probeDataInfo{ probeData, 0, probeData->getSize() };
+        ASH::DescriptorBufferInfo probeInfoInfo{ probeInfo, 0, probeInfo->getSize() };
 
-        std::array<ASH::DescriptorWrite, 11> writes{};
+        std::array<ASH::DescriptorWrite, 13> writes{};
 
         writes[0] = { 0, ASH::DescriptorType::UniformBuffer, 0, &uboInfo, nullptr };
         writes[1] = { 1, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &albedoInfo };
@@ -199,10 +211,21 @@ void Material::createSkinnedDescriptorSet(ASH::Device* device, ASH::DescriptorSe
         writes[8] = { 8, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &lightmapInfo };
         writes[9] = { 9, ASH::DescriptorType::UniformBuffer, 0, &boneInfo, nullptr };
         writes[10] = { 10, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &irradianceInfo };
+        writes[11] = { 13, ASH::DescriptorType::StorageBuffer, 0, &probeDataInfo, nullptr };
+        writes[12] = { 14, ASH::DescriptorType::UniformBuffer, 0, &probeInfoInfo, nullptr };
 
         m_descriptorSets[i]->update(writes.data(), (uint32_t)writes.size());
     }
-    m_hasRtBinding = false;
+    m_hasRtBinding = true;
+}
+
+void Material::writeRtGi(uint32_t frame, ASH::Texture* tex, ASH::Sampler* sampler)
+{
+    if (!m_hasRtBinding) return;
+    if (frame >= m_descriptorSets.size() || !m_descriptorSets[frame]) return;
+    ASH::DescriptorImageInfo img{ tex, sampler };
+    ASH::DescriptorWrite w{ 18, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &img };
+    m_descriptorSets[frame]->update(&w, 1);
 }
 
 void Material::writeRtReflection(uint32_t frame, ASH::Texture* tex, ASH::Sampler* sampler)

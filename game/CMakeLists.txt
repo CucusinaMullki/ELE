@@ -1,5 +1,5 @@
 add_executable(game
-    src/main.cpp
+    src/test.cpp
     src/AI/EnemyBehaviorCommand.cpp
     src/AI/MoveToCommand.cpp
     src/AI/PatrolCommand.cpp

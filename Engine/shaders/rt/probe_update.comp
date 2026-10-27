@@ -1,0 +1,71 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "probe_dirs.glsl"
+
+// Один workgroup = один зонд, 64 потока = 64 луча (должно совпадать с kRaysPerProbe).
+layout(local_size_x = 64) in;
+
+layout(set = 0, binding = 0, std430) readonly buffer RayBuf { vec4 rays[]; } rayBuf;
+layout(set = 0, binding = 1) uniform ProbeInfo { vec4 originSpacing; uvec4 dims; } probeInfo;
+layout(set = 0, binding = 2, std430) buffer ProbeData { float probeData[]; };
+
+layout(push_constant) uniform Push { uint frameIndex; uint probeOffset; uint rayCount; uint pad; } pc;
+
+// Доля старого значения в смеси. Больше = стабильнее, но медленнее реагирует на изменения света.
+const float HYSTERESIS = 0.90;
+const float PI = 3.14159265;
+
+shared float s_part[27][64];
+
+void main()
+{
+    uint slot = gl_WorkGroupID.x;
+    uint lane = gl_LocalInvocationID.x;
+    uvec3 d = probeInfo.dims.xyz;
+    uint total = d.x * d.y * d.z;
+    if (total == 0u) return;
+
+    uint probeIdx = (pc.probeOffset + slot) % total;
+    uint base = probeIdx * 28u;
+
+    // Невалидный зонд (внутри геометрии / не запечён) не трогаем. Условие одинаково для всей группы.
+    if (probeData[base + 27u] < 0.5) return;
+
+    vec4 ray = rayBuf.rays[slot * pc.rayCount + lane];
+    vec3 L = (ray.w < 0.0) ? vec3(0.0) : ray.rgb;
+
+    vec3 dir = probeRotation(probeIdx, pc.frameIndex) * sphericalFibonacci(float(lane), float(pc.rayCount));
+    vec3 n = dir;
+
+    float Y[9];
+    Y[0] = 0.282095;
+    Y[1] = 0.488603 * n.y;
+    Y[2] = 0.488603 * n.z;
+    Y[3] = 0.488603 * n.x;
+    Y[4] = 1.092548 * n.x * n.y;
+    Y[5] = 1.092548 * n.y * n.z;
+    Y[6] = 0.315392 * (3.0 * n.z * n.z - 1.0);
+    Y[7] = 1.092548 * n.x * n.z;
+    Y[8] = 0.546274 * (n.x * n.x - n.y * n.y);
+
+    for (uint i = 0u; i < 9u; ++i) {
+        s_part[i * 3u + 0u][lane] = L.r * Y[i];
+        s_part[i * 3u + 1u][lane] = L.g * Y[i];
+        s_part[i * 3u + 2u][lane] = L.b * Y[i];
+    }
+    barrier();
+
+    if (lane < 27u) {
+        float sum = 0.0;
+        for (uint k = 0u; k < 64u; ++k) sum += s_part[lane][k];
+
+        // Монте-Карло проекция: L_lm = 4π/N · Σ L·Y.
+        // Свёртка с косинусом: A_l/π = {1, 2/3, 1/4} для l = 0, 1, 2 (коэффициенты хранятся уже свёрнутыми).
+        uint band = lane / 3u;                       // индекс базисной функции 0..8
+        float conv = (band == 0u) ? 1.0 : (band < 4u ? (2.0 / 3.0) : 0.25);
+        float v = sum * (4.0 * PI / float(pc.rayCount)) * conv;
+
+        float old = probeData[base + lane];
+        probeData[base + lane] = mix(v, old, HYSTERESIS);
+    }
+}

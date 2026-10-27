@@ -40,6 +40,8 @@ public:
     bool hasLightmap() const { return m_hasLightmap; }
 
     void writeRtMask(uint32_t frame, ASH::Texture* tex, ASH::Sampler* sampler);
+    void writeRtAo(uint32_t frame, ASH::Texture* tex, ASH::Sampler* sampler);
+    void writeRtGi(uint32_t frame, ASH::Texture* tex, ASH::Sampler* sampler);
     void writeRtReflection(uint32_t frame, ASH::Texture* tex, ASH::Sampler* sampler);
 
     void createDescriptorSet(ASH::Device* device, ASH::DescriptorSetLayout* layout,
@@ -61,6 +63,7 @@ public:
         ASH::Texture* shadowAtlasTexture, ASH::Sampler* shadowAtlasSampler,
         const std::vector<ASH::Buffer*>& boneBuffers,
         ASH::Texture* irradianceTexture, ASH::Sampler* irradianceSampler,
+        ASH::Buffer* probeData, ASH::Buffer* probeInfo,
         uint32_t frameCount);
 
     ASH::DescriptorSet* getDescriptorSet(uint32_t frame) const { return m_descriptorSets[frame].get(); }

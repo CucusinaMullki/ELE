@@ -138,7 +138,13 @@ ASH::DescriptorSetLayoutDesc buildLayoutDesc(LayoutType layoutType)
         addBinding(7, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         addBinding(8, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         addBinding(9, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Vertex);
+        addBinding(13, ASH::DescriptorType::StorageBuffer, ASH::ShaderStage::Fragment);
+        addBinding(14, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
         addBinding(10, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(15, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(16, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(17, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(18, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         break;
 
     case LayoutType::PostProcess:
@@ -164,6 +170,8 @@ ASH::DescriptorSetLayoutDesc buildLayoutDesc(LayoutType layoutType)
         addBinding(14, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
         addBinding(15, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         addBinding(16, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(17, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
+        addBinding(18, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         break;
 
     case LayoutType::SingleTexture:

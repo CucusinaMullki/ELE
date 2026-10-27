@@ -29,6 +29,7 @@ bool ProbeSystem::load(const std::string& path)
         if (!path.empty())
             std::fprintf(stderr, "[Probes] disabled (load failed or > %u probes)\n", kMaxProbes);
         m_enabled = false;
+        m_probeCount = 0;
         writeInfo(glm::vec3(0.0f), 1.0f, glm::uvec3(0u), false);
         return false;
     }
@@ -39,6 +40,9 @@ bool ProbeSystem::load(const std::string& path)
 
     m_enabled = true;
     writeInfo(grid.origin, grid.spacing, grid.dims, true);
+
+    m_probeCount = grid.probeCount();
+
     return true;
 }
 

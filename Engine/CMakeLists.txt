@@ -75,7 +75,10 @@ add_library(ELE STATIC
     src/Scene/SkeletalMesh.cpp
     src/Core/ModelLoader.cpp
     src/RT/SkinnedBlas.cpp
+    src/RT/RTNrd.cpp
+    src/RT/RTDenoiser.cpp
     src/Core/AnimationLoader.cpp
+    src/RT/RTProbeUpdate.cpp
     src/Scene/ProbeSystem.cpp
     src/Scene/Animation.cpp
 )
@@ -102,6 +105,29 @@ target_include_directories(ELE PUBLIC
     ${imgui_SOURCE_DIR}
     ${imgui_SOURCE_DIR}/backends
 )
+
+# NVIDIA Readl-Time Denoiser
+option(ELE_USE_NRD "Build with NVIDIA Real-Time Denoiser" ON)
+if (ELE_USE_NRD)
+    include(FetchContent)
+
+    set(NRD_STATIC_LIBRARY ON CACHE BOOL "" FORCE)
+    set(NRD_STATIC_SPIRV_SHADERS ON CACHE BOOL "" FORCE)
+    set(NRD_STATIC_DXBC_SHADERS OFF CACHE BOOL "" FORCE)
+    set(NRD_STATIC_DXIL_SHADERS OFF CACHE BOOL "" FORCE)
+
+    FetchContent_Declare(
+        NRD
+        GIT_REPOSITORY https://github.com/NVIDIA-RTX/NRD.git
+        GIT_TAG master
+        GIT_SHALLOW TRUE
+        GIT_SUBMODULES_RECURSE TRUE
+    )
+    FetchContent_MakeAvailable(NRD)
+
+    target_link_libraries(ELE PUBLIC NRD)
+    target_compile_definitions(ELE PUBLIC ELE_HAS_NRD=1)
+endif()
 
 target_link_libraries(ELE PUBLIC
     Vulkan::Vulkan

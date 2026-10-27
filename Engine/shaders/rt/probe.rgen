@@ -1,0 +1,55 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_GOOGLE_include_directive : require
+
+#include "rt_common.glsl"
+#include "probe_dirs.glsl"
+
+// x = индекс луча, y = слот зонда в текущей пачке
+layout(set = 0, binding = 10, std430) buffer RayBuf { vec4 rays[]; } rayBuf;
+layout(set = 0, binding = 11) uniform ProbeInfo { vec4 originSpacing; uvec4 dims; } probeInfo;
+layout(set = 0, binding = 12, std430) readonly buffer ProbeData { float probeData[]; };
+
+layout(push_constant) uniform Push { uint frameIndex; uint histValid; uint probeOffset; uint probeCount; } pc;
+
+const float PROBE_RANGE = 60.0;
+const float PROBE_CLAMP = 8.0;
+const float PROBE_SKY_STRENGTH = 0.0;   // небо для зондов (общий SKY_STRENGTH = 0 для отражений/GI)
+
+void main()
+{
+    uint rayIdx = gl_LaunchIDEXT.x;
+    uint slot = gl_LaunchIDEXT.y;
+    uvec3 d = probeInfo.dims.xyz;
+    uint total = d.x * d.y * d.z;
+    uint outIdx = slot * gl_LaunchSizeEXT.x + rayIdx;
+    if (total == 0u) { rayBuf.rays[outIdx] = vec4(0.0, 0.0, 0.0, -1.0); return; }
+
+    uint probeIdx = (pc.probeOffset + slot) % total;
+    if (probeData[probeIdx * 28u + 27u] < 0.5) { rayBuf.rays[outIdx] = vec4(0.0, 0.0, 0.0, -1.0); return; }
+
+    uint ix = probeIdx % d.x;
+    uint iy = (probeIdx / d.x) % d.y;
+    uint iz = probeIdx / (d.x * d.y);
+    vec3 pos = probeInfo.originSpacing.xyz + vec3(ix, iy, iz) * probeInfo.originSpacing.w;
+
+    vec3 dir = probeRotation(probeIdx, pc.frameIndex) * sphericalFibonacci(float(rayIdx), float(gl_LaunchSizeEXT.x));
+
+    pl.t = -1.0;
+    traceRayEXT(tlas, gl_RayFlagsNoneEXT, 0xFF, 0, 0, 0, pos, 0.02, dir, PROBE_RANGE, 0);
+
+    vec3 col;
+    float dist;
+    if (pl.t > 0.0) {
+        vec3 hp = pos + dir * pl.t;
+        vec3 hn = pl.normal;
+        if (dot(hn, dir) > 0.0) hn = -hn;   // нормаль смотрит навстречу лучу
+        vec3 alb = pl.albedo;
+        dist = pl.t;
+        col = min(shadeHit(hp, hn, alb), vec3(PROBE_CLAMP));
+    } else {
+        col = sky(dir) * PROBE_SKY_STRENGTH;
+        dist = PROBE_RANGE;
+    }
+    rayBuf.rays[outIdx] = vec4(col, dist);
+}

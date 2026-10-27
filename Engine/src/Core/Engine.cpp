@@ -7,6 +7,7 @@
 #include "Core/Log.h"
 #include "Core/Path.h"
 #include "RT/Blas.h"
+#include <glm/gtc/type_ptr.hpp>
 #include "RT/RTContext.h"
 #include "Nav/SimpleNavMeshBuilder.h"
 #include "Scene/SkeletalGltfLoader.h"
@@ -107,6 +108,12 @@ void Engine::initialize(int width, int height, const std::string& title)
             m_rt->updateDynamic(m_scene, cmd, frame);
             m_rt->recordShadows(cmd, frame);
             m_rt->recordReflections(cmd, frame);
+            m_rt->reflections().recordProbes(m_rt->context(), cmd, frame);
+            {
+                const glm::mat4 v = m_camera.getViewMatrix();
+                const glm::mat4 p = m_camera.getProjectionMatrix();
+                m_rt->reflections().recordDenoise(m_rt->context(), cmd, frame, glm::value_ptr(v), glm::value_ptr(p));
+            }
         });
 
         m_rt->sync(m_scene);
@@ -134,6 +141,11 @@ void Engine::onFramebufferResize()
                     m->writeRtReflection(i, (m_rt->reflections().ready() ? m_rt->reflections().image(i)
                         : m_dummyMask.getTexture()),
                         m_rtMaskSampler.get());
+                    m->writeRtAo(i, (m_rt->reflections().ready() ? m_rt->reflections().ao(i)
+                        : m_dummyMask.getTexture()), m_rtMaskSampler.get());
+                        
+                    m->writeRtGi(i, (m_rt->reflections().ready() ? m_rt->reflections().gi(i)
+                        : m_dummyMask.getTexture()), m_rtMaskSampler.get());
                 }
     }
 }
@@ -168,13 +180,22 @@ void Engine::createMaterialDescriptorSet(std::shared_ptr<Material> material)
         m_renderer.getFramesInFlight());
 
     const uint32_t frames = m_renderer.getFramesInFlight();
-    for (uint32_t i = 0; i < frames; ++i) {
+    for (uint32_t i = 0; i < frames; ++i)
+    {
         ASH::Texture* t = m_rt ? m_rt->shadows().mask(i) : m_dummyMask.getTexture();
         material->writeRtMask(i, t, m_rtMaskSampler.get());
 
         ASH::Texture* r = (m_rt && m_rt->reflections().ready()) ? m_rt->reflections().image(i)
             : m_dummyMask.getTexture();
         material->writeRtReflection(i, r, m_rtMaskSampler.get());
+    
+        ASH::Texture* a = (m_rt && m_rt->reflections().ready()) ? m_rt->reflections().ao(i)
+            : m_dummyMask.getTexture();
+        material->writeRtAo(i, a, m_rtMaskSampler.get());
+
+        ASH::Texture* g = (m_rt && m_rt->reflections().ready()) ? m_rt->reflections().gi(i)
+            : m_dummyMask.getTexture();
+        material->writeRtGi(i, g, m_rtMaskSampler.get());
     }
     m_rtMaterials.push_back(material);
     if (m_rt) m_rt->registerMaterial(material.get(), material->albedoTexture(), material->getNormalTexture());
@@ -229,9 +250,23 @@ void Engine::createSkinnedMaterialDescriptorSet(std::shared_ptr<Material> materi
         m_renderer.getShadowAtlasView(), m_renderer.getShadowAtlasSampler(),
         boneBuffers,
         m_renderer.getIrradianceView(), m_renderer.getIrradianceSampler(),
+        m_probes.getDataBuffer(), m_probes.getInfoBuffer(),
         m_renderer.getFramesInFlight());
 
-    m_rt->registerMaterial(material.get(), material->albedoTexture(), material->getNormalTexture());
+    const uint32_t frames = m_renderer.getFramesInFlight();
+    const bool reflReady = m_rt && m_rt->reflections().ready();
+    for (uint32_t i = 0; i < frames; ++i)
+    {
+        material->writeRtMask(i, m_rt ? m_rt->shadows().mask(i) : m_dummyMask.getTexture(), m_rtMaskSampler.get());
+        material->writeRtReflection(i, reflReady ? m_rt->reflections().image(i) : m_dummyMask.getTexture(),
+            m_rtMaskSampler.get());
+        material->writeRtAo(i, reflReady ? m_rt->reflections().ao(i) : m_dummyMask.getTexture(),
+            m_rtMaskSampler.get());
+        material->writeRtGi(i, reflReady ? m_rt->reflections().gi(i) : m_dummyMask.getTexture(),
+            m_rtMaskSampler.get());
+    }
+    m_rtMaterials.push_back(material);
+    if (m_rt) m_rt->registerMaterial(material.get(), material->albedoTexture(), material->getNormalTexture());
 }
 
 void Engine::run()
@@ -519,6 +554,9 @@ GameObject& Engine::loadLevel(const std::string& path)
     std::filesystem::path probePath = levelFile;
     probePath.replace_extension(".eprobes");
     m_probes.load(probePath.string());
+    if (m_rt)
+        m_rt->reflections().setProbeBuffers(m_rt->context(),
+            m_probes.getDataBuffer(), m_probes.getInfoBuffer(), m_probes.getProbeCount());
 
     {
         std::filesystem::path partPath = levelFile;

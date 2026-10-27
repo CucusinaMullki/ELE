@@ -40,6 +40,11 @@ public:
     ReflectionPass& reflections() { return m_reflections; }
     void recordReflections(ASH::CommandBuffer* cmd, uint32_t frame) { if (m_ready) m_reflections.record(m_ctx, cmd, frame); }
 
+    void setProbeBuffers(ASH::Buffer* data, ASH::Buffer* info, uint32_t count)
+    { if (m_ready) m_reflections.setProbeBuffers(m_ctx, data, info, count); }
+    void recordProbes(ASH::CommandBuffer* cmd, uint32_t frame)
+    { if (m_ready) m_reflections.recordProbes(m_ctx, cmd, frame); }
+
     bool addMesh(const void* key, const std::vector<Vertex>& vertices,
         const std::vector<uint32_t>& indices, const std::vector<Submesh>& submeshes);
 

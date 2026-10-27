@@ -54,6 +54,8 @@ layout(binding = 14) uniform ProbeInfo
 
 layout(binding = 15) uniform sampler2D rtShadowMask;
 layout(binding = 16) uniform sampler2D rtReflection;
+layout(binding = 17) uniform sampler2D rtAoTex;
+layout(binding = 18) uniform sampler2D rtGiTex;
 
 const float PROBE_STRENGTH = 0.5;
 const float PROBE_NORMAL_BIAS = 0.3;
@@ -365,6 +367,73 @@ const int RT_BLUR_RADIUS = 2;
 const float RT_REFL_STRENGTH = 1.0;
 const int RT_REFL_TAPS = 12;
 const float RT_REFL_BLUR_PX = 28.0;
+const int RT_AO_RADIUS_PX = 2;
+const float RT_AO_STRENGTH = 1.0;
+const bool RT_AO_DEBUG = true;
+const bool RT_GI_PIXEL = true;
+const bool RT_GI_DEBUG = false;
+const float RT_GI_STRENGTH = 1.0;
+const float RT_GI_BASE_KEEP = 0.25;
+const int RT_GI_RADIUS = 2;
+const int RT_GI_STEP = 2;
+const bool USE_NRD_GI = true;
+
+vec3 ycocgToLinear(vec3 c)
+{
+    float t = c.x - c.z;
+    return max(vec3(t + c.y, c.x + c.z, t - c.y), vec3(0.0));
+}
+
+vec3 sampleNrdGi(ivec2 p, ivec2 sz)
+{
+    return ycocgToLinear(texelFetch(rtGiTex, clamp(p, ivec2(0), sz - 1), 0).rgb);
+}
+
+float rtGiCount(vec4 t) { return floor(t.a / 256.0); }
+float rtGiDepth(vec4 t) { return t.a - floor(t.a / 256.0) * 256.0; }
+
+vec3 sampleRtGi(ivec2 p, ivec2 sz)
+{
+    vec4 c = texelFetch(rtGiTex, clamp(p, ivec2(0), sz - 1), 0);
+    if (c.a <= 0.0) return vec3(0.0);
+    float dc = rtGiDepth(c);
+    vec3 sum = vec3(0.0);
+    float wsum = 0.0;
+    for (int y = -RT_GI_RADIUS; y <= RT_GI_RADIUS; ++y)
+        for (int x = -RT_GI_RADIUS; x <= RT_GI_RADIUS; ++x)
+        {
+            vec4 s = texelFetch(rtGiTex, clamp(p + ivec2(x, y) * RT_GI_STEP, ivec2(0), sz - 1), 0);
+            if (s.a <= 0.0) continue;
+            float w = clamp(1.0 - abs(rtGiDepth(s) - dc) / (0.1 * dc + 0.05), 0.0, 1.0);
+            w *= 1.0 + rtGiCount(s);
+            sum += s.rgb * w;
+            wsum += w;
+        }
+    return wsum > 0.0 ? sum / wsum : c.rgb;
+}
+
+float rtAoDepth(vec4 t)
+{
+    return (t.g * 255.0 * 256.0 + t.b * 255.0) / 65535.0 * 128.0;
+}
+
+float sampleRtAo(ivec2 p, ivec2 sz)
+{
+    vec4 c = texelFetch(rtAoTex, clamp(p, ivec2(0), sz - 1), 0);
+    if (c.a < 0.5) return 1.0;
+    float dc = rtAoDepth(c);
+    float sum = 0.0, wsum = 0.0;
+    for (int y = -RT_AO_RADIUS_PX; y <= RT_AO_RADIUS_PX; ++y)
+        for (int x = -RT_AO_RADIUS_PX; x <= RT_AO_RADIUS_PX; ++x)
+        {
+            vec4 s = texelFetch(rtAoTex, clamp(p + ivec2(x, y), ivec2(0), sz - 1), 0);
+            if (s.a < 0.5) continue;
+            float w = clamp(1.0 - abs(rtAoDepth(s) - dc) / (0.1 * dc + 0.05), 0.0, 1.0);
+            sum += s.r * w;
+            wsum += w;
+        }
+    return wsum > 0.0 ? sum / wsum : c.r;
+}
 
 vec3 sampleReflBlurred(ivec2 p, ivec2 sz, float rr)
 {
@@ -508,9 +577,23 @@ void main()
         indirectDiffuse = mix(iblAmbient, inside, pr.a);
     }
 
-    vec3 ambient = shapeAmbient(indirectDiffuse) * ao;
+    if (RT_GI_PIXEL && textureSize(rtGiTex, 0).x > 1)
+    {
+        ivec2 gp = ivec2(gl_FragCoord.xy);
+        ivec2 gs = textureSize(rtGiTex, 0);
+        vec3 giRaw = USE_NRD_GI ? sampleNrdGi(gp, gs) : sampleRtGi(gp, gs);
+        vec3 giD = giRaw * albedo * (1.0 - metallic) * RT_GI_STRENGTH;
+        indirectDiffuse = indirectDiffuse * RT_GI_BASE_KEEP + giD;
+    }
+
+    float rtAoV = mix(1.0, sampleRtAo(ivec2(gl_FragCoord.xy), textureSize(rtAoTex, 0)), RT_AO_STRENGTH);
+    vec3 ambient = shapeAmbient(indirectDiffuse) * ao * rtAoV;
     
     vec3 color = ambient + Lo;
+
+    if (RT_GI_DEBUG && RT_GI_PIXEL)
+        color = USE_NRD_GI ? sampleNrdGi(ivec2(gl_FragCoord.xy), textureSize(rtGiTex, 0))
+         : sampleRtGi(ivec2(gl_FragCoord.xy), textureSize(rtGiTex, 0));
 
     vec3 lightmapColor = texture(lightmapMap, fragLightmapUV).rgb;
     color += lightmapColor * 0.05 * ao;
