@@ -69,8 +69,6 @@ add_library(ELE STATIC
     src/RT/Blas.cpp
     src/RT/RTWorld.cpp
     src/RT/RTSkinPass.cpp
-    src/RT/RTShadowPass.cpp
-    src/RT/RTReflectionPass.cpp
     src/Vulkan/SkinnedVertexBuffer.cpp
     src/Scene/SkeletalMesh.cpp
     src/Core/ModelLoader.cpp
@@ -78,6 +76,9 @@ add_library(ELE STATIC
     src/RT/RTNrd.cpp
     src/RT/RTDenoiser.cpp
     src/Core/AnimationLoader.cpp
+    src/RT/RTGIPass.cpp
+    src/RT/RTMaster.cpp
+    src/RT/RTPass.cpp
     src/RT/RTProbeUpdate.cpp
     src/Scene/ProbeSystem.cpp
     src/Scene/Animation.cpp
@@ -96,8 +97,8 @@ target_sources(ELE PRIVATE
 target_include_directories(ELE PUBLIC
     ${Vulkan_INCLUDE_DIRS}
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/external/stb
-    ${CMAKE_SOURCE_DIR}/external/tinygltf
+    ${CMAKE_CURRENT_SOURCE_DIR}/../external/stb
+    ${CMAKE_CURRENT_SOURCE_DIR}/../external/tinygltf
     ${joltphysics_SOURCE_DIR}
     ${miniaudio_SOURCE_DIR}
     ${ash_rhi_SOURCE_DIR}/include

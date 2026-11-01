@@ -1,17 +1,15 @@
 #pragma once
 #include "RT/RTContext.h"
+#include "RT/RTMaster.h"
+#include "RT/SkinnedBlas.h"
 #include "RT/Blas.h"
-#include "Vulkan/Vertex.h"
-#include "Scene/Mesh.h"
-#include "RT/RTShadowPass.h"
+#include "RT/RTSkinPass.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "RT/RTReflectionPass.h"
 #include "Scene/Scene.h"
+#include <ASH/ASH.h>
 #include <memory>
 #include <unordered_map>
 #include <vector>
-#include "RT/SkinnedBlas.h"
-#include "RT/RTSkinPass.h"
 
 namespace RT
 {
@@ -26,76 +24,96 @@ struct GeoEntry
     uint32_t pad;
 };
 
+static constexpr uint32_t kFrames = 2;
+
 class World
 {
 public:
-    ~World() { shutdown(); }
-
-    bool init(ASH::Device* device);
+    bool init(ASH::Device* device, uint32_t frames, uint32_t w, uint32_t h);
     void shutdown();
 
-    ShadowPass& shadows() { return m_shadows; }
-    void recordShadows(ASH::CommandBuffer* cmd, uint32_t frame) { if (m_ready) m_shadows.record(m_ctx, cmd, frame); }
+    ASH::Texture* shadowImage(uint32_t frame) const;
+    ASH::Texture* reflectionImage(uint32_t frame) const;
+    ASH::Texture* aoImage(uint32_t frame) const;
+    ASH::Texture* giImage(uint32_t frame) const;
 
-    ReflectionPass& reflections() { return m_reflections; }
-    void recordReflections(ASH::CommandBuffer* cmd, uint32_t frame) { if (m_ready) m_reflections.record(m_ctx, cmd, frame); }
-
-    void setProbeBuffers(ASH::Buffer* data, ASH::Buffer* info, uint32_t count)
-    { if (m_ready) m_reflections.setProbeBuffers(m_ctx, data, info, count); }
-    void recordProbes(ASH::CommandBuffer* cmd, uint32_t frame)
-    { if (m_ready) m_reflections.recordProbes(m_ctx, cmd, frame); }
+    void recordShadows(ASH::CommandBuffer* cmd, uint32_t frame);
+    void recordReflections(ASH::CommandBuffer* cmd, uint32_t frame);
+    void recordAO(ASH::CommandBuffer* cmd, uint32_t frame);
+    void recordGI(ASH::CommandBuffer* cmd, uint32_t frame);
+    void recordAll(ASH::CommandBuffer* cmd, uint32_t frame);
+    void recordDenoise(ASH::CommandBuffer* cmd, uint32_t frame, const float* view, const float* proj);
+    void resize(uint32_t w, uint32_t h);
 
     bool addMesh(const void* key, const std::vector<Vertex>& vertices,
-        const std::vector<uint32_t>& indices, const std::vector<Submesh>& submeshes);
-
-    bool sync(const ::Scene& scene);
+                 const std::vector<uint32_t>& indices, const std::vector<Submesh>& submeshes);
     void updateDynamic(const ::Scene& scene, ASH::CommandBuffer* cmd, uint32_t frame);
     void updateSkinned(const ::Scene& scene, ASH::CommandBuffer* cmd, uint32_t frame);
-
+    bool sync(const ::Scene& scene);
     void setDefaultTexture(ASH::Texture* albedo, ASH::Texture* normal);
+
+    void bindFrameBuffers(uint32_t frame, ASH::Buffer* camera, ASH::Buffer* lights);
+
     uint32_t registerMaterial(const void* key, ASH::Texture* albedo, ASH::Texture* normal);
 
-    Context& context() { return m_ctx; }
-    VkAccelerationStructureKHR tlas() const { return m_tlas; }
+    ShadowPass& shadows() { return m_master->shadows(); }
+    ReflectionPass& reflections() { return m_master->reflections(); }
+    AOPass& ao() { return m_master->ao(); }
+    GIPass& gi() { return m_master->gi(); }
+
+    const ShadowPass& shadows() const { return m_master->shadows(); }
+    const ReflectionPass& reflections() const { return m_master->reflections(); }
+    const AOPass& ao() const { return m_master->ao(); }
+    const GIPass& gi() const { return m_master->gi(); }
+
     uint32_t instanceCount() const { return m_instanceCount; }
-    ASH::Buffer* geometryTable() const { return m_geoTable.get(); }
     uint32_t geometryCount() const { return m_geoCount; }
+
+    Context& context() { return m_ctx; }
+    const Context& context() const { return m_ctx; }
 
 private:
     void destroyTlas();
 
-    ShadowPass m_shadows;
-    ReflectionPass m_reflections;
     Context m_ctx;
-    bool m_ready = false;
-    std::unordered_map<const void*, std::unique_ptr<Blas>> m_blas;
+    std::unique_ptr<Master> m_master;
+    SkinPass m_skin;
+
     VkAccelerationStructureKHR m_tlas = VK_NULL_HANDLE;
     std::unique_ptr<ASH::Buffer> m_tlasStorage;
-    uint32_t m_instanceCount = 0;
-    uint32_t m_syncedVersion = ~0u;
+    std::unique_ptr<ASH::Buffer> m_tlasScratch;
+    uint64_t m_scratchAddr = 0;
+
     std::unique_ptr<ASH::Buffer> m_geoTable;
     uint32_t m_geoCount = 0;
-    std::unordered_map<const void*, uint32_t> m_matSlots;
-    std::vector<VkImageView> m_albedoViews;
-    std::vector<VkImageView> m_normalViews;
-    bool m_dirty = false;
-    VkImageView albedoView(ASH::Texture* t);
-    static VkImageView normalView(ASH::Texture* t);
 
-    static constexpr uint32_t kFrames = 3;
+    std::unique_ptr<ASH::Buffer> m_instBuf[kFrames];
+    uint32_t m_instanceCount = 0;
+
     struct DynInst { uint32_t inst; uint32_t obj; };
-
-    decltype(m_geoTable) m_instBuf[kFrames];
-    decltype(m_geoTable) m_tlasScratch;
-    VkDeviceAddress m_scratchAddr = 0;
     std::vector<DynInst> m_dyn;
 
-    struct SkinInst { SkinnedBlas blas; VkDescriptorSet sets[kFrames] = {}; };
+    struct SkinInst {
+        SkinnedBlas blas;
+        VkDescriptorSet sets[kFrames]{};
+    };
     struct SkinRef { GameObject* obj; SkinInst* si; };
-    SkinInst* getOrCreateSkinned(GameObject& o, SkeletalMeshComponent& sk);
-    SkinPass m_skin;
-    std::unordered_map<const void*, std::unique_ptr<SkinInst>> m_skinned;
     std::vector<SkinRef> m_skinList;
+    std::unordered_map<const void*, std::unique_ptr<SkinInst>> m_skinned;
+    SkinInst* getOrCreateSkinned(GameObject& o, SkeletalMeshComponent& sk);
+
+    std::unordered_map<const void*, std::unique_ptr<Blas>> m_blas;
+
+    std::vector<VkImageView> m_albedoViews;
+    std::vector<VkImageView> m_normalViews;
+    std::unordered_map<const void*, uint32_t> m_matSlots;
+
+    uint64_t m_syncedVersion = 0;
+    bool m_dirty = false;
+    bool m_ready = false;
+
+    static VkImageView albedoView(ASH::Texture* t);
+    static VkImageView normalView(ASH::Texture* t);
 };
 
 }

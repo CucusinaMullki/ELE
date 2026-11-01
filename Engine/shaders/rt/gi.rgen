@@ -1,0 +1,111 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_GOOGLE_include_directive : require
+
+// tlas, cam, payload pl, shadeHit(), sky(), rand2() — из rt_common.glsl.
+#include "rt_common.glsl"
+
+layout(set = 0, binding = 1, rgba32f) uniform writeonly image2D giOut;
+layout(set = 0, binding = 7, rgba32f) uniform writeonly image2D nrdDiffOut;
+layout(set = 0, binding = 8, rgba16f) uniform writeonly image2D nrdNrOut;
+layout(set = 0, binding = 9, rgba32f) uniform writeonly image2D nrdVzOut;
+
+// frameIndex обязателен: без него направление GI-луча не меняется и NRD нечего копить.
+layout(push_constant) uniform Push { uint frameIndex; uint dummy; } pc;
+
+const float GI_RANGE = 50.0;
+const float GI_CLAMP = 2.0;
+const vec3  NRD_HIT_PARAMS = vec3(3.0, 0.1, 20.0);
+
+// --- упаковка для NRD (REBLUR): oct-нормаль + roughness, YCoCg + нормированный hitT ---
+vec4 nrdPackNormalRoughness(vec3 n, float roughness)
+{
+    n /= abs(n.x) + abs(n.y) + abs(n.z);
+    vec3 r;
+    r.y = n.y * 0.5 + 0.5;
+    r.x = n.x * 0.5 + r.y;
+    r.y -= n.x * 0.5;
+    roughness = max(roughness, 1.5 / 512.0);
+    r.z = (n.z < 0.0 ? -roughness : roughness) * 0.5 + 0.5;
+    return vec4(r, 0.0);
+}
+
+vec4 nrdPackDiffuse(vec3 radiance, float hitT, float viewZ)
+{
+    bool bad = any(isnan(radiance)) || any(isinf(radiance));
+    radiance = bad ? vec3(0.0) : clamp(radiance, vec3(0.0), vec3(65504.0));
+    float nh = clamp(hitT / (NRD_HIT_PARAMS.x + abs(viewZ) * NRD_HIT_PARAMS.y), 0.0, 1.0);
+    if (isnan(nh)) nh = 0.0;
+    vec3 ycocg = vec3(dot(radiance, vec3(0.25, 0.5, 0.25)),
+                      dot(radiance, vec3(0.5, 0.0, -0.5)),
+                      dot(radiance, vec3(-0.25, 0.5, -0.25)));
+    return vec4(ycocg, nh);
+}
+
+vec3 cosineDir(vec3 N, vec2 u)
+{
+    float r = sqrt(u.x);
+    float phi = 6.2831853 * u.y;
+    vec3 up = abs(N.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 T = normalize(cross(up, N));
+    vec3 B = cross(N, T);
+    return T * (r * cos(phi)) + B * (r * sin(phi)) + N * sqrt(max(0.0, 1.0 - u.x));
+}
+
+void main()
+{
+    ivec2 px = ivec2(gl_LaunchIDEXT.xy);
+    vec2 uv = (vec2(px) + 0.5) / vec2(gl_LaunchSizeEXT.xy);
+    vec4 wp = inverse(cam.viewProjNoJitter) * vec4(uv * 2.0 - 1.0, 0.5, 1.0);
+    vec3 origin = cam.camPos.xyz;
+    vec3 dir = normalize(wp.xyz / wp.w - origin);
+
+    // Значения для промаха: NRD ждёт "бесконечную" глубину с правильным знаком.
+    float vzSign = ((cam.view * vec4(origin + dir * 10.0, 1.0)).z < 0.0) ? -1.0 : 1.0;
+    vec4 giV   = vec4(0.0);
+    vec4 ndOut = vec4(0.0);
+    vec4 nnOut = nrdPackNormalRoughness(vec3(0.0, 0.0, 1.0), 1.0);
+    vec4 nvOut = vec4(vzSign * 1.0e7, 0.0, 0.0, 0.0);
+
+    // первичный луч
+    pl.t = -1.0;
+    traceRayEXT(tlas, gl_RayFlagsNoneEXT, 0xFF, 0, 0, 0, origin, 0.01, dir, 10000.0, 0);
+
+    if (pl.t > 0.0)
+    {
+        // Сохраняем данные поверхности ДО второго traceRayEXT — он перезапишет pl.
+        float t0 = pl.t;
+        vec3 N = pl.normal;
+        vec3 P = origin + dir * t0;
+        float vz = (cam.view * vec4(P, 1.0)).z;
+
+        // GI-луч: косинусное распределение, новое направление каждый кадр
+        vec3 d = cosineDir(N, rand2(px, pc.frameIndex));
+        vec3 o = P + N * 0.02;
+
+        pl.t = -1.0;
+        traceRayEXT(tlas, gl_RayFlagsNoneEXT, 0xFF, 0, 0, 0, o, 0.02, d, GI_RANGE, 0);
+
+        vec3 rad;
+        float hitT;
+        if (pl.t > 0.0) {
+            rad = min(shadeHit(o + d * pl.t, pl.normal, pl.albedo), vec3(GI_CLAMP));
+            hitT = pl.t;
+        } else {
+            rad = sky(d) * SKY_STRENGTH;
+            hitT = GI_RANGE;
+        }
+
+        // alpha в формате, который понимает pbr.frag: count * 256 + depth (count = 1, без истории —
+        // временное накопление делает NRD)
+        giV   = vec4(rad, 256.0 + min(t0, 255.0));
+        ndOut = nrdPackDiffuse(rad, hitT, vz);
+        nnOut = nrdPackNormalRoughness(N, 1.0);
+        nvOut.x = vz;
+    }
+
+    imageStore(giOut, px, giV);
+    imageStore(nrdDiffOut, px, ndOut);
+    imageStore(nrdNrOut, px, nnOut);
+    imageStore(nrdVzOut, px, nvOut);
+}

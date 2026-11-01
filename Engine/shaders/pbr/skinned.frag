@@ -342,6 +342,17 @@ vec3 sampleReflBlurred(ivec2 p, ivec2 sz, float rr)
     return wsum > 0.0 ? sum / wsum : c.rgb;
 }
 
+bool rtSameSurface()
+{
+    ivec2 sz = textureSize(rtAoTex, 0);
+    if (sz.x <= 1) return false;
+    vec4 c = texelFetch(rtAoTex, clamp(ivec2(gl_FragCoord.xy), ivec2(0), sz - 1), 0);
+    if (c.a < 0.5) return false;
+    float rtD = rtAoDepth(c);
+    float rasterD = length(cam.camPos.xyz - fragWorldPos);
+    return abs(rtD - rasterD) < 0.05 * rasterD + 0.05;
+}
+
 void main()
 {
     vec3 albedo = pow(texture(albedoMap, fragTexCoord).rgb, vec3(2.2));
@@ -431,8 +442,10 @@ void main()
             Lo += (kD * albedo / PI + specular) * radiance * NdotL * visibility;
         }
     }
+    
+    bool rtOk = rtSameSurface();
+    float rtAoV = rtOk ? mix(1.0, sampleRtAo(ivec2(gl_FragCoord.xy), textureSize(rtAoTex, 0)), RT_AO_STRENGTH) : 1.0;
 
-    float rtAoV = mix(1.0, sampleRtAo(ivec2(gl_FragCoord.xy), textureSize(rtAoTex, 0)), RT_AO_STRENGTH);
     vec3 baseAmbient = vec3(0.03) * albedo;
     vec3 indirectDiffuse = baseAmbient;
     if (probeInfo.dims.w != 0u)
@@ -442,7 +455,7 @@ void main()
         indirectDiffuse = mix(baseAmbient, probeAmbient + baseAmbient * IBL_WITH_PROBES, pr.a);
     }
     
-    if (textureSize(rtGiTex, 0).x > 1)
+    if (rtOk && textureSize(rtGiTex, 0).x > 1)
     {
         vec3 giD = sampleNrdGi(ivec2(gl_FragCoord.xy), textureSize(rtGiTex, 0))
                  * albedo * (1.0 - metallic) * RT_GI_STRENGTH;

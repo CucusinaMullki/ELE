@@ -70,15 +70,23 @@ public:
     UISystem& getUI() { return m_ui; }
 
     Renderer& getRenderer() { return m_renderer; }
-
-    void pause() { m_time.pause(); }
-    void resume() { m_time.resume(); }
+    
     void setTimeScale(float scale) { m_time.setTimeScale(scale); }
 
     void loadEnvironmentMap(const std::string& hdrPath) { m_renderer.loadEnvironmentMap(hdrPath); }
 
     GameObject& loadGltfObject(const std::string& path);
     GameObject& loadSkeletalGltfObject(const std::string& path);
+
+    void setPaused(bool paused, bool releaseCursor = true);
+    bool isPaused() const { return m_time.isPaused(); }
+    void pause() { setPaused(true); }
+    void resume() { setPaused(false); }
+
+    void setCursorLocked(bool locked) { m_input.setCursorLocked(locked); }
+    bool isCursorLocked() const { return m_input.isCursorLocked(); }
+
+    void setEscapeTogglesPause(bool enabled) { m_escTogglesPause = enabled; }
 
     void onFramebufferResize();
 
@@ -99,10 +107,15 @@ public:
 private:
     void updateInput(float deltaTime);
     void createMaterialDescriptorSet(std::shared_ptr<Material> material);
+    void writeRtTextures(Material& material);   // RT-картинки (или заглушки) -> дескрипторы материала
+    void rebindRtTextures();                    // то же для всех материалов (после resize RT)
+    void installRtHook();
 
     GLFWwindow* m_window = nullptr;
     bool m_cleaned = false;
     float m_lastFrameTime = 0.0f;
+
+    bool m_escTogglesPause = true;
 
     AudioSystem m_audio;
     TimeSystem m_time;

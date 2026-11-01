@@ -169,6 +169,9 @@ void Input::setCursorLocked(bool locked)
     m_cursorLocked = locked;
     glfwSetInputMode(m_window, GLFW_CURSOR,
         locked ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+    m_firstMouse = true;
+    m_mouseDeltaX = 0.0f;
+    m_mouseDeltaY = 0.0f;
 }
 
 void Input::bindAction(const std::string& action, InputBinding binding)

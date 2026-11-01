@@ -1,9 +1,9 @@
 #version 460
 #extension GL_EXT_ray_tracing : require
 
-layout(location = 1) rayPayloadInEXT float shadowVis;
+layout(location = 1) rayPayloadInEXT float shadowHit;
 
 void main()
 {
-    shadowVis = 1.0;
+    shadowHit = 1.0;
 }

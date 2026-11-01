@@ -33,7 +33,9 @@ bool SkinnedBlas::create(Context& ctx, const void* srcVertices, uint32_t vertexC
         ASH::BufferUsage::AccelerationStructureInput | ASH::BufferUsage::StorageBuffer |
         ASH::BufferUsage::ShaderDeviceAddress,
         ASH::MemoryUsage::GpuOnly, "RT skin dst");
-    m_ib = ctx.createBuffer(ibSize, ASH::BufferUsage::AccelerationStructureInput,
+    m_ib = ctx.createBuffer(ibSize,
+        ASH::BufferUsage::AccelerationStructureInput | ASH::BufferUsage::StorageBuffer |
+        ASH::BufferUsage::ShaderDeviceAddress,
         ASH::MemoryUsage::CpuToGpu, "RT skin ib");
     if (!m_src || !m_dst || !m_ib) { destroy(ctx); return false; }
 

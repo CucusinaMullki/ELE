@@ -22,6 +22,7 @@ void Material::load(ASH::Device* device,
 void Material::writeRtMask(uint32_t frame, ASH::Texture* tex, ASH::Sampler* sampler)
 {
     if (!m_hasRtBinding) return;
+    if (!tex) return;
     if (frame >= m_descriptorSets.size() || !m_descriptorSets[frame]) return;
     ASH::DescriptorImageInfo img{ tex, sampler };
     ASH::DescriptorWrite w{ 15, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &img };
@@ -31,6 +32,7 @@ void Material::writeRtMask(uint32_t frame, ASH::Texture* tex, ASH::Sampler* samp
 void Material::writeRtAo(uint32_t frame, ASH::Texture* tex, ASH::Sampler* sampler)
 {
     if (!m_hasRtBinding) return;
+    if (!tex) return;
     if (frame >= m_descriptorSets.size() || !m_descriptorSets[frame]) return;
     ASH::DescriptorImageInfo img{ tex, sampler };
     ASH::DescriptorWrite w{ 17, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &img };
@@ -222,6 +224,7 @@ void Material::createSkinnedDescriptorSet(ASH::Device* device, ASH::DescriptorSe
 void Material::writeRtGi(uint32_t frame, ASH::Texture* tex, ASH::Sampler* sampler)
 {
     if (!m_hasRtBinding) return;
+    if (!tex) return;
     if (frame >= m_descriptorSets.size() || !m_descriptorSets[frame]) return;
     ASH::DescriptorImageInfo img{ tex, sampler };
     ASH::DescriptorWrite w{ 18, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &img };
@@ -231,6 +234,7 @@ void Material::writeRtGi(uint32_t frame, ASH::Texture* tex, ASH::Sampler* sample
 void Material::writeRtReflection(uint32_t frame, ASH::Texture* tex, ASH::Sampler* sampler)
 {
     if (!m_hasRtBinding) return;
+    if (!tex) return;
     if (frame >= m_descriptorSets.size() || !m_descriptorSets[frame]) return;
     ASH::DescriptorImageInfo img{ tex, sampler };
     ASH::DescriptorWrite w{ 16, ASH::DescriptorType::CombinedImageSampler, 0, nullptr, &img };

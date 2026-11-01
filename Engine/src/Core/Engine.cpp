@@ -1,6 +1,7 @@
 #include "Core/Engine.h"
 #include "Core/LevelLoader.h"
 #include <stb_image.h>
+#include <algorithm>
 #include <filesystem>
 #include <iostream>
 #include <cstdio>
@@ -65,8 +66,19 @@ void Engine::initialize(int width, int height, const std::string& title)
     m_camera.setAspect(m_renderer.getAspect());
     {
         auto rt = std::make_unique<RT::World>();
-        if (rt->init(m_renderer.getDevice())) { m_rt = std::move(rt); std::cout << "RT: enabled\n"; }
-        else { std::cout << "RT: not supported, add-on not loaded\n"; }
+        const uint32_t frames = m_renderer.getFramesInFlight();
+        int fw = 0, fh = 0;
+        glfwGetFramebufferSize(m_window, &fw, &fh);
+        
+        if (rt->init(m_renderer.getDevice(), frames, (uint32_t)fw, (uint32_t)fh))
+        {
+            m_rt = std::move(rt); 
+            std::cout << "RT: enabled and initialized successfully\n"; 
+        }
+        else
+        { 
+            std::cout << "RT: init FAILED. Check console logs above!\n"; 
+        }
     }
     static const unsigned char white[4] = { 255, 255, 255, 255 };
     m_dummyMask.initializeFromMemory(m_renderer.getDevice(), white, 1, 1, false);
@@ -86,39 +98,67 @@ void Engine::initialize(int width, int height, const std::string& title)
     if (m_rt)
     {
         const uint32_t frames = m_renderer.getFramesInFlight();
-        int fw = 0, fh = 0;
-        glfwGetFramebufferSize(m_window, &fw, &fh);
+
         m_rt->setDefaultTexture(m_dummyMask.getTexture(), m_dummyNormal.getTexture());
-        m_rt->shadows().createResources(m_rt->context(), frames, (uint32_t)fw, (uint32_t)fh);
-        for (uint32_t i = 0; i < frames; ++i)
-            m_rt->shadows().bindFrameBuffers(m_rt->context(), i,
+
+        for (uint32_t i = 0; i < frames; ++i) {
+            m_rt->bindFrameBuffers(i,
                 m_renderer.getUniformBuffer().getBuffer(i),
                 m_renderer.getLightBuffer().getBuffer(i));
-
-        m_rt->reflections().createResources(m_rt->context(), frames, (uint32_t)fw, (uint32_t)fh);
-        for (uint32_t i = 0; i < frames; ++i)
-            m_rt->reflections().bindFrameBuffers(m_rt->context(), i,
-                m_renderer.getUniformBuffer().getBuffer(i),
-                m_renderer.getLightBuffer().getBuffer(i));
-
-        m_renderer.setPreMainPassHook([this](ASH::CommandBuffer* cmd, uint32_t frame) {
-            if (!m_rt) return;
-            m_rt->sync(m_scene);
-            m_rt->updateSkinned(m_scene, cmd, frame);
-            m_rt->updateDynamic(m_scene, cmd, frame);
-            m_rt->recordShadows(cmd, frame);
-            m_rt->recordReflections(cmd, frame);
-            m_rt->reflections().recordProbes(m_rt->context(), cmd, frame);
-            {
-                const glm::mat4 v = m_camera.getViewMatrix();
-                const glm::mat4 p = m_camera.getProjectionMatrix();
-                m_rt->reflections().recordDenoise(m_rt->context(), cmd, frame, glm::value_ptr(v), glm::value_ptr(p));
-            }
-        });
+        }
 
         m_rt->sync(m_scene);
+        installRtHook();
     }
 }
+
+void Engine::installRtHook()
+{
+    m_renderer.setPreMainPassHook([this](ASH::CommandBuffer* cmd, uint32_t frame) {
+        if (!m_rt) return;
+        m_rt->sync(m_scene);
+        m_rt->updateSkinned(m_scene, cmd, frame);
+        m_rt->updateDynamic(m_scene, cmd, frame);
+        m_rt->recordAll(cmd, frame);
+
+        const glm::mat4 v = m_camera.getViewMatrix();
+        const glm::mat4 p = m_camera.getProjectionMatrix();
+        m_rt->recordDenoise(cmd, frame, glm::value_ptr(v), glm::value_ptr(p));
+    });
+}
+
+void Engine::writeRtTextures(Material& material)
+{
+    const uint32_t frames = m_renderer.getFramesInFlight();
+    ASH::Texture* dummy = m_dummyMask.getTexture();
+    ASH::Sampler* s = m_rtMaskSampler.get();
+    auto pick = [&](ASH::Texture* t) { return t ? t : dummy; };
+
+    for (uint32_t i = 0; i < frames; ++i)
+    {
+        material.writeRtMask      (i, pick(m_rt ? m_rt->shadowImage(i)     : nullptr), s);
+        material.writeRtReflection(i, pick(m_rt ? m_rt->reflectionImage(i) : nullptr), s);
+        material.writeRtAo        (i, pick(m_rt ? m_rt->aoImage(i)         : nullptr), s);
+        material.writeRtGi        (i, pick(m_rt ? m_rt->giImage(i)         : nullptr), s);
+    }
+}
+
+void Engine::rebindRtTextures()
+{
+    auto& list = m_rtMaterials;
+    list.erase(std::remove_if(list.begin(), list.end(),
+        [](const std::weak_ptr<Material>& w) { return w.expired(); }), list.end());
+    for (auto& w : list)
+        if (auto m = w.lock()) writeRtTextures(*m);
+}
+
+void Engine::setPaused(bool paused, bool releaseCursor)
+{
+    if (paused) m_time.pause(); else m_time.resume();
+    if (releaseCursor) m_input.setCursorLocked(!paused);
+}
+
+
 
 void Engine::onFramebufferResize()
 {
@@ -129,24 +169,21 @@ void Engine::onFramebufferResize()
     {
         int fw = 0, fh = 0;
         glfwGetFramebufferSize(m_window, &fw, &fh);
-        m_rt->shadows().resize(m_rt->context(), (uint32_t)fw, (uint32_t)fh);
-        m_rt->reflections().resize(m_rt->context(), (uint32_t)fw, (uint32_t)fh);
+        if (fw > 0 && fh > 0)
+        {
+            // RT-картинки пересоздаются под новый размер -> материалы надо перепривязать,
+            // иначе они ссылаются на удалённые текстуры.
+            m_rt->resize((uint32_t)fw, (uint32_t)fh);
+            rebindRtTextures();
+        }
 
         const uint32_t frames = m_renderer.getFramesInFlight();
-        for (auto& wp : m_rtMaterials)
-            if (auto m = wp.lock())
-                for (uint32_t i = 0; i < frames; ++i)
-                {
-                    m->writeRtMask(i, m_rt->shadows().mask(i), m_rtMaskSampler.get());
-                    m->writeRtReflection(i, (m_rt->reflections().ready() ? m_rt->reflections().image(i)
-                        : m_dummyMask.getTexture()),
-                        m_rtMaskSampler.get());
-                    m->writeRtAo(i, (m_rt->reflections().ready() ? m_rt->reflections().ao(i)
-                        : m_dummyMask.getTexture()), m_rtMaskSampler.get());
-                        
-                    m->writeRtGi(i, (m_rt->reflections().ready() ? m_rt->reflections().gi(i)
-                        : m_dummyMask.getTexture()), m_rtMaskSampler.get());
-                }
+        for (uint32_t i = 0; i < frames; ++i)
+        {
+            m_rt->bindFrameBuffers(i,
+                m_renderer.getUniformBuffer().getBuffer(i),
+                m_renderer.getLightBuffer().getBuffer(i));
+        }
     }
 }
 
@@ -179,24 +216,7 @@ void Engine::createMaterialDescriptorSet(std::shared_ptr<Material> material)
         m_probes.getDataBuffer(), m_probes.getInfoBuffer(),
         m_renderer.getFramesInFlight());
 
-    const uint32_t frames = m_renderer.getFramesInFlight();
-    for (uint32_t i = 0; i < frames; ++i)
-    {
-        ASH::Texture* t = m_rt ? m_rt->shadows().mask(i) : m_dummyMask.getTexture();
-        material->writeRtMask(i, t, m_rtMaskSampler.get());
-
-        ASH::Texture* r = (m_rt && m_rt->reflections().ready()) ? m_rt->reflections().image(i)
-            : m_dummyMask.getTexture();
-        material->writeRtReflection(i, r, m_rtMaskSampler.get());
-    
-        ASH::Texture* a = (m_rt && m_rt->reflections().ready()) ? m_rt->reflections().ao(i)
-            : m_dummyMask.getTexture();
-        material->writeRtAo(i, a, m_rtMaskSampler.get());
-
-        ASH::Texture* g = (m_rt && m_rt->reflections().ready()) ? m_rt->reflections().gi(i)
-            : m_dummyMask.getTexture();
-        material->writeRtGi(i, g, m_rtMaskSampler.get());
-    }
+    writeRtTextures(*material);
     m_rtMaterials.push_back(material);
     if (m_rt) m_rt->registerMaterial(material.get(), material->albedoTexture(), material->getNormalTexture());
 }
@@ -228,13 +248,12 @@ void Engine::updateInput(float deltaTime)
 {
     m_input.update();
 
-    if (m_useCameraController)
+    if (m_escTogglesPause && m_input.isKeyJustPressed(Key::Escape))
+        setPaused(!m_time.isPaused());
+
+    if (m_useCameraController && !m_time.isPaused())
         m_cameraController->update(m_camera, m_input, deltaTime);
-        
-    if (m_input.isActionJustPressed("Fire"))
-    {
-        LOG("Fire pressed!");
-    }
+
 }
 
 void Engine::createSkinnedMaterialDescriptorSet(std::shared_ptr<Material> material, SkeletalMeshComponent& skeletal)
@@ -253,18 +272,7 @@ void Engine::createSkinnedMaterialDescriptorSet(std::shared_ptr<Material> materi
         m_probes.getDataBuffer(), m_probes.getInfoBuffer(),
         m_renderer.getFramesInFlight());
 
-    const uint32_t frames = m_renderer.getFramesInFlight();
-    const bool reflReady = m_rt && m_rt->reflections().ready();
-    for (uint32_t i = 0; i < frames; ++i)
-    {
-        material->writeRtMask(i, m_rt ? m_rt->shadows().mask(i) : m_dummyMask.getTexture(), m_rtMaskSampler.get());
-        material->writeRtReflection(i, reflReady ? m_rt->reflections().image(i) : m_dummyMask.getTexture(),
-            m_rtMaskSampler.get());
-        material->writeRtAo(i, reflReady ? m_rt->reflections().ao(i) : m_dummyMask.getTexture(),
-            m_rtMaskSampler.get());
-        material->writeRtGi(i, reflReady ? m_rt->reflections().gi(i) : m_dummyMask.getTexture(),
-            m_rtMaskSampler.get());
-    }
+    writeRtTextures(*material);
     m_rtMaterials.push_back(material);
     if (m_rt) m_rt->registerMaterial(material.get(), material->albedoTexture(), material->getNormalTexture());
 }
@@ -294,7 +302,7 @@ void Engine::run()
 
         m_time.update(rawDeltaTime);
 
-        int fixedSteps = m_time.consumeFixedSteps();
+        int fixedSteps = m_time.isPaused() ? 0 : m_time.consumeFixedSteps();
         for (int i = 0; i < fixedSteps; i++)
         {
             fixedUpdate(m_time.fixedDeltaTime());
@@ -331,8 +339,13 @@ void Engine::shutdown()
     if (m_cleaned) return;
     m_cleaned = true;
 
+    if (m_rt)
+    {
+        m_rt->shutdown();
+        m_rt.reset();
+    }
+
     m_renderer.setPreMainPassHook(nullptr);
-    m_rt.reset();
     m_rtMaterials.clear();
     m_rtMaskSampler.reset();
     m_dummyMask.cleanup();
@@ -554,9 +567,6 @@ GameObject& Engine::loadLevel(const std::string& path)
     std::filesystem::path probePath = levelFile;
     probePath.replace_extension(".eprobes");
     m_probes.load(probePath.string());
-    if (m_rt)
-        m_rt->reflections().setProbeBuffers(m_rt->context(),
-            m_probes.getDataBuffer(), m_probes.getInfoBuffer(), m_probes.getProbeCount());
 
     {
         std::filesystem::path partPath = levelFile;
