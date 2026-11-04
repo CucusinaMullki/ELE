@@ -132,7 +132,6 @@ int main()
     engine.initialize(800, 600, "ELE Game");
     engine.setAntialiasing(AAMethod::TAA);
     InputInScene(engine);
-
     engine.getRenderer().setVoxelGIEnabled(false);
 
     auto& level = engine.loadLevel("Levels/Level.elvl");

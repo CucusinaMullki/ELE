@@ -263,6 +263,8 @@ const float RT_GI_STRENGTH = 1.0;
 const float RT_GI_BASE_KEEP = 0.25;
 const int RT_GI_RADIUS = 2;
 const int RT_GI_STEP = 2;
+const float RT_SCALE = 0.5;
+ivec2 rtPx() { return ivec2(gl_FragCoord.xy * RT_SCALE); }
 
 float rtGiCount(vec4 t) { return floor(t.a / 256.0); }
 float rtGiDepth(vec4 t) { return t.a - floor(t.a / 256.0) * 256.0; }
@@ -346,7 +348,7 @@ bool rtSameSurface()
 {
     ivec2 sz = textureSize(rtAoTex, 0);
     if (sz.x <= 1) return false;
-    vec4 c = texelFetch(rtAoTex, clamp(ivec2(gl_FragCoord.xy), ivec2(0), sz - 1), 0);
+    vec4 c = texelFetch(rtAoTex, clamp(rtPx(), ivec2(0), sz - 1), 0);
     if (c.a < 0.5) return false;
     float rtD = rtAoDepth(c);
     float rasterD = length(cam.camPos.xyz - fragWorldPos);
@@ -444,7 +446,7 @@ void main()
     }
     
     bool rtOk = rtSameSurface();
-    float rtAoV = rtOk ? mix(1.0, sampleRtAo(ivec2(gl_FragCoord.xy), textureSize(rtAoTex, 0)), RT_AO_STRENGTH) : 1.0;
+    float rtAoV = rtOk ? mix(1.0, sampleRtAo(rtPx(), textureSize(rtAoTex, 0)), RT_AO_STRENGTH) : 1.0;
 
     vec3 baseAmbient = vec3(0.03) * albedo;
     vec3 indirectDiffuse = baseAmbient;
@@ -457,8 +459,8 @@ void main()
     
     if (rtOk && textureSize(rtGiTex, 0).x > 1)
     {
-        vec3 giD = sampleNrdGi(ivec2(gl_FragCoord.xy), textureSize(rtGiTex, 0))
-                 * albedo * (1.0 - metallic) * RT_GI_STRENGTH;
+        vec3 giD = sampleNrdGi(rtPx(), textureSize(rtGiTex, 0))
+            * albedo * (1.0 - metallic) * RT_GI_STRENGTH;
         indirectDiffuse = indirectDiffuse * RT_GI_BASE_KEEP + giD;
     }
 
@@ -471,7 +473,7 @@ void main()
         float rr = mr.g;
         vec3 Fr = F0 + (max(vec3(1.0 - rr), F0) - F0) * pow(1.0 - NdotVr, 5.0);
         float visR = (1.0 - rr) * (1.0 - rr);
-        vec3 rc = sampleReflBlurred(ivec2(gl_FragCoord.xy), textureSize(rtReflection, 0), rr);
+        vec3 rc = sampleReflBlurred(rtPx(), textureSize(rtReflection, 0), rr);
         color += rc * Fr * visR * RT_REFL_STRENGTH;
     }
 

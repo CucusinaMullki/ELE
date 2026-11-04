@@ -16,6 +16,9 @@ public:
 
     virtual ~Pass() = default;
 
+    static constexpr uint32_t kGBufBinding = 16;
+    void setGBuffer(Pass* gbuffer) { m_gbuf = gbuffer; }
+
     bool create(Context& ctx, uint32_t frames, uint32_t w, uint32_t h);
     virtual void destroy(Context& ctx);
     virtual void record(Context& ctx, ASH::CommandBuffer* cmd, uint32_t frame);
@@ -77,6 +80,7 @@ private:
     VkBuffer m_geoBuf = VK_NULL_HANDLE;
     std::vector<VkImageView> m_albedo, m_normal;
     uint32_t m_frameCounter = 0;
+    Pass* m_gbuf = nullptr;
 };
 
 }

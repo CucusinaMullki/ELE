@@ -3,35 +3,24 @@
 #extension GL_GOOGLE_include_directive : require
 
 #include "rt_common.glsl"
+#include "gbuffer.glsl"
 
 layout(set = 0, binding = 1, rgba16f) uniform writeonly image2D reflOut;
 
 void main()
 {
     ivec2 px = ivec2(gl_LaunchIDEXT.xy);
-    vec2 uv = (vec2(px) + 0.5) / vec2(gl_LaunchSizeEXT.xy);
-    vec4 wp = inverse(cam.viewProjNoJitter) * vec4(uv * 2.0 - 1.0, 0.5, 1.0);
-    vec3 origin = cam.camPos.xyz;
-    vec3 dir = normalize(wp.xyz / wp.w - origin);
-
-    // первичный луч
-    pl.t = -1.0;
-    traceRayEXT(tlas, gl_RayFlagsNoneEXT, 0xFF, 0, 0, 0, origin, 0.01, dir, 10000.0, 0);
-
-    // Промах: alpha = 0 — "отражения нет", как было раньше.
-    if (pl.t <= 0.0)
+    vec3 origin, dir, P, N;
+    float t0;
+    if (!loadSurface(origin, dir, P, N, t0))
     {
         imageStore(reflOut, px, vec4(0.0));
         return;
     }
 
-    float t0 = pl.t;
-    vec3 N = pl.normal;
-    vec3 P = origin + dir * t0;
     vec3 R = reflect(dir, N);
     float tMin = 0.02 + t0 * 0.0005;
 
-    // луч отражения
     pl.t = -1.0;
     traceRayEXT(tlas, gl_RayFlagsNoneEXT, 0xFF, 0, 0, 0, P, tMin, R, 10000.0, 0);
 

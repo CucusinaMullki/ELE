@@ -93,6 +93,11 @@ bool Pass::createLayouts(Context& ctx)
         b.push_back({ o.binding, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, kRgen, nullptr });
         f.push_back(0);
     }
+    if (m_gbuf)
+    {
+        b.push_back({ kGBufBinding, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, kRgen, nullptr });
+        f.push_back(0);
+    }
 
     VkDescriptorSetLayoutBindingFlagsCreateInfo bf{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO};
     bf.bindingCount = uint32_t(f.size());
@@ -196,7 +201,7 @@ bool Pass::createSets(Context& ctx)
 {
     VkDevice dev = ctx.device();
     const uint32_t n = m_frames;
-    const uint32_t outCount = std::max<uint32_t>(uint32_t(m_outDesc.size()), 1u);
+    const uint32_t outCount = std::max<uint32_t>(uint32_t(m_outDesc.size()) + (m_gbuf ? 1u : 0u), 1u);
 
     const VkDescriptorPoolSize sizes[5] = {
         { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, n },
@@ -259,6 +264,8 @@ void Pass::updateSet(Context& ctx, uint32_t frame)
       .buffer(4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, m_geoBuf);
     for (size_t i = 0; i < m_outDesc.size(); ++i)
         dw.image(m_outDesc[i].binding, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, out(i, frame), VK_IMAGE_LAYOUT_GENERAL);
+    if (m_gbuf)
+        dw.image(kGBufBinding, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, m_gbuf->image(frame), VK_IMAGE_LAYOUT_GENERAL);
     dw.commit(ctx.device());
 
     if (m_albedo.empty() || m_albedo.size() != m_normal.size() || !m_sampler) return;
@@ -294,7 +301,8 @@ bool Pass::canTrace(uint32_t frame) const
         && m_tlas && m_geoBuf
         && m_cam[frame] && m_light[frame]
         && !m_albedo.empty()
-        && out(0, frame);
+        && out(0, frame)
+        && (!m_gbuf || m_gbuf->image(frame));
 }
 
 void Pass::bindFrameBuffers(Context& ctx, uint32_t frame, ASH::Buffer* camera, ASH::Buffer* lights)
@@ -357,7 +365,6 @@ void Pass::record(Context& ctx, ASH::CommandBuffer* cmd, uint32_t frame)
         if (m_outDesc[i].sampledAfter)
             transition(cmd, out(i, frame), S::General, S::ShaderReadOnly);
 }
-
 
 void Pass::destroy(Context& ctx)
 {

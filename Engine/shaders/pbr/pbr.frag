@@ -377,6 +377,9 @@ const float RT_GI_BASE_KEEP = 0.25;
 const int RT_GI_RADIUS = 2;
 const int RT_GI_STEP = 2;
 const bool USE_NRD_GI = true;
+const float RT_SCALE = 0.5;
+
+ivec2 rtPx() { return ivec2(gl_FragCoord.xy * RT_SCALE); }
 
 vec3 ycocgToLinear(vec3 c)
 {
@@ -489,7 +492,7 @@ void main()
     bool rtRefl = textureSize(rtReflection, 0).x > 1;
     vec4 refl = vec4(0.0);
     if (rtRefl)
-        refl = texelFetch(rtReflection, min(ivec2(gl_FragCoord.xy), textureSize(rtReflection, 0) - 1), 0);
+        refl = texelFetch(rtReflection, min(rtPx(), textureSize(rtReflection, 0) - 1), 0);
 
     vec3 N = texture(normalMap, fragTexCoord).rgb;
     N = N * 2.0 - 1.0;
@@ -579,14 +582,14 @@ void main()
 
     if (RT_GI_PIXEL && textureSize(rtGiTex, 0).x > 1)
     {
-        ivec2 gp = ivec2(gl_FragCoord.xy);
+        ivec2 gp = rtPx();
         ivec2 gs = textureSize(rtGiTex, 0);
         vec3 giRaw = USE_NRD_GI ? sampleNrdGi(gp, gs) : sampleRtGi(gp, gs);
         vec3 giD = giRaw * albedo * (1.0 - metallic) * RT_GI_STRENGTH;
         indirectDiffuse = indirectDiffuse * RT_GI_BASE_KEEP + giD;
     }
 
-    float rtAoV = mix(1.0, sampleRtAo(ivec2(gl_FragCoord.xy), textureSize(rtAoTex, 0)), RT_AO_STRENGTH);
+    float rtAoV = mix(1.0, sampleRtAo(rtPx(), textureSize(rtAoTex, 0)), RT_AO_STRENGTH);
     vec3 ambient = shapeAmbient(indirectDiffuse) * ao * rtAoV;
     
     vec3 color = ambient + Lo;
@@ -612,7 +615,7 @@ void main()
         float rr = mr.g;
         vec3 F = F0 + (max(vec3(1.0 - rr), F0) - F0) * pow(1.0 - NdotV, 5.0);
         float vis = (1.0 - rr) * (1.0 - rr);
-        vec3 rc = sampleReflBlurred(ivec2(gl_FragCoord.xy), textureSize(rtReflection, 0), rr);
+        vec3 rc = sampleReflBlurred(rtPx(), textureSize(rtReflection, 0), rr);
         color += rc * F * vis * RT_REFL_STRENGTH;
     }
     
