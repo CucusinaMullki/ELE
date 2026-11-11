@@ -67,3 +67,15 @@ or, on Nix (to pick up ALSA from the Nix store at runtime):
 
 - `pipeline_cache.bin` and `imgui.ini` at the repo root are runtime-generated state (Vulkan pipeline cache / ImGui layout) and will change on every run — see `.gitignore`.
 - `ELE_USE_NRD` (default `ON`, in `Engine/CMakeLists.txt`) controls whether the NVIDIA Real-Time Denoiser is built in for the RT passes.
+
+## License
+
+The original source code in this repository is licensed under the
+[Apache License, Version 2.0](LICENSE).
+
+This project depends on several third-party libraries under their own
+licenses (MIT, Zlib, Unlicense, and NVIDIA's proprietary RTX SDK License for
+the optional NRD denoiser) — none of them are covered by the Apache-2.0
+license above. See [NOTICE](NOTICE) and
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the full breakdown,
+required attributions, and NRD-specific restrictions.
