@@ -10,7 +10,7 @@ layout(set = 0, binding = 2) uniform CameraUBO {
     vec4 camPos; vec4 iblParams;
 } cam;
 
-struct Light { vec4 position; vec4 color; };
+#include "light.glsl"
 layout(set = 0, binding = 3) uniform LightUBO {
     Light lights[16];
     ivec4 count;
@@ -21,9 +21,10 @@ layout(set = 0, binding = 3) uniform LightUBO {
 struct HitPayload { float t; vec3 normal; vec2 uv; vec3 albedo; uint objectIndex; uint materialIndex; };
 layout(location = 0) rayPayloadEXT HitPayload pl;
 
-const int   SHADOW_SAMPLES     = 2;
+const int SHADOW_SAMPLES = 2;
+const int RECT_SHADOW_SAMPLES = 4;
 const float POINT_LIGHT_RADIUS = 0.15;
-const float MIN_RADIANCE       = 0.002;
+const float MIN_RADIANCE = 0.002;
 
 float traceShadow(vec3 origin, vec3 dir, float tMin, float tMax)
 {
@@ -40,6 +41,13 @@ float ign(vec2 p)
     return fract(m.z * fract(dot(p, m.xy)));
 }
 
+float traceTo(vec3 P, vec3 target, float tMin)
+{
+    vec3 toT = target - P;
+    float dT = length(toT);
+    return traceShadow(P, toT / dT, tMin, dT - tMin);
+}
+
 float softPointShadow(vec3 P, vec3 lightPos, float tMin, vec2 px)
 {
     vec3 Lc = normalize(lightPos - P);
@@ -54,12 +62,26 @@ float softPointShadow(vec3 P, vec3 lightPos, float tMin, vec2 px)
         float r = sqrt((float(i) + 0.5) / float(SHADOW_SAMPLES));
         float a = float(i) * 2.3999632 + rot;
         vec2 d = r * vec2(cos(a), sin(a));
-        vec3 target = lightPos + (T * d.x + B * d.y) * POINT_LIGHT_RADIUS;
-        vec3 toT = target - P;
-        float dT = length(toT);
-        vis += traceShadow(P, toT / dT, tMin, dT - tMin);
+        vis += traceTo(P, lightPos + (T * d.x + B * d.y) * POINT_LIGHT_RADIUS, tMin);
     }
     return vis / float(SHADOW_SAMPLES);
+}
+
+float softRectShadow(vec3 P, Light l, float tMin, vec2 px)
+{
+    const vec3 C  = l.position.xyz;
+    const vec3 rx = l.right.xyz;
+    const vec3 ry = cross(l.direction.xyz, rx);
+    const float hw = l.params.x, hh = l.params.y;
+
+    vec2 shift = vec2(ign(px), ign(px + vec2(17.0, 59.0)));
+    float vis = 0.0;
+    for (int i = 0; i < RECT_SHADOW_SAMPLES; ++i)
+    {
+        vec2 u = fract(vec2(0.7548777, 0.5698403) * float(i + 1) + shift) * 2.0 - 1.0;
+        vis += traceTo(P, C + rx * (u.x * hw) + ry * (u.y * hh), tMin);
+    }
+    return vis / float(RECT_SHADOW_SAMPLES);
 }
 
 void main()
@@ -74,11 +96,13 @@ void main()
         vec3 P = Ps + N * 0.01;
         float tMin = 0.02 + t0 * 0.0005;
 
-        if (lightData.count.x > 0 && lightData.lights[0].position.w < 0.5)
+        for (int i = 0; i < lightData.count.x; ++i)
         {
-            vec3 L = normalize(-lightData.lights[0].position.xyz);
+            if (lightType(lightData.lights[i]) != LIGHT_DIRECTIONAL) continue;
+            vec3 L = normalize(-lightData.lights[i].position.xyz);
             if (dot(N, L) > 0.0)
                 result.r = traceShadow(P, L, tMin, 10000.0);
+            break;
         }
 
         for (int s = 0; s < 3; ++s)
@@ -86,14 +110,24 @@ void main()
             int idx = (s == 0) ? lightData.count.y : ((s == 1) ? lightData.count.z : lightData.count.w);
             if (idx < 0 || idx >= lightData.count.x) continue;
             Light light = lightData.lights[idx];
-            if (light.position.w < 0.5) continue;
+            const int lt = lightType(light);
+            if (lt == LIGHT_DIRECTIONAL) continue;
 
             vec3 toL = light.position.xyz - P;
             float d2 = dot(toL, toL);
             if (d2 <= tMin * tMin) continue;
+            if (light.color.a / d2 < MIN_RADIANCE) continue;
+
+            if (lt == LIGHT_RECT)
+            {
+                if (light.right.w < 0.5 && dot(P - light.position.xyz, light.direction.xyz) <= 0.0) continue;
+                result[s + 1] = softRectShadow(P, light, tMin, vec2(px));
+                continue;
+            }
 
             if (dot(N, toL) <= 0.0) continue;
-            if (light.color.a / d2 < MIN_RADIANCE) continue;
+
+            if (lt == LIGHT_SPOT && dot(-normalize(toL), light.direction.xyz) < light.params.y) continue;
 
             result[s + 1] = softPointShadow(P, light.position.xyz, tMin, vec2(px));
         }

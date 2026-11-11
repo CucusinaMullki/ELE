@@ -5,7 +5,6 @@
 #include "rt_common.glsl"
 #include "probe_dirs.glsl"
 
-// x = индекс луча, y = слот зонда в текущей пачке
 layout(set = 0, binding = 10, std430) buffer RayBuf { vec4 rays[]; } rayBuf;
 layout(set = 0, binding = 11) uniform ProbeInfo { vec4 originSpacing; uvec4 dims; } probeInfo;
 layout(set = 0, binding = 12, std430) readonly buffer ProbeData { float probeData[]; };
@@ -14,7 +13,7 @@ layout(push_constant) uniform Push { uint frameIndex; uint histValid; uint probe
 
 const float PROBE_RANGE = 60.0;
 const float PROBE_CLAMP = 8.0;
-const float PROBE_SKY_STRENGTH = 0.0;   // небо для зондов (общий SKY_STRENGTH = 0 для отражений/GI)
+const float PROBE_SKY_STRENGTH = 0.0;
 
 void main()
 {
@@ -43,7 +42,7 @@ void main()
     if (pl.t > 0.0) {
         vec3 hp = pos + dir * pl.t;
         vec3 hn = pl.normal;
-        if (dot(hn, dir) > 0.0) hn = -hn;   // нормаль смотрит навстречу лучу
+        if (dot(hn, dir) > 0.0) hn = -hn;
         vec3 alb = pl.albedo;
         dist = pl.t;
         col = min(shadeHit(hp, hn, alb), vec3(PROBE_CLAMP));

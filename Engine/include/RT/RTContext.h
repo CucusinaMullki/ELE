@@ -47,4 +47,4 @@ private:
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProps{};
     VkPhysicalDeviceAccelerationStructurePropertiesKHR m_asProps{};
 };
-} // namespace RT
+}

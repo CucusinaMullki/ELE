@@ -2,7 +2,7 @@
 
 layout(binding = 0) uniform sampler2D image;
 
-layout(push_constant) uniform Push 
+layout(push_constant) uniform Push
 {
     vec2 direction;
 } push;
@@ -26,5 +26,5 @@ void main()
         result += texture(image, fragUV - offset).rgb * weights[i];
     }
 
-    outColor = vec4(result, 1.0);    
+    outColor = vec4(result, 1.0);
 }

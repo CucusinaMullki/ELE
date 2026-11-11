@@ -7,7 +7,7 @@
 class ImageWidget : public Widget
 {
 public:
-    ImageWidget(std::shared_ptr<Texture> texture) : m_texture(texture) 
+    ImageWidget(std::shared_ptr<Texture> texture) : m_texture(texture)
     {
         m_descriptorSet = ImGui_ImplVulkan_AddTexture(
             (VkSampler)m_texture->getSampler(),

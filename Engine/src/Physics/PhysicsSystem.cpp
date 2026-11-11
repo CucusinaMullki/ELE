@@ -17,6 +17,7 @@
 #include <Jolt/Physics/Collision/Shape/Shape.h>
 #include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
 #include "Components/TriggerComponent.h"
+#include "Core/Log.h"
 #include <thread>
 
 std::vector<JPH::BodyID> PhysicsSystem::queryOverlappingBodies(glm::vec3 position, float radius)
@@ -36,6 +37,18 @@ std::vector<JPH::BodyID> PhysicsSystem::queryOverlappingBodies(glm::vec3 positio
         result.push_back(hit.mBodyID2);
 
     return result;
+}
+
+void PhysicsSystem::destroyBody(JPH::BodyID id)
+{
+    if (id.IsInvalid() || !m_physicsSystem) return;
+
+    m_bodyOwners.erase(id.GetIndexAndSequenceNumber());
+
+    JPH::BodyInterface& bi = m_physicsSystem->GetBodyInterface();
+    if (bi.IsAdded(id))
+        bi.RemoveBody(id);
+    bi.DestroyBody(id);
 }
 
 bool PhysicsSystem::isSensor(JPH::BodyID id) const
@@ -185,8 +198,7 @@ JPH::BodyID PhysicsSystem::createTriggerBox(glm::vec3 position, glm::vec3 halfEx
     return bodyInterface().CreateAndAddBody(settings, JPH::EActivation::DontActivate);
 }
 
-JPH::BodyID PhysicsSystem::createDynamicConvexHull(const std::vector<glm::vec3>& positions,
-    glm::vec3 worldPosition, float mass)
+static JPH::ShapeRefC makeConvexHull(const std::vector<glm::vec3>& positions)
 {
     JPH::Array<JPH::Vec3> points;
     points.reserve(positions.size());
@@ -194,8 +206,35 @@ JPH::BodyID PhysicsSystem::createDynamicConvexHull(const std::vector<glm::vec3>&
         points.push_back(JPH::Vec3(p.x, p.y, p.z));
 
     JPH::ConvexHullShapeSettings shapeSettings(points);
-    JPH::ShapeSettings::ShapeResult shapeResult = shapeSettings.Create();
-    JPH::ShapeRefC shape = shapeResult.Get();
+    JPH::ShapeSettings::ShapeResult result = shapeSettings.Create();
+    if (result.HasError())
+    {
+        std::fprintf(stderr, "convex hull failed: %s (%zu points)\n",
+                     result.GetError().c_str(), positions.size());
+        return nullptr;
+    }
+    return result.Get();
+}
+
+JPH::BodyID PhysicsSystem::createKinematicConvexHull(const std::vector<glm::vec3>& positions, glm::vec3 worldPosition)
+{
+    JPH::ShapeRefC shape = makeConvexHull(positions);
+    if (!shape) return JPH::BodyID();
+
+    JPH::BodyCreationSettings settings(shape,
+        JPH::RVec3(worldPosition.x, worldPosition.y, worldPosition.z),
+        JPH::Quat::sIdentity(),
+        JPH::EMotionType::Kinematic,
+        Layers::MOVING);
+
+    return bodyInterface().CreateAndAddBody(settings, JPH::EActivation::Activate);
+}
+
+JPH::BodyID PhysicsSystem::createDynamicConvexHull(const std::vector<glm::vec3>& positions,
+    glm::vec3 worldPosition, float mass)
+{
+    JPH::ShapeRefC shape = makeConvexHull(positions);
+    if (!shape) return JPH::BodyID();
 
     JPH::BodyCreationSettings settings(shape,
         JPH::RVec3(worldPosition.x, worldPosition.y, worldPosition.z),
@@ -300,26 +339,6 @@ void PhysicsSystem::setBodyTransform(JPH::BodyID id, glm::vec3 position, glm::qu
 
     bodyInterface().SetPosition(id, jPos, JPH::EActivation::Activate);
     bodyInterface().SetRotation(id, jRot, JPH::EActivation::Activate);
-}
-
-JPH::BodyID PhysicsSystem::createKinematicConvexHull(const std::vector<glm::vec3>& positions, glm::vec3 worldPosition)
-{
-    JPH::Array<JPH::Vec3> points;
-    points.reserve(positions.size());
-    for (const auto& p : positions)
-        points.push_back(JPH::Vec3(p.x, p.y, p.z));
-
-    JPH::ConvexHullShapeSettings shapeSettings(points);
-    JPH::ShapeSettings::ShapeResult shapeResult = shapeSettings.Create();
-    JPH::ShapeRefC shape = shapeResult.Get();
-
-    JPH::BodyCreationSettings settings(shape,
-        JPH::RVec3(worldPosition.x, worldPosition.y, worldPosition.z),
-        JPH::Quat::sIdentity(),
-        JPH::EMotionType::Kinematic,
-        Layers::MOVING);
-
-    return bodyInterface().CreateAndAddBody(settings, JPH::EActivation::Activate);
 }
 
 JPH::BodyID PhysicsSystem::createKinematicBox(glm::vec3 position, glm::vec3 halfExtent)

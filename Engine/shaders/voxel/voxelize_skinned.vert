@@ -12,7 +12,7 @@ layout(binding = 6) uniform BoneMatrices
     mat4 bones[100];
 } boneData;
 
-layout(push_constant) uniform Push 
+layout(push_constant) uniform Push
 {
     mat4 model;
     vec4 voxelGridMin;

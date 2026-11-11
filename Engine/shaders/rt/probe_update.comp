@@ -2,7 +2,6 @@
 #extension GL_GOOGLE_include_directive : require
 #include "probe_dirs.glsl"
 
-// Один workgroup = один зонд, 64 потока = 64 луча (должно совпадать с kRaysPerProbe).
 layout(local_size_x = 64) in;
 
 layout(set = 0, binding = 0, std430) readonly buffer RayBuf { vec4 rays[]; } rayBuf;
@@ -11,7 +10,6 @@ layout(set = 0, binding = 2, std430) buffer ProbeData { float probeData[]; };
 
 layout(push_constant) uniform Push { uint frameIndex; uint probeOffset; uint rayCount; uint pad; } pc;
 
-// Доля старого значения в смеси. Больше = стабильнее, но медленнее реагирует на изменения света.
 const float HYSTERESIS = 0.90;
 const float PI = 3.14159265;
 
@@ -28,7 +26,6 @@ void main()
     uint probeIdx = (pc.probeOffset + slot) % total;
     uint base = probeIdx * 28u;
 
-    // Невалидный зонд (внутри геометрии / не запечён) не трогаем. Условие одинаково для всей группы.
     if (probeData[base + 27u] < 0.5) return;
 
     vec4 ray = rayBuf.rays[slot * pc.rayCount + lane];
@@ -59,9 +56,7 @@ void main()
         float sum = 0.0;
         for (uint k = 0u; k < 64u; ++k) sum += s_part[lane][k];
 
-        // Монте-Карло проекция: L_lm = 4π/N · Σ L·Y.
-        // Свёртка с косинусом: A_l/π = {1, 2/3, 1/4} для l = 0, 1, 2 (коэффициенты хранятся уже свёрнутыми).
-        uint band = lane / 3u;                       // индекс базисной функции 0..8
+        uint band = lane / 3u;
         float conv = (band == 0u) ? 1.0 : (band < 4u ? (2.0 / 3.0) : 0.25);
         float v = sum * (4.0 * PI / float(pc.rayCount)) * conv;
 

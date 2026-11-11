@@ -7,7 +7,7 @@ class ProgressBarWidget : public Widget
 {
 public:
     ProgressBarWidget(float initialValue = 0.0f) : m_value(initialValue) {}
-    
+
     void draw() override
     {
         ImGui::SetNextWindowPos(ImVec2(m_position.x, m_position.y));
@@ -15,7 +15,7 @@ public:
 
         ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs
             | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
-        
+
         ImGui::Begin(("##progress_" + std::to_string((uintptr_t)this)).c_str(), nullptr, flags);
 
         ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(m_fillColor.r, m_fillColor.g, m_fillColor.b, m_fillColor.a));

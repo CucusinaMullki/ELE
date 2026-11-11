@@ -16,7 +16,7 @@ public:
     void removeObject(const std::shared_ptr<GameObject>& obj)
     {
         m_objects.erase(std::remove(m_objects.begin(), m_objects.end(), obj), m_objects.end());
-        m_version++;   // ДОБАВИТЬ — состав объектов изменился
+        m_version++;
     }
 
     void flush() { flushPenging(); }
@@ -25,12 +25,11 @@ public:
     {
         m_objects.clear();
         m_pendingObjects.clear();
-        m_version++;   // ДОБАВИТЬ
+        m_version++;
     }
 
     const std::vector<std::shared_ptr<GameObject>>& getObjects() const { return m_objects; }
 
-    // ДОБАВИТЬ — версия увеличивается при каждом структурном изменении списка объектов
     uint32_t getVersion() const { return m_version; }
 
     GameObject* findByName(const std::string& name) const

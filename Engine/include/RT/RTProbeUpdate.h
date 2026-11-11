@@ -3,7 +3,6 @@
 
 namespace RT
 {
-// Compute-проход: сворачивает результаты лучей зондов в SH-коэффициенты probeData.
 class ProbeUpdatePass
 {
 public:
@@ -11,7 +10,6 @@ public:
     void destroy(Context& ctx);
     bool ready() const { return m_pipeline != VK_NULL_HANDLE; }
 
-    // Вызывать только когда GPU простаивает (меняется дескриптор).
     bool bind(Context& ctx, VkBuffer rays, VkBuffer info, VkBuffer data);
     void record(VkCommandBuffer cmd, uint32_t frameIndex, uint32_t probeOffset,
                 uint32_t batch, uint32_t rayCount);

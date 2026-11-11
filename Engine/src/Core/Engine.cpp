@@ -6,6 +6,7 @@
 #include <iostream>
 #include <cstdio>
 #include "Core/Log.h"
+#include "Scene/PropertyIO.h"
 #include "Core/Path.h"
 #include "RT/Blas.h"
 #include <glm/gtc/type_ptr.hpp>
@@ -15,6 +16,212 @@
 #include "Components/TriggerComponent.h"
 #include "Components/RigidBodyComponent.h"
 #include "Components/TransformComponent.h"
+
+namespace { Engine* g_dropEngine = nullptr; }
+
+class EngineSceneAssets final : public ISceneAssets
+{
+public:
+    explicit EngineSceneAssets(Engine& e) : m_e(e) {}
+    void applyAsset(GameObject& o) override { m_e.applySceneAsset(o); }
+    void finalize(GameObject& o) override { m_e.finalizeSceneObject(o); }
+    bool loadLevel(const std::string& path) override
+    {
+        try { m_e.loadLevel(path); return true; }
+        catch (const std::exception& ex) { LOG("loadScene: level: " << ex.what()); return false; }
+    }
+private:
+    Engine& m_e;
+};
+
+const LoadedModel& Engine::cachedModel(const std::string& path)
+{
+    auto it = m_modelCache.find(path);
+    if (it == m_modelCache.end())
+        it = m_modelCache.emplace(path, loadModel(path)).first;
+    return it->second;
+}
+
+void Engine::clearScene()
+{
+    m_renderer.getDevice()->waitIdle();
+    m_scene.clear();
+    if (m_rt) m_rt->sync(m_scene);
+}
+
+void Engine::applySceneAsset(GameObject& o)
+{
+    switch (o.asset.kind)
+    {
+    case AssetRef::Kind::LevelMesh:
+    {
+        auto it = m_levelCache.find(o.asset.path);
+        if (it == m_levelCache.end())
+        {
+            const std::filesystem::path file = Paths::assetDir() / o.asset.path;
+            LevelLoader loader;
+            loader.load(o.asset.path);
+            it = m_levelCache.emplace(o.asset.path, loadLevelAssets(loader, file.parent_path())).first;
+        }
+        const LevelAssets& la = it->second;
+        if (o.asset.index < 0 || o.asset.index >= (int)la.meshes.size())
+        {
+            LOG("loadScene: '" << o.name << "' bad mesh index " << o.asset.index);
+            return;
+        }
+        o.mesh = la.meshes[o.asset.index];
+        for (const auto& sm : o.mesh->getSubmeshes())
+            if (sm.materialIndex >= 0 && sm.materialIndex < (int)la.materials.size())
+                o.setMaterial(la.materials[sm.materialIndex]);
+        break;
+    }
+    case AssetRef::Kind::Model:
+    {
+        const LoadedModel& m = cachedModel(o.asset.path);
+        o.mesh      = m.mesh;
+        o.materials = m.materials;
+        break;
+    }
+    default: break;
+    }
+}
+
+void Engine::finalizeSceneObject(GameObject& o)
+{
+    if (o.asset.kind != AssetRef::Kind::Skeletal) return;
+
+    const LoadedModel& m = cachedModel(o.asset.path);
+    auto* sk = o.getComponent<SkeletalMeshComponent>();
+    if (!sk)
+        sk = &o.addComponent<SkeletalMeshComponent>(m_renderer.getDevice(), m_renderer.getFramesInFlight());
+
+    sk->setSkeletalMesh(m.skeletalMesh);
+    o.materials = m.materials;
+    for (auto& mat : o.materials)
+        createSkinnedMaterialDescriptorSet(mat, *sk);
+}
+
+bool Engine::saveScene(const std::string& path)
+{
+    return SceneSerializer::save(m_scene, (Paths::assetDir() / path).string(), m_currentLevel);
+}
+
+GameObject& Engine::addDirectionalLight(glm::vec3 direction, glm::vec3 color, float intensity)
+{
+    auto& obj = m_scene.addObject();
+    obj.name = "DirectionalLight";
+    setLightRotation(obj.transform, direction);
+    auto& lc = obj.addComponent<LightComponent>();
+    lc.type = LightType::Directional;
+    lc.color = color;
+    lc.intensity = intensity;
+    return obj;
+}
+
+GameObject& Engine::addPointLight(glm::vec3 position, glm::vec3 color, float intensity)
+{
+    auto& obj = m_scene.addObject();
+    obj.name = "PointLight";
+    obj.transform.position = position;
+    auto& lc = obj.addComponent<LightComponent>();
+    lc.type = LightType::Point;
+    lc.color = color;
+    lc.intensity = intensity;
+    return obj;
+}
+
+GameObject& Engine::addSpotLight(glm::vec3 position, glm::vec3 direction, glm::vec3 color, float intensity,
+    float innerDeg, float outerDeg, float range)
+{
+    auto& obj = m_scene.addObject();
+    obj.name = "SpotLight";
+    obj.transform.position = position;
+    setLightRotation(obj.transform, direction);
+    auto& lc = obj.addComponent<LightComponent>();
+    lc.type = LightType::Spot;
+    lc.color = color;
+    lc.intensity = intensity;
+    lc.innerAngle = innerDeg;
+    lc.outerAngle = outerDeg;
+    lc.range = range;
+    return obj;
+}
+
+GameObject& Engine::addRectLight(glm::vec3 position, glm::vec3 normal, glm::vec3 right, glm::vec2 size,
+    glm::vec3 color, float intensity, bool twoSided, float range)
+{
+    auto& obj = m_scene.addObject();
+    obj.name = "RectLight";
+    obj.transform.position = position;
+    setLightRotation(obj.transform, normal, right);
+    auto& lc = obj.addComponent<LightComponent>();
+    lc.type = LightType::Rect;
+    lc.color = color;
+    lc.intensity = intensity;
+    lc.size = size;
+    lc.twoSided = twoSided;
+    lc.range = range;
+    return obj;
+}
+
+void Engine::gatherLights()
+{
+    m_lights = {};
+    for (const auto& obj : m_scene.getObjects())
+    {
+        auto* lc = obj->getComponent<LightComponent>();
+        if (!lc || !lc->enabled) continue;
+        if (m_lights.count.x >= MAX_LIGHTS) break;
+        m_lights.lights[m_lights.count.x++] = lc->toGpu(obj->transform);
+    }
+}
+
+GameObject& Engine::duplicateObject(GameObject& src)
+{
+    BinaryWriter w;
+    SceneSerializer::writeObject(w, src);
+    BinaryReader r(w.data().data(), w.size());
+
+    EngineContext ctx = componentContext();
+    EngineSceneAssets assets(*this);
+    GameObject* copy = SceneSerializer::readObject(r, m_scene, ctx, assets);
+    if (!copy) throw std::runtime_error("duplicate failed: " + src.name);
+
+    copy->name = src.name + " (copy)";
+    copy->fromLevel = src.fromLevel;
+    copy->levelProperties = src.levelProperties;
+
+    if (m_rt) { m_scene.flush(); m_rt->sync(m_scene); }
+    return *copy;
+}
+
+EngineContext Engine::componentContext()
+{
+    EngineContext c;
+    c.device = m_renderer.getDevice();
+    c.physics = &m_physics;
+    c.framesInFlight = m_renderer.getFramesInFlight();
+    c.audio = &m_audio;
+    c.input = &m_input;
+    c.time = &m_time;
+    c.camera = &m_camera;
+    return c;
+}
+
+bool Engine::loadScene(const std::string& path)
+{
+    EngineContext ctx = componentContext();
+    EngineSceneAssets assets(*this);
+    const bool ok = SceneSerializer::load(m_scene, (Paths::assetDir() / path).string(), ctx, assets);
+
+    if (m_rt)
+    {
+        m_scene.flush();
+        m_rt->sync(m_scene);
+        rebindRtTextures();
+    }
+    return ok;
+}
 
 std::vector<unsigned char> applyMRFactors(const unsigned char* src, int w, int h,
     float metallicFactor, float roughnessFactor)
@@ -50,10 +257,16 @@ void Engine::initialize(int width, int height, const std::string& title)
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     m_window = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
     m_physics.initialize();
+    registerEngineComponents(ComponentRegistry::instance());
     m_audio.initialize();
     glfwSetWindowUserPointer(m_window, this);
     glfwSetFramebufferSizeCallback(m_window, [](GLFWwindow* win, int, int) {
         static_cast<Engine*>(glfwGetWindowUserPointer(win))->onFramebufferResize();
+    });
+    g_dropEngine = this;
+    glfwSetDropCallback(m_window, [](GLFWwindow*, int count, const char** paths) {
+        if (g_dropEngine && g_dropEngine->m_fileDrop)
+            g_dropEngine->m_fileDrop(std::vector<std::string>(paths, paths + count));
     });
     m_renderer.initialize(m_window);
     m_renderer.initImGui(m_window);
@@ -69,15 +282,15 @@ void Engine::initialize(int width, int height, const std::string& title)
         const uint32_t frames = m_renderer.getFramesInFlight();
         int fw = 0, fh = 0;
         glfwGetFramebufferSize(m_window, &fw, &fh);
-        
+
         if (rt->init(m_renderer.getDevice(), frames, (uint32_t)fw, (uint32_t)fh))
         {
-            m_rt = std::move(rt); 
-            std::cout << "RT: enabled and initialized successfully\n"; 
+            m_rt = std::move(rt);
+            std::cout << "RT: enabled and initialized successfully\n";
         }
         else
-        { 
-            std::cout << "RT: init FAILED. Check console logs above!\n"; 
+        {
+            std::cout << "RT: init FAILED. Check console logs above!\n";
         }
     }
     static const unsigned char white[4] = { 255, 255, 255, 255 };
@@ -110,6 +323,8 @@ void Engine::initialize(int width, int height, const std::string& title)
         m_rt->sync(m_scene);
         installRtHook();
     }
+
+    Script::setEngine(this);
 }
 
 void Engine::installRtHook()
@@ -171,8 +386,6 @@ void Engine::onFramebufferResize()
         glfwGetFramebufferSize(m_window, &fw, &fh);
         if (fw > 0 && fh > 0)
         {
-            // RT-картинки пересоздаются под новый размер -> материалы надо перепривязать,
-            // иначе они ссылаются на удалённые текстуры.
             m_rt->resize((uint32_t)fw, (uint32_t)fh);
             rebindRtTextures();
         }
@@ -281,16 +494,19 @@ void Engine::run()
 {
     float fpsTimer = 0.0f;
     int frameCount = 0;
-    
+
     while (!glfwWindowShouldClose(m_window))
     {
         glfwPollEvents();
         m_renderer.beginImGuiFrame();
         m_ui.draw();
+        if (m_guiCallback) m_guiCallback();
 
         int fbWidth, fbHeight;
         glfwGetFramebufferSize(m_window, &fbWidth, &fbHeight);
-        if (fbHeight > 0)
+        if (m_viewportAspect > 0.0f)
+            m_camera.setAspect(m_viewportAspect);
+        else if (fbHeight > 0)
             m_camera.setAspect((float)fbWidth / (float)fbHeight);
 
         float now = static_cast<float>(glfwGetTime());
@@ -303,14 +519,19 @@ void Engine::run()
         m_time.update(rawDeltaTime);
 
         int fixedSteps = m_time.isPaused() ? 0 : m_time.consumeFixedSteps();
+        if (!m_simulationEnabled) fixedSteps = 0;
         for (int i = 0; i < fixedSteps; i++)
         {
             fixedUpdate(m_time.fixedDeltaTime());
             m_scene.fixedUpdateComponents(m_time.fixedDeltaTime());
         }
 
-        updateInput(m_time.deltaTime());
-        m_scene.updateComponents(m_time.deltaTime());
+        if (m_cameraInputEnabled)
+            updateInput(m_time.deltaTime());
+        if (m_simulationEnabled)
+            m_scene.updateComponents(m_time.deltaTime());
+        else
+            m_scene.flush();
 
         fpsTimer += m_time.deltaTime();
         frameCount++;
@@ -321,12 +542,32 @@ void Engine::run()
             fpsTimer = 0.0f;
         }
 
+        gatherLights();
         m_renderer.setLights(m_lights);
         m_renderer.setTotalTime((float)m_time.totalTime());
         m_renderer.drawScene(m_scene, m_camera);
     }
 
     m_renderer.getDevice()->waitIdle();
+}
+
+GameObject& Engine::spawnModel(const std::string& path)
+{
+    const LoadedModel& m = cachedModel(path);
+    auto& obj = m_scene.addObject();
+    obj.name = std::filesystem::path(path).stem().string();
+    obj.asset = { m.hasSkeleton ? AssetRef::Kind::Skeletal : AssetRef::Kind::Model, path };
+
+    if (m.hasSkeleton) finalizeSceneObject(obj);
+    else applySceneAsset(obj);
+
+    if (m_rt)
+    {
+        m_scene.flush();
+        m_rt->sync(m_scene);
+        rebindRtTextures();
+    }
+    return obj;
 }
 
 void Engine::fixedUpdate(float fixedDt)
@@ -336,6 +577,8 @@ void Engine::fixedUpdate(float fixedDt)
 
 void Engine::shutdown()
 {
+    g_dropEngine = nullptr;
+    if (m_window) glfwSetDropCallback(m_window, nullptr);
     if (m_cleaned) return;
     m_cleaned = true;
 
@@ -345,6 +588,8 @@ void Engine::shutdown()
         m_rt.reset();
     }
 
+    m_modelCache.clear();
+    m_levelCache.clear();
     m_renderer.setPreMainPassHook(nullptr);
     m_rtMaterials.clear();
     m_rtMaskSampler.reset();
@@ -441,7 +686,7 @@ GameObject& Engine::loadGltfObject(const std::string& path)
         const unsigned char* mPx = mrAdjusted.data();
 
         auto mat = std::make_shared<Material>();
-        mat->loadFromPixels(m_renderer.getDevice(), 
+        mat->loadFromPixels(m_renderer.getDevice(),
             aPx, aw, ah, nPx, nw, nh, mPx, mw, mh, oPx, ow, oh,
             lPx, lw, lh, gm.hasLightmap);
 
@@ -503,7 +748,7 @@ GameObject& Engine::loadGltfObject(const std::string& path)
     for (const auto& nv : model.getNavVolumes())
     {
 
-        LOG("Building navmesh: volume size=(" << nv.size.x << "," << nv.size.y << "," << nv.size.z 
+        LOG("Building navmesh: volume size=(" << nv.size.x << "," << nv.size.y << "," << nv.size.z
             << ") cellSize=" << nv.cellSize);
         glm::vec3 volumeMin = nv.position - nv.size;
         glm::vec3 volumeMax = nv.position + nv.size;
@@ -545,15 +790,6 @@ const FogSettings& Engine::getFogSettings() const
     return m_fogSettings;
 }
 
-void Engine::addDirectionalLight(glm::vec3 direction, glm::vec3 color, float intensity)
-{
-    int i = m_lights.count.x;
-    if (i >= MAX_LIGHTS) return;
-    m_lights.lights[i].position = glm::vec4(direction, 0.0f);
-    m_lights.lights[i].color = glm::vec4(color, intensity);
-    m_lights.count.x++;
-}
-
 GameObject& Engine::loadLevel(const std::string& path)
 {
     std::filesystem::path levelFile(path);
@@ -575,45 +811,12 @@ GameObject& Engine::loadLevel(const std::string& path)
             m_renderer.getParticles().load(partPath.string());
     }
 
-    std::vector<std::shared_ptr<Mesh>> meshes;
-    for (const auto& levelMesh : loader.getMeshes())
-    {
-        std::vector<Submesh> submeshes;
-        for (const auto& sm : levelMesh.submeshes)
-        {
-            Submesh submesh{};
-            submesh.materialIndex = sm.materialIndex;
-            submesh.firstIndex = sm.indexOffset;
-            submesh.indexCount = sm.indexCount;
-            submesh.boundsMin = sm.boundsMin;
-            submesh.boundsMax = sm.boundsMax;
-            submeshes.push_back(submesh);
-        }
+    const std::string levelRel = std::filesystem::relative(levelFile, Paths::assetDir()).generic_string();
+    m_currentLevel = levelRel;
 
-        auto mesh = std::make_shared<Mesh>();
-        mesh->loadFromData(m_renderer.getDevice(), levelMesh.vertices, levelMesh.indices, submeshes);
-        meshes.push_back(mesh);
-        if (m_rt) m_rt->addMesh(mesh.get(), levelMesh.vertices, levelMesh.indices, submeshes);
-    }
-
-    static const unsigned char white[4] = { 255, 255, 255, 255 };
-    static const unsigned char normalPx[4] = { 128, 128, 255, 255 };
-    static const unsigned char defaultMR[4] = { 0, 128, 0, 255 };
-    static const unsigned char black[4] = { 0, 0, 0, 255 };
-
-    std::vector<std::shared_ptr<Material>> materials;
-    for (const auto& levelMat : loader.getMaterials())
-    {
-        auto mat = std::make_shared<Material>();
-        mat->loadFromFiles(m_renderer.getDevice(),
-            Paths::resolveAsset(levelMat.albedoPath, levelDir).string(),
-            Paths::resolveAsset(levelMat.normalPath, levelDir).string(),
-            Paths::resolveAsset(levelMat.metallicRoughnessPath, levelDir).string());
-
-        createMaterialDescriptorSet(mat);
-        m_resources.registerMaterial(mat);
-        materials.push_back(mat);
-    }
+    LevelAssets& la = m_levelCache[levelRel] = loadLevelAssets(loader, levelDir);
+    auto& meshes = la.meshes;
+    auto& materials = la.materials;
 
     GameObject* rootObject = nullptr;
 
@@ -621,12 +824,15 @@ GameObject& Engine::loadLevel(const std::string& path)
     {
         auto& obj = m_scene.addObject();
         obj.name = levelObj.name;
+        obj.fromLevel = true;
+        obj.levelProperties = levelObj.customProperties;
+        if (levelObj.meshIndex >= 0)
+            obj.asset = { AssetRef::Kind::LevelMesh, levelRel, levelObj.meshIndex };
 
-        if (levelObj.meshIndex < 0)
-        {
-            glm::vec3 pos = glm::vec3(levelObj.transform[3]);
-            obj.transform.position = pos;
-        }
+        if (levelObj.hasTrs)
+            obj.transform = levelObj.trs;
+        else if (levelObj.meshIndex < 0)
+            obj.transform.position = glm::vec3(levelObj.transform[3]);
 
         auto entityTypeIt = levelObj.customProperties.find("entity_type");
         if (entityTypeIt != levelObj.customProperties.end())
@@ -644,7 +850,6 @@ GameObject& Engine::loadLevel(const std::string& path)
                     obj.setMaterial(materials[sm.materialIndex]);
             }
         }
-
 
         auto it = levelObj.customProperties.find("collision_shape");
         if (it != levelObj.customProperties.end())
@@ -695,14 +900,42 @@ GameObject& Engine::loadLevel(const std::string& path)
     LOG("LevelLoader: lightCount=" << loader.getLights().size());
     for (const auto& light : loader.getLights())
     {
-        LOG("Level light: type=" << light.type << " intensity=" << light.intensity
-            << " pos=(" << light.position.x << "," << light.position.y << "," << light.position.z << ")");
+        if (light.hasComponent)
+        {
+            auto& obj = m_scene.addObject();
+            obj.name = light.name;
+            obj.fromLevel = true;
+            obj.transform = light.trs;
+            auto& lc = obj.addComponent<LightComponent>();
+            BinaryPropertyReader pr(BinaryReader(light.componentData.data(), light.componentData.size()));
+            lc.visit(pr);
+            if (!rootObject) rootObject = &obj;
+            continue;
+        }
+
+        GameObject* lo = nullptr;
         switch (light.type)
         {
-            case 0: addDirectionalLight(light.direction, light.color, light.intensity * 0.1f); break;
-            case 1: addPointLight(light.position, light.color, light.intensity * 0.1f); break;
+            case 0: lo = &addDirectionalLight(light.direction, light.color, light.intensity * 0.1f); break;
+            case 1: lo = &addPointLight(light.position, light.color, light.intensity * 0.1f); break;
             default: break;
         }
+        if (lo)
+        {
+            lo->fromLevel = true;
+            if (!rootObject) rootObject = lo;
+        }
+    }
+
+    for (const auto& sp : loader.getSpawns())
+    {
+        auto& obj = m_scene.addObject();
+        obj.name = sp.name;
+        obj.fromLevel = true;
+        obj.transform = sp.trs;
+        obj.levelProperties = sp.properties;
+        obj.addComponent<SpawnPointComponent>(sp.type);
+        if (!rootObject) rootObject = &obj;
     }
 
     if (m_rt)
@@ -713,7 +946,72 @@ GameObject& Engine::loadLevel(const std::string& path)
         LOG("RT: TLAS instances = " << m_rt->instanceCount() << ", geometries = " << m_rt->geometryCount() << "\n");
     }
 
+    if (!rootObject)
+        throw std::runtime_error("loadLevel: level is empty: " + levelRel);
     return *rootObject;
+}
+
+bool Engine::saveLevel(const std::string& outPath)
+{
+    if (m_currentLevel.empty())
+    {
+        LOG("saveLevel: no level loaded");
+        return false;
+    }
+    const std::string out = outPath.empty() ? m_currentLevel : outPath;
+    if (!LevelWriter::save((Paths::assetDir() / m_currentLevel).string(),
+        (Paths::assetDir() / out).string(), m_scene))
+        return false;
+    m_currentLevel = std::filesystem::path(out).generic_string();
+    return true;
+}
+
+std::vector<GameObject*> Engine::findSpawnPoints(const std::string& type)
+{
+    std::vector<GameObject*> out;
+    for (const auto& o : m_scene.getObjects())
+        if (auto* sp = o->getComponent<SpawnPointComponent>())
+            if (type.empty() || sp->spawnType == type)
+                out.push_back(o.get());
+    return out;
+}
+
+Engine::LevelAssets Engine::loadLevelAssets(const LevelLoader& loader, const std::filesystem::path& levelDir)
+{
+    LevelAssets out;
+
+    for (const auto& levelMesh : loader.getMeshes())
+    {
+        std::vector<Submesh> submeshes;
+        for (const auto& sm : levelMesh.submeshes)
+        {
+            Submesh submesh{};
+            submesh.materialIndex = sm.materialIndex;
+            submesh.firstIndex = sm.indexOffset;
+            submesh.indexCount = sm.indexCount;
+            submesh.boundsMin = sm.boundsMin;
+            submesh.boundsMax = sm.boundsMax;
+            submeshes.push_back(submesh);
+        }
+        auto mesh = std::make_shared<Mesh>();
+
+        mesh->loadFromData(m_renderer.getDevice(), levelMesh.vertices, levelMesh.indices, submeshes, true);
+        if (m_rt) m_rt->addMesh(mesh.get(), levelMesh.vertices, levelMesh.indices, submeshes);
+        out.meshes.push_back(mesh);
+    }
+
+    for (const auto& levelMat : loader.getMaterials())
+    {
+        auto mat = std::make_shared<Material>();
+        mat->loadFromFiles(m_renderer.getDevice(),
+            Paths::resolveAsset(levelMat.albedoPath, levelDir).string(),
+            Paths::resolveAsset(levelMat.normalPath, levelDir).string(),
+            Paths::resolveAsset(levelMat.metallicRoughnessPath, levelDir).string());
+        createMaterialDescriptorSet(mat);
+        m_resources.registerMaterial(mat);
+        out.materials.push_back(mat);
+    }
+    return out;
 }
 
 Animation Engine::loadAnimation(const std::string& path)
@@ -748,13 +1046,13 @@ LoadedModel Engine::loadModel(const std::string& path)
 
         auto skeleton = std::make_shared<Skeleton>(loader.buildSkeleton());
         skeletalMesh->setSkeleton(skeleton);
-        
+
         result.skeletalMesh = skeletalMesh;
     }
     else
     {
         auto mesh = std::make_shared<Mesh>();
-        mesh->loadFromData(m_renderer.getDevice(), loader.getVertices(), loader.getIndices(), submeshes);
+        mesh->loadFromData(m_renderer.getDevice(), loader.getVertices(), loader.getIndices(), submeshes, true);
         m_resources.registerMesh(mesh);
         if (m_rt) m_rt->addMesh(mesh.get(), loader.getVertices(), loader.getIndices(), submeshes);
         result.mesh = mesh;
@@ -765,28 +1063,39 @@ LoadedModel Engine::loadModel(const std::string& path)
     static const unsigned char defaultMR[4] = { 0, 128, 0, 255 };
     static const unsigned char black[4] = { 0, 0, 0, 255 };
 
+    auto fullPath = [](const std::string& p) { return p.empty() ? p : (Paths::assetDir() / p).string(); };
+
+    auto loadPixels = [](const std::string& path, int& w, int& h) -> unsigned char*
+    {
+        if (path.empty()) return nullptr;
+        unsigned char* px = stbi_load(path.c_str(), &w, &h, nullptr, STBI_rgb_alpha);
+        if (!px) LOG("loadModel: cannot load texture " << path << ": " << stbi_failure_reason());
+        return px;
+    };
+
     for (const auto& modelMat : loader.getMaterials())
     {
-        int aw, ah, nw, nh, mw, mh;
+        int aw = 1, ah = 1, nw = 1, nh = 1, mw = 1, mh = 1, ow = 1, oh = 1;
 
-        unsigned char* aPixels = modelMat.albedoPath.empty() ? nullptr :
-            stbi_load(modelMat.albedoPath.c_str(), &aw, &ah, nullptr, STBI_rgb_alpha);
+        unsigned char* aPixels = loadPixels(fullPath(modelMat.albedoPath), aw, ah);
         const unsigned char* aPx = aPixels ? aPixels : white;
         if (!aPixels) { aw = 1; ah = 1; }
 
-        unsigned char* nPixels = modelMat.normalPath.empty() ? nullptr :
-            stbi_load(modelMat.normalPath.c_str(), &nw, &nh, nullptr, STBI_rgb_alpha);
+        unsigned char* nPixels = loadPixels(fullPath(modelMat.normalPath), nw, nh);
         const unsigned char* nPx = nPixels ? nPixels : normalPx;
         if (!nPixels) { nw = 1; nh = 1; }
 
-        unsigned char* mPixels = modelMat.metallicRoughnessPath.empty() ? nullptr :
-            stbi_load(modelMat.metallicRoughnessPath.c_str(), &mw, &mh, nullptr, STBI_rgb_alpha);
+        unsigned char* mPixels = loadPixels(fullPath(modelMat.metallicRoughnessPath), mw, mh);
         const unsigned char* mPx = mPixels ? mPixels : defaultMR;
         if (!mPixels) { mw = 1; mh = 1; }
 
+        unsigned char* oPixels = loadPixels(fullPath(modelMat.aoPath), ow, oh);
+        const unsigned char* oPx = oPixels ? oPixels : white;
+        if (!oPixels) { ow = 1; oh = 1; }
+
         auto mat = std::make_shared<Material>();
         mat->loadFromPixels(m_renderer.getDevice(),
-            aPx, aw, ah, nPx, nw, nh, mPx, mw, mh, white, 1, 1,
+            aPx, aw, ah, nPx, nw, nh, mPx, mw, mh, oPx, ow, oh,
             black, 1, 1, false);
 
         createMaterialDescriptorSet(mat);
@@ -796,19 +1105,10 @@ LoadedModel Engine::loadModel(const std::string& path)
         if (aPixels) stbi_image_free(aPixels);
         if (nPixels) stbi_image_free(nPixels);
         if (mPixels) stbi_image_free(mPixels);
+        if (oPixels) stbi_image_free(oPixels);
     }
 
     return result;
-}
-
-void Engine::addPointLight(glm::vec3 position, glm::vec3 color, float intensity)
-{
-    int i = m_lights.count.x;
-    if (i >= MAX_LIGHTS) return;
-    m_lights.lights[i].position = glm::vec4(position, 1.0f); 
-    m_lights.lights[i].color = glm::vec4(color, intensity);
-    LOG("addPointLight called with y=" << position.y);
-    m_lights.count.x++;
 }
 
 std::shared_ptr<ScreenSpaceDecal> Engine::addScreenSpaceDecal(const std::string& texturePath,

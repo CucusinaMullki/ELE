@@ -15,14 +15,14 @@ public:
 
         ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs
             | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBackground;
-        
+
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 
         ImGui::Begin(("##text_" + std::to_string((uintptr_t)this)).c_str(), nullptr, flags);
         ImGui::SetWindowFontScale(m_fontScale);
         ImGui::TextColored(ImVec4(m_color.r, m_color.g, m_color.b, m_color.a), "%s", m_text.c_str());
         ImGui::End();
-    
+
         ImGui::PopStyleVar();
     }
 

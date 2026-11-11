@@ -1,4 +1,4 @@
-shell.nix
+*.nix
 .direnv/
 result
 result-*
@@ -25,3 +25,16 @@ compile_commands.json
 *.swo
 .clangd/
 .cache
+pipeline_cache.bin
+pipelina_cache.bin
+
+imgui.ini
+
+*.ktx2
+
+CMakeUserPresets.json
+
+*~
+*.bak
+.DS_Store
+.vs/

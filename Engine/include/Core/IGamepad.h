@@ -23,7 +23,7 @@ public:
     virtual ~IGamepad() = default;
 
     virtual void update() = 0;
-    
+
     virtual bool isConnected() const = 0;
     virtual bool isButtonPressed(GamepadButton button) const = 0;
     virtual bool isButtonJustPressed(GamepadButton button) const = 0;

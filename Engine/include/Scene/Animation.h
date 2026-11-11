@@ -25,7 +25,7 @@ public:
     std::vector<JointAnimationChannel> channels;
 
     glm::mat4 sampleJointTransform(const std::string& jointName, float time) const;
-    
+
 private:
     static glm::vec3 interpolatePosition(const std::vector<PositionKey>& keys, float time);
     static glm::quat interpolateRotation(const std::vector<RotationKey>& keys, float time);

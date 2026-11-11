@@ -5,8 +5,9 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 #include "Core/PhysicsLayers.h"
-#include <glm/gtc/quaternion.hpp> 
+#include <glm/gtc/quaternion.hpp>
 #include <glm/glm.hpp>
+#include "Physics/PhysicsDebugDraw.h"
 #include <memory>
 #include <Jolt/Physics/Collision/ContactListener.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
@@ -60,6 +61,11 @@ public:
     void update(float fixedDeltaTime);
     void cleanup();
 
+    bool collectDebugLines(const PhysicsDebugOptions& opt, glm::vec3 cameraPos, std::vector<DebugLine>& out)
+    {
+        return m_physicsSystem && collectPhysicsDebugLines(*m_physicsSystem, opt, cameraPos, out);
+    }
+
     JPH::BodyInterface& bodyInterface() { return m_physicsSystem->GetBodyInterface(); }
 
     JPH::BodyID createStaticBox(glm::vec3 position, glm::vec3 halfExtent);
@@ -85,6 +91,7 @@ public:
     TriggerContactListener& getContactListener() { return m_contactListener; }
 
     void registerBody(JPH::BodyID id, GameObject* owner) { m_bodyOwners[id.GetIndexAndSequenceNumber()] = owner; }
+    void destroyBody(JPH::BodyID id);
     GameObject* getOwner(JPH::BodyID id) const
     {
         auto it = m_bodyOwners.find(id.GetIndexAndSequenceNumber());

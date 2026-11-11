@@ -3,7 +3,7 @@
 
 class SimpleNavMeshBuilder : public NavMeshBuilder
 {
-public: 
+public:
     NavMesh build(PhysicsSystem& physics, glm::vec3 volumeMin, glm::vec3 volumeMax, float cellSize) override;
 
 private:

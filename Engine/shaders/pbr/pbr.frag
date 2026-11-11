@@ -19,10 +19,7 @@ layout(binding = 2) uniform sampler2D normalMap;
 layout(binding = 3) uniform sampler2D metallicRoughnessMap;
 layout(binding = 4) uniform sampler2D aoMap;
 
-struct Light {
-    vec4 position;
-    vec4 color;
-};
+#include "light.glsl"
 
 layout(binding = 5) uniform LightUBO {
     Light lights[16];
@@ -372,7 +369,7 @@ const float RT_AO_STRENGTH = 1.0;
 const bool RT_AO_DEBUG = true;
 const bool RT_GI_PIXEL = true;
 const bool RT_GI_DEBUG = false;
-const float RT_GI_STRENGTH = 1.0;
+const float RT_GI_STRENGTH = 0.5;
 const float RT_GI_BASE_KEEP = 0.25;
 const int RT_GI_RADIUS = 2;
 const int RT_GI_STEP = 2;
@@ -508,19 +505,13 @@ void main()
     {
         Light light = lightData.lights[i];
         vec3 L, radiance;
+        float lightDist;
+        if (!evalLight(light, fragWorldPos, R, L, radiance, lightDist))
+            continue;
 
-        if (light.position.w < 0.5) {
-            L = normalize(-light.position.xyz);
-            radiance = light.color.rgb * light.color.a;
-        }
-        else
+        const int lt = lightType(light);
+        if (lt != LIGHT_DIRECTIONAL)
         {
-            vec3 toLight = light.position.xyz - fragWorldPos;
-            float dist2 = max(dot(toLight, toLight), 0.01);
-            L = normalize(toLight);
-            float atten = 1.0 / dist2;
-            radiance = light.color.rgb * light.color.a * atten;
-
             int shadowSlot = -1;
             if (i == lightData.count.y) shadowSlot = 0;
             else if (i == lightData.count.z) shadowSlot = 1;
@@ -530,7 +521,7 @@ void main()
             {
                 if (rtShadows)
                     radiance *= rtMask[shadowSlot + 1];
-                else
+                else if (lt != LIGHT_RECT)
                 {
                     float pShadow = calculatePointShadow(fragWorldPos, light.position.xyz, N, gl_FragCoord.xy, shadowSlot);
                     radiance *= (1.0 - pShadow);
@@ -565,10 +556,7 @@ void main()
         }
     }
 
-    //vec3 irradiance = texture(irradianceMap, N).rgb;
-    //vec3 ambientDiffuse = irradiance * albedo * (1.0 - metallic) * cam.iblParams.x;
-    //vec3 ambient = ambientDiffuse * ao;
-    
+
     vec3 iblAmbient = texture(irradianceMap, N).rgb * albedo * (1.0 - metallic) * cam.iblParams.x;
 
     vec3 indirectDiffuse = iblAmbient;
@@ -591,7 +579,7 @@ void main()
 
     float rtAoV = mix(1.0, sampleRtAo(rtPx(), textureSize(rtAoTex, 0)), RT_AO_STRENGTH);
     vec3 ambient = shapeAmbient(indirectDiffuse) * ao * rtAoV;
-    
+
     vec3 color = ambient + Lo;
 
     if (RT_GI_DEBUG && RT_GI_PIXEL)
@@ -600,15 +588,9 @@ void main()
 
     vec3 lightmapColor = texture(lightmapMap, fragLightmapUV).rgb;
     color += lightmapColor * 0.05 * ao;
-    
-    //vec3 rawVoxel = sampleAtlasVoxel(fragWorldPos);
-    //outColor = vec4(rawVoxel * 2.0, 1.0);
-    //return;
 
-    //if (probeInfo.dims.w != 0u) { outColor = vec4(sampleProbes(fragWorldPos, N).rgb, 0.05); return; }
-    //if (rtShadows) { outColor = vec4(rtMask.gba, 1.0); return; }
-    //if (rtRefl) { outColor = vec4(refl.rgb, 1.0); return; }
-    
+
+
     if (rtRefl)
     {
         float NdotV = max(dot(N, V), 0.0);
@@ -618,7 +600,7 @@ void main()
         vec3 rc = sampleReflBlurred(rtPx(), textureSize(rtReflection, 0), rr);
         color += rc * F * vis * RT_REFL_STRENGTH;
     }
-    
+
     float alpha = texture(albedoMap, fragTexCoord).a;
     outColor = vec4(color, alpha);
 

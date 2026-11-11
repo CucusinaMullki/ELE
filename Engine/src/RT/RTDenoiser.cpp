@@ -310,7 +310,6 @@ void Denoiser::record(Context& ctx, ASH::CommandBuffer* cmd, uint32_t frame,
     }
     fullBarrierDn(vk);
 
-    // ---- common settings ----
     nrd::CommonSettings cs{};
     const float* pv = m_hasPrev ? m_prevView : view;
     const float* pp = m_hasPrev ? m_prevProj : proj;

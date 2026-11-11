@@ -219,7 +219,7 @@ void VoxelGI::bakeChunk(ASH::CommandBuffer* cmd, ChunkCoord coord, int32_t atlas
                 glm::vec4 gridSize;
                 glm::ivec4 atlasOffset;
             } push{};
-            
+
             float voxelWorldSize = chunkSize / (float)m_chunkResolution;
             float paddingWorld = voxelWorldSize * (float)PADDING;
             glm::vec3 expandedMin = chunkWorldMin - glm::vec3(paddingWorld);
@@ -230,7 +230,7 @@ void VoxelGI::bakeChunk(ASH::CommandBuffer* cmd, ChunkCoord coord, int32_t atlas
             push.gridSize = glm::vec4(expandedSize, 0.0f);
             push.atlasOffset = glm::ivec4((int)atlasOffsetX, (int)atlasOffsetY, (int)atlasOffsetZ, (int)paddedResolution);
             cmd->pushConstants(m_voxelizePipeline.getPipeline(), ASH::ShaderStage::Vertex | ASH::ShaderStage::Fragment, 0, sizeof(ChunkVoxelizePush), &push);
-                    
+
             obj->mesh->drawSubmesh(cmd, sm);
         }
     }

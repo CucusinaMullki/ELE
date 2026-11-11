@@ -1,5 +1,4 @@
 #pragma once
-// Engine/include/Vulkan/Particles.h
 #include "ASH/ASH.h"
 #include "Vulkan/Pipeline.h"
 #include "Vulkan/ComputePipeline.h"
@@ -12,9 +11,6 @@
 #include <string>
 #include <vector>
 
-// Частицы на GPU. На CPU ничего не считается: в видеокарту уходят записи из .eparticles
-// (один SSBO), compute-шейдер считает состояние каждой частицы в выходной SSBO,
-// графический проход рисует билборды из него.
 class Particles
 {
 public:

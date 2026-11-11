@@ -2,7 +2,7 @@
 #extension GL_GOOGLE_include_directive : require
 #include "brdf.glsl"
 
-layout(binding = 0) uniform sampler2D decalTexture;      // albedo.rgb + базовая opacity в .a
+layout(binding = 0) uniform sampler2D decalTexture;
 layout(binding = 1) uniform sampler2D depthTexture;
 
 layout(binding = 2) uniform Camera {
@@ -12,7 +12,7 @@ layout(binding = 2) uniform Camera {
     vec4 camPos;
 } cam;
 
-struct Light { vec4 position; vec4 color; };
+#include "light.glsl"
 layout(binding = 3) uniform LightUBO {
     Light lights[16];
     ivec4 count;

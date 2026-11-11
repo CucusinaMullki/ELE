@@ -1,4 +1,3 @@
-// RTProbeUpdate.cpp
 #include "RT/RTProbeUpdate.h"
 #include "Vulkan/ShaderLoader.h"
 #include <vector>
@@ -108,7 +107,6 @@ void ProbeUpdatePass::record(VkCommandBuffer cmd, uint32_t frameIndex, uint32_t 
 {
     if (!m_pipeline || !m_bound || batch == 0) return;
 
-    // До: всё предыдущее (в т.ч. растр прошлого кадра, читавший probeData) и трассировка лучей -> compute.
     VkMemoryBarrier mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
     mb.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
     mb.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;

@@ -1,6 +1,6 @@
 #pragma once
 #include "Scene/ProbeGrid.h"
-#include <ASH/ASH.h>      // как у тебя в VoxelGI.h
+#include <ASH/ASH.h>
 #include <memory>
 #include <string>
 

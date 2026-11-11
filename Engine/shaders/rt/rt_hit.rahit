@@ -4,7 +4,6 @@
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_buffer_reference_uvec2 : require
 
-// Общий any-hit для всех RT-проходов: альфа-тест по albedo.a.
 hitAttributeEXT vec2 attribs;
 
 layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer VertexBuf { float v[]; };
@@ -29,6 +28,5 @@ void main()
 
     float a = textureLod(albedoTex[nonuniformEXT(e.materialIndex)], uv, 0.0).a;
 
-    // В GL_EXT_ray_tracing это оператор, а не функция: без скобок.
     if (a < 0.5) ignoreIntersectionEXT;
 }

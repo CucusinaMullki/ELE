@@ -11,7 +11,7 @@ namespace RT
 bool World::init(ASH::Device* device, uint32_t frames, uint32_t w, uint32_t h)
 {
     LOG("RT: World::init() START\n");
-    
+
     m_ready = m_ctx.init(device);
     if (!m_ready) {
         LOG("RT: ERROR - m_ctx.init() FAILED\n");
@@ -217,7 +217,7 @@ World::SkinInst* World::getOrCreateSkinned(GameObject& o, SkeletalMeshComponent&
 
 void World::bindFrameBuffers(uint32_t frame, ASH::Buffer* camera, ASH::Buffer* lights)
 {
-    if (m_master) m_master->bindFrameBuffers(frame, camera, lights);   // во все проходы
+    if (m_master) m_master->bindFrameBuffers(frame, camera, lights);
 }
 
 void World::updateSkinned(const ::Scene& scene, ASH::CommandBuffer* cmd, uint32_t frame)
@@ -316,7 +316,7 @@ bool World::sync(const ::Scene& scene)
         in.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR | VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR;
         in.accelerationStructureReference = asAddr;
 
-        if (skin || o.isDynamic || o.hasComponent<RigidBodyComponent>()) dyn.push_back({(uint32_t)inst.size(), i});
+        if (m_allDynamic || skin || o.isDynamic || o.hasComponent<RigidBodyComponent>()) dyn.push_back({(uint32_t)inst.size(), i});
         if (skin) skinList.push_back({&o, skin});
         inst.push_back(in);
     }

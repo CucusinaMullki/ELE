@@ -82,7 +82,7 @@ public:
     const std::vector<uint32_t>& getIndices() const { return m_indices; }
     const std::vector<Submesh>& getSubmesh() const { return m_submesh; }
     const std::vector<GltfImage>& getImage() const { return m_images; }
-    const std::vector<GltfMaterial>& getMaterials() const { return m_materials; } 
+    const std::vector<GltfMaterial>& getMaterials() const { return m_materials; }
     const std::vector<GltfLight>& getLights() const { return m_lights; }
     const std::vector<GltfDecal>& getDecals() const { return m_decals; }
     const std::vector<GltfCollider>& getColliders() const { return m_colliders; }
@@ -100,7 +100,7 @@ private:
     std::vector<GltfLight> m_lights;
     std::vector<GltfDecal> m_decals;
     std::vector<GltfCollider> m_colliders;
-    std::vector<GltfEntity> m_entities;  
+    std::vector<GltfEntity> m_entities;
     std::vector<GltfNavVolume> m_navVolumes;
     bool m_hasTangents = false;
 };

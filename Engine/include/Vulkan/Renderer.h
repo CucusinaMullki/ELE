@@ -44,6 +44,7 @@
 #include "Core/Camera.h"
 #include "ASH/ASH.h"
 #include <vulkan/vulkan.hpp>
+#include <imgui.h>
 #include <GLFW/glfw3.h>
 #include <functional>
 #include <future>
@@ -71,7 +72,7 @@ public:
     void addScreenSpaceDecal(std::shared_ptr<ScreenSpaceDecal> decal) { m_screenSpaceDecals.push_back(decal); }
     void setIBLSettings(const IBLSettings& settings) { m_iblSettings = settings; }
     void setVoxelGIEnabled(bool enabled) { m_voxelGIEnabled = enabled; }
-    
+
     void initImGui(GLFWwindow* window);
     void beginImGuiFrame();
     void renderImGui(ASH::CommandBuffer* commandBuffer);
@@ -106,6 +107,11 @@ public:
     ASH::Buffer* getVoxelGridInfoBuffer() const { return m_voxelGridInfoBuffer.get(); }
     Particles& getParticles() { return m_particles; }
 
+    void setViewportMode(bool enabled) { m_viewportMode = enabled; }
+    bool isViewportMode() const { return m_viewportMode; }
+    ImTextureID getViewportTexture();
+    ASH::Extent2D getViewportExtent() const { return m_swapchain.getExtent(); }
+
     using PreMainPassHook = std::function<void(ASH::CommandBuffer*, uint32_t frame)>;
     void setPreMainPassHook(PreMainPassHook h) { m_preMainPassHook = std::move(h); }
     const UniformBuffer& getUniformBuffer() const { return m_uniformBuffer; }
@@ -122,6 +128,10 @@ private:
         const Scene& scene, const Camera& camera);
 
     void recreateSwapchain();
+    void releaseViewportTexture();
+    bool m_viewportMode = false;
+    VkDescriptorSet m_viewportImGuiSet = VK_NULL_HANDLE;
+    VkImageView m_viewportView = VK_NULL_HANDLE;
 
     static const uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -145,7 +155,6 @@ private:
 
     PreMainPassHook m_preMainPassHook;
 
-    //Shadows
     ShadowMap m_shadowMap;
     ShadowRenderPass m_shadowRenderPass;
     Pipeline m_shadowPipeline;
@@ -165,7 +174,6 @@ private:
     LightData m_lightData{};
     LightData m_pendingLights{};
 
-    // Point light shadows
     PointShadowRenderPass m_pointShadowRenderPass;
     Pipeline m_pointShadowPipeline;
     float m_pointShadowFarPlane = 25.0f;
@@ -194,7 +202,6 @@ private:
     bool m_staticAtlasInTransferSrc = false;
     ASH::ResourceState m_pointAtlasState = ASH::ResourceState::Undefined;
 
-    //Bloom
     BloomTarget m_brightTarget;
     PostRenderPass m_postRenderPass;
 
@@ -218,14 +225,12 @@ private:
     float m_bloomThreshold = 4.0f;
     float m_contrast = 1.0f;
 
-    //VoxelGI
     VoxelGI m_voxelGI;
     bool m_hasVoxelGI = false;
     bool m_voxelGIEnabled = true;
     std::unique_ptr<ASH::Buffer> m_voxelizeShadowDataBuffer;
     std::unique_ptr<ASH::Buffer> m_voxelGridInfoBuffer;
 
-    //HDR
     HdrTarget m_hdrTarget;
     HdrRenderPass m_hdrRenderPass;
     std::unique_ptr<ASH::Framebuffer> m_hdrFramebuffer;
@@ -237,7 +242,6 @@ private:
     std::vector<std::unique_ptr<ASH::Fence>> m_inFlightFences;
     std::vector<ASH::Fence*> m_imagesInFlight;
 
-    //Anti Aliasing
     AAMethod m_aaMethod = AAMethod::None;
     std::unique_ptr<AntiAliasing> m_antiAliasing;
     LdrTarget m_ldrTarget;
@@ -262,7 +266,6 @@ private:
     std::vector<std::unique_ptr<ASH::DescriptorSet>> m_brightDescriptorSetsRaw;
     std::vector<std::unique_ptr<ASH::DescriptorSet>> m_postDescriptorSetsRaw;
 
-    //Decal
     Pipeline m_decalPipeline;
     DecalBox m_decalBox;
     DecalCameraBuffer m_decalCameraBuffer;
@@ -270,10 +273,8 @@ private:
     PostRenderPass m_hdrDecalRenderPass;
     std::unique_ptr<ASH::Framebuffer> m_hdrDecalFramebuffer;
 
-    //Particles
     Particles m_particles;
 
-    //Volumetric fog
     Pipeline m_fogPipeline;
     FogCameraBuffer m_fogCameraBuffer;
     std::vector<std::unique_ptr<ASH::DescriptorSet>> m_fogDescriptorSets;
@@ -281,7 +282,6 @@ private:
     void createFogDescriptorSets();
     float m_totalTime = 0.0f;
 
-    //God rays
     GodRayTarget m_godRayMaskTarget;
     GodRayTarget m_godRayBlurTarget;
     std::unique_ptr<ASH::Framebuffer> m_godRayMaskFramebuffer;

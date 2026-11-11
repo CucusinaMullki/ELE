@@ -29,15 +29,15 @@ class Blas
 {
 public:
     bool build(Context& ctx, const BlasInput& in);
-    
+
     bool create(Context& ctx, const void* vertices, uint32_t vertexCount,
         const uint32_t* indices, uint32_t indexCount,
         const BlasRange* ranges, uint32_t rangeCount);
-    
+
     void record(Context& ctx, const SkinPass& skin, VkCommandBuffer cmd, VkDescriptorSet set);
-    
+
     void destroy(Context& ctx);
-    
+
     uint64_t vertexAddress() const { return m_vb ? m_vb->getDeviceAddress() : 0; }
     uint64_t indexAddress()  const { return m_ib ? m_ib->getDeviceAddress() : 0; }
     const std::vector<BlasRange>& ranges() const { return m_ranges; }
@@ -49,7 +49,7 @@ private:
     std::unique_ptr<ASH::Buffer> m_storage;
     std::unique_ptr<ASH::Buffer> m_updateScratch;
     uint64_t m_updateScratchAddr = 0;
-    
+
     VkAccelerationStructureKHR m_as = VK_NULL_HANDLE;
     uint64_t m_address = 0;
     std::unique_ptr<ASH::Buffer> m_vb, m_ib;

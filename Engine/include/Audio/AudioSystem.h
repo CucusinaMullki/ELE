@@ -11,6 +11,10 @@ public:
     void initialize();
     void cleanup();
 
+    bool isLoaded(const std::string& name) const { return m_sounds.count(name) != 0; }
+    void unloadSound(const std::string& name);
+    void setLooping(const std::string& name, bool loop);
+
     bool loadSound(const std::string& name, const std::string& path);
 
     void playSound(const std::string& name, float volume = 1.0f);

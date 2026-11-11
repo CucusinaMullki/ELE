@@ -2,7 +2,7 @@
 
 layout(binding = 0) uniform sampler2D srcTexture;
 
-layout(push_constant) uniform Push 
+layout(push_constant) uniform Push
 {
     float radius;
 } push;

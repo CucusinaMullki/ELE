@@ -12,7 +12,7 @@ public:
     {}
 
     bool execute(AIController& ai, float deltaTime) override;
-    
+
 private:
     const NavMesh& m_navMesh;
     std::vector<glm::vec3> m_waypoints;

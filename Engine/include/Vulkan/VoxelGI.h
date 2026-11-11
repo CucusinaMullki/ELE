@@ -41,7 +41,7 @@ private:
     void updatePageTable(ASH::Device* device);
 
     static constexpr uint32_t PADDING = 1;
-    
+
     VoxelChunkManager m_chunkManager;
     VoxelTexture3D m_atlas;
     uint32_t m_chunkResolution = 32;

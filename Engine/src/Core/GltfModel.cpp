@@ -13,14 +13,14 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/matrix_decompose.hpp>
 
-namespace 
+namespace
 {
     const unsigned char* getAccessorPtr(const tinygltf::Model& model, int accessorIdx, size_t& count, size_t& stride)
     {
         const auto& accessor = model.accessors[accessorIdx];
         const auto& bufferView = model.bufferViews[accessor.bufferView];
         const auto& buffer = model.buffers[bufferView.buffer];
-        
+
         count = accessor.count;
         stride = accessor.ByteStride(bufferView);
 
@@ -39,7 +39,7 @@ void GltfModel::load(const std::string& path)
     bool isBinary = fullpath.size() > 4 && fullpath.substr(fullpath.size() - 4) == ".glb";
 
     bool ok = isBinary ? loader.LoadBinaryFromFile(&model, &err, &warn, fullpath) : loader.LoadASCIIFromFile(&model, &err, &warn, fullpath);
-    
+
     if (!warn.empty()) LOG("gltf warning: " << warn);
     if (!ok) throw std::runtime_error("failed to load glTF: " + fullpath + " " + err);
 
@@ -48,7 +48,7 @@ void GltfModel::load(const std::string& path)
     {
         if ((node.extras.Has("collision_shape") || node.extras.Has("nav_volume")) && node.mesh >= 0)
             collisionOnlyMeshIndices.insert(node.mesh);
-    }  
+    }
 
     for (const auto& mesh : model.meshes)
     {
@@ -72,7 +72,7 @@ void GltfModel::load(const std::string& path)
             auto normIt = primitive.attributes.find("NORMAL");
             if (normIt != primitive.attributes.end())
                 normData = getAccessorPtr(model, normIt->second, dummy, normStride);
-            
+
             const unsigned char* uvData = nullptr;
             size_t uvStride = 0;
             auto uvIt = primitive.attributes.find("TEXCOORD_0");
@@ -160,7 +160,7 @@ void GltfModel::load(const std::string& path)
 
                 m_indices.push_back(vertexStart + index);
             }
-        
+
             sm.indexCount = static_cast<uint32_t>(idxCount);
 
             glm::vec3 minB(FLT_MAX), maxB(-FLT_MAX);
@@ -182,7 +182,7 @@ void GltfModel::load(const std::string& path)
         GltfImage gi{};
         gi.width = img.width;
         gi.height = img.height;
-        
+
         if (img.component == 4)
         {
             gi.pixels = img.image;
@@ -200,7 +200,7 @@ void GltfModel::load(const std::string& path)
         }
         else
         {
-            gi.width = 1; 
+            gi.width = 1;
             gi.height = 1;
             gi.pixels = {255, 255, 255, 255};
         }
@@ -264,7 +264,7 @@ void GltfModel::load(const std::string& path)
                 ? node.extras.Get("collision_motion").Get<std::string>() : "static";
             collider.mass = node.extras.Has("collision_mass")
                 ? (float)node.extras.Get("collision_mass").Get<double>() : 1.0f;
-        
+
             glm::vec3 nodeScale(1.0f);
             if (!node.matrix.empty() && node.matrix.size() == 16)
             {
@@ -286,7 +286,7 @@ void GltfModel::load(const std::string& path)
                 if (node.scale.size() >= 3)
                     nodeScale = glm::vec3(node.scale[0], node.scale[1], node.scale[2]);
             }
-        
+
             if (node.mesh >= 0 && node.mesh < (int)model.meshes.size())
             {
                 const auto& mesh = model.meshes[node.mesh];
@@ -310,7 +310,7 @@ void GltfModel::load(const std::string& path)
             {
                 collider.size = nodeScale;
             }
-        
+
             m_colliders.push_back(collider);
             continue;
         }
@@ -370,7 +370,7 @@ void GltfModel::load(const std::string& path)
 
             LOG("gltf nav volume: pos=(" << volume.position.x << "," << volume.position.y << "," << volume.position.z
                 << ") size=(" << volume.size.x << "," << volume.size.y << "," << volume.size.z << ")");
-            
+
             m_navVolumes.push_back(volume);
             continue;
         }
@@ -424,7 +424,7 @@ void GltfModel::load(const std::string& path)
                 decal.normalPath = node.extras.Get("decal_normal").Get<std::string>();
             if (node.extras.Has("decal_mr"))
                 decal.mrPath = node.extras.Get("decal_mr").Get<std::string>();
-                
+
             if (!node.matrix.empty() && node.matrix.size() == 16)
             {
                 glm::mat4 m = glm::make_mat4(node.matrix.data());
@@ -453,7 +453,7 @@ void GltfModel::load(const std::string& path)
 
             m_decals.push_back(decal);
             continue;
-        
+
         }
 
         if (node.light < 0) continue;
@@ -463,7 +463,6 @@ void GltfModel::load(const std::string& path)
 
         GltfLight light{};
 
-        // Тип
         if (gltfLight.type == "directional") light.type = 0;
         else if (gltfLight.type == "point")  light.type = 1;
         else if (gltfLight.type == "spot")   light.type = 2;
@@ -496,7 +495,7 @@ void GltfModel::load(const std::string& path)
             }
         }
 
-        
+
 
         LOG("gltf light: type=" << light.type
             << " intensity=" << light.intensity
@@ -540,7 +539,7 @@ void GltfModel::computeTangents()
 
         v0.tangent += tangent;
         v1.tangent += tangent;
-        v2.tangent += tangent;        
+        v2.tangent += tangent;
     }
 
     for (auto& v : m_vertices)

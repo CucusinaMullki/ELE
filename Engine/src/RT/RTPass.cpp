@@ -274,7 +274,7 @@ void Pass::updateSet(Context& ctx, uint32_t frame)
     std::vector<VkDescriptorImageInfo> a(count), nrm(count);
     for (uint32_t k = 0; k < count; ++k)
     {
-        a[k]   = { m_sampler, m_albedo[k], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+        a[k] = { m_sampler, m_albedo[k], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
         nrm[k] = { m_sampler, m_normal[k], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
     }
     VkWriteDescriptorSet w[2]{};
@@ -369,11 +369,11 @@ void Pass::record(Context& ctx, ASH::CommandBuffer* cmd, uint32_t frame)
 void Pass::destroy(Context& ctx)
 {
     VkDevice dev = ctx.device();
-    if (m_pipeline)   vkDestroyPipeline(dev, m_pipeline, nullptr);
+    if (m_pipeline) vkDestroyPipeline(dev, m_pipeline, nullptr);
     if (m_pipeLayout) vkDestroyPipelineLayout(dev, m_pipeLayout, nullptr);
-    if (m_setLayout)  vkDestroyDescriptorSetLayout(dev, m_setLayout, nullptr);
-    if (m_pool)       vkDestroyDescriptorPool(dev, m_pool, nullptr);
-    if (m_sampler)    vkDestroySampler(dev, m_sampler, nullptr);
+    if (m_setLayout) vkDestroyDescriptorSetLayout(dev, m_setLayout, nullptr);
+    if (m_pool) vkDestroyDescriptorPool(dev, m_pool, nullptr);
+    if (m_sampler) vkDestroySampler(dev, m_sampler, nullptr);
     m_pipeline = VK_NULL_HANDLE;
     m_pipeLayout = VK_NULL_HANDLE;
     m_setLayout = VK_NULL_HANDLE;

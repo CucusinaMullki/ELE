@@ -5,7 +5,7 @@
 void GLFWGamepad::update()
 {
     m_prevState = m_currState;
-    
+
     if (glfwJoystickIsGamepad(m_jid) && glfwGetGamepadState(m_jid, &m_currState))
         m_hasState = true;
     else
@@ -81,10 +81,10 @@ float GLFWGamepad::getAxis(GamepadAxis axis) const
     if (axis == GamepadAxis::LeftTrigger || axis == GamepadAxis::RightTrigger)
         value = (value + 1.0f) * 0.5f;
 
-    if (axis == GamepadAxis::LeftX || axis == GamepadAxis::LeftY || 
+    if (axis == GamepadAxis::LeftX || axis == GamepadAxis::LeftY ||
         axis == GamepadAxis::RightX || axis == GamepadAxis::RightY)
     {
-        if (std::abs(value) < DEADZONE) value = 0.0f;   
+        if (std::abs(value) < DEADZONE) value = 0.0f;
     }
 
     return value;

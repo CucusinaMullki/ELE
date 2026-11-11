@@ -5,5 +5,5 @@ layout(location = 1) rayPayloadInEXT float shadowHit;
 
 void main()
 {
-    shadowHit = 0.0; // Попали в объект = тень
+    shadowHit = 0.0;
 }

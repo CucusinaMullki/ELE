@@ -7,6 +7,7 @@
 #include <vector>
 #include <typeindex>
 #include "Scene/Animation.h"
+#include "Scene/AssetRef.h"
 #include <unordered_map>
 
 class GameObject
@@ -20,6 +21,9 @@ public:
     std::unordered_map<std::string, std::shared_ptr<Animation>> animations;
     bool isDecal = false;
     bool isDynamic = false;
+    bool fromLevel = false;
+    std::unordered_map<std::string, std::string>  levelProperties;
+    AssetRef asset;
 
     void setMaterial(std::shared_ptr<Material> mat) { materials = { mat }; }
     std::shared_ptr<Material> getMaterial(int index) const
@@ -27,6 +31,13 @@ public:
         if (materials.empty()) return nullptr;
         if (index < 0 || index >= (int)materials.size()) return materials[0];
         return materials[index];
+    }
+
+    bool removeComponent(IComponent* comp)
+    {
+        for (auto it = m_components.begin(); it != m_components.end(); ++it)
+            if (it->second.get() == comp) { m_components.erase(it); return true; }
+        return false;
     }
 
     template<typename T, typename... Args>
@@ -69,6 +80,13 @@ public:
     {
         for (auto& [type, comp] : m_components)
             comp->fixedUpdate(fixedDeltaTime);
+    }
+
+    template<typename F>
+    void forEachComponent(F&& f)
+    {
+        for (auto& [type, comp] : m_components)
+            f(*comp);
     }
 
 private:

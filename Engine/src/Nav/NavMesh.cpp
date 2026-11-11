@@ -6,7 +6,7 @@
 
 int NavMesh::addNode(glm::vec3 position)
 {
-    NavNode node; 
+    NavNode node;
     node.id = (int)m_nodes.size();
     node.position = position;
     m_nodes.push_back(node);

@@ -130,7 +130,7 @@ void ModelLoader::load(const std::string& path)
 Skeleton ModelLoader::buildSkeleton() const
 {
     Skeleton skeleton;
-    
+
     for (const auto& bone : m_bones)
     {
         Joint joint{};

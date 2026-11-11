@@ -9,10 +9,25 @@ class CameraComponent : public IComponent
 {
 public:
     enum class Mode { FirstPerson, ThirdPerson };
-    
+
     CameraComponent(Camera& targetCamera, Mode mode = Mode::FirstPerson)
         : m_camera(targetCamera), m_mode(mode)
     {}
+
+    const char* typeName() const override { return "Camera"; }
+
+    void visit(PropertyVisitor& v) override
+    {
+        static const char* const kModes[] = { "FirstPerson", "ThirdPerson" };
+        v.enumOf("mode", m_mode, kModes);
+        v.field("eyeOffset", m_eyeOffset);
+        v.field("armLength", m_armLength);
+    }
+
+    Mode getMode() const { return m_mode; }
+    float getArmLength() const { return m_armLength; }
+
+    float getPitch() const { return m_pitch; }
 
     void onAttach(GameObject& owner) override { m_owner = &owner; }
 
@@ -25,7 +40,7 @@ public:
         glm::vec3 basePos = m_owner->transform.position;
         float yawRad = glm::radians(m_owner->transform.rotation.y);
         float pitchRad = glm::radians(m_pitch);
-        
+
         glm::vec3 forward;
         forward.x = cos(pitchRad) * sin(yawRad);
         forward.y = sin(pitchRad);

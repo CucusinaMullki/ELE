@@ -2,7 +2,7 @@
 
 layout(binding = 0) uniform sampler2D srcTexture;
 
-layout(push_constant) uniform Push 
+layout(push_constant) uniform Push
 {
     vec2 scrTexelSize;
 } push;
@@ -35,5 +35,5 @@ void main()
     result += (f + g + k + l) * 0.03125;
     result += (g + h + l + m) * 0.03125;
 
-    outColor = vec4(result, 1.0);    
+    outColor = vec4(result, 1.0);
 }

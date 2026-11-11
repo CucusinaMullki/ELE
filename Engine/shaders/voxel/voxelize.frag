@@ -7,11 +7,7 @@ layout(location = 2) in vec2 fragTexCoord;
 layout(binding = 0) uniform sampler2D albedoMap;
 layout(binding = 1, rgba8) uniform image3D voxelTexture;
 
-struct Light
-{
-    vec4 position;
-    vec4 color;
-};
+#include "light.glsl"
 
 layout(binding = 2) uniform LightUBO
 {

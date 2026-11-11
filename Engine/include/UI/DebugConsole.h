@@ -4,7 +4,7 @@
 #include <deque>
 #include <mutex>
 
-class DebugConsole 
+class DebugConsole
 {
 public:
     static DebugConsole& instance()

@@ -54,7 +54,7 @@ public:
     }
 
     bool* getOpenFlag() { return &m_open; }
-    
+
 private:
     bool m_open = true;
     char m_filterBuffer[128] = "";

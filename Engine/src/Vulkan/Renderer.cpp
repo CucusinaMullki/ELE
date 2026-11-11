@@ -2,6 +2,8 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "vulkan/VulkanDevice.h"
 #include "vulkan/VulkanRenderPass.h"
+#include "vulkan/VulkanTexture.h"
+#include "vulkan/VulkanSampler.h"
 #include "vulkan/VulkanCommandBuffer.h"
 #include "Vulkan/PushConstant.h"
 #include <vector>
@@ -97,6 +99,7 @@ void Renderer::renderImGui(ASH::CommandBuffer* commandBuffer)
 
 void Renderer::cleanupImGui()
 {
+    releaseViewportTexture();
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
@@ -538,7 +541,7 @@ void Renderer::initialize(GLFWwindow* window)
     m_skinnedPointShadowPipeline.initialize(device, skinnedPointShadowConfig);
 
     m_shadowAtlas.initialize(device);
-    m_staticShadowAtlas.initialize(device); 
+    m_staticShadowAtlas.initialize(device);
     m_voxelGI.initialize(device, 4.0f, 8, 1);
 
     struct VoxelGridInfoData { glm::vec4 chunkParams; glm::ivec4 cameraChunkCoord; glm::vec4 flags; };
@@ -829,7 +832,8 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
     glm::vec3 lightDir = glm::vec3(0.0f, -1.0f, 0.0f);
     for (int i = 0; i < m_pendingLights.count.x; i++)
     {
-        if (m_pendingLights.lights[i].position.w < 0.5f)
+        if (m_pendingLights.lights[i].type() == LightType::Point &&
+            m_pendingLights.lights[i].params.z > 0.5f)
         {
             lightDir = glm::normalize(glm::vec3(m_pendingLights.lights[i].position));
             break;
@@ -847,7 +851,7 @@ void Renderer::drawScene(const Scene& scene, const Camera& camera)
 
     for (int i = 0; i < m_pendingLights.count.x; i++)
     {
-        if (m_pendingLights.lights[i].position.w >= 0.5f)
+        if (m_pendingLights.lights[i].type() == LightType::Point)
         {
             glm::vec3 lp = glm::vec3(m_pendingLights.lights[i].position);
             float dist2 = glm::dot(lp - camera.getPosition(), lp - camera.getPosition());
@@ -1006,7 +1010,7 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
             for (const auto& sm : skeletalMesh->getSubmeshes())
                 skeletalMesh->drawSubmesh(cmd, sm);
         }
-   
+
         cmd->endRenderPass();
 
         transition(m_shadowMap.getTexture(), ASH::ResourceState::DepthStencilAttachment, ASH::ResourceState::ShaderReadOnly);
@@ -1210,10 +1214,15 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         atlasPass.framebuffer = m_shadowAtlasFramebuffer.get();
         atlasPass.renderArea = { 0, 0, m_shadowAtlas.getWidth(), m_shadowAtlas.getHeight() };
         atlasPass.depthStencilClear = &shadowClear;
-        m_pointAtlasState = ASH::ResourceState::DepthStencilAttachment;
+
+        if (m_pointAtlasState != ASH::ResourceState::DepthStencilAttachment)
+            transition(m_shadowAtlas.getTexture(), m_pointAtlasState, ASH::ResourceState::DepthStencilAttachment);
 
         cmd->beginRenderPass(atlasPass);
         cmd->endRenderPass();
+
+        transition(m_shadowAtlas.getTexture(), ASH::ResourceState::DepthStencilAttachment, ASH::ResourceState::ShaderReadOnly);
+        m_pointAtlasState = ASH::ResourceState::ShaderReadOnly;
     }
     if (m_preMainPassHook) m_preMainPassHook(cmd, (uint32_t)m_currentFrame);
     {
@@ -1784,7 +1793,8 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
         ASH::Rect2D scissor{ 0, 0, m_swapchain.getExtent().width, m_swapchain.getExtent().height };
         cmd->setScissor(scissor);
 
-        m_fxaa.apply(cmd, m_currentFrame, m_ldrTarget.getColorTexture(), m_ldrTarget.getSampler());
+        if (!m_viewportMode)
+            m_fxaa.apply(cmd, m_currentFrame, m_ldrTarget.getColorTexture(), m_ldrTarget.getSampler());
 
         renderImGui(cmd);
 
@@ -1795,11 +1805,40 @@ void Renderer::recordCommandBuffer(ASH::CommandBuffer* cmd, uint32_t imageIndex,
     cmd->end();
 }
 
+ImTextureID Renderer::getViewportTexture()
+{
+    auto* tex = static_cast<ASH::vulkan::VulkanTexture*>(m_ldrTarget.getColorTexture());
+    auto* smp = static_cast<ASH::vulkan::VulkanSampler*>(m_ldrTarget.getSampler());
+    const VkImageView view = tex->getImageView();
+
+    if (m_viewportImGuiSet != VK_NULL_HANDLE && m_viewportView != view)
+        releaseViewportTexture();
+
+    if (m_viewportImGuiSet == VK_NULL_HANDLE && view != VK_NULL_HANDLE)
+    {
+        m_viewportImGuiSet = ImGui_ImplVulkan_AddTexture(smp->getHandle(), view,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        m_viewportView = view;
+    }
+    return (ImTextureID)(uintptr_t)m_viewportImGuiSet;
+}
+
+void Renderer::releaseViewportTexture()
+{
+    if (m_viewportImGuiSet != VK_NULL_HANDLE)
+    {
+        ImGui_ImplVulkan_RemoveTexture(m_viewportImGuiSet);
+        m_viewportImGuiSet = VK_NULL_HANDLE;
+    }
+}
+
 void Renderer::recreateSwapchain()
 {
     LOG("recreateSwapchain() called!");
     ASH::Device* device = m_context.getDevice();
     device->waitIdle();
+
+    releaseViewportTexture();
 
     m_framebuffers.cleanup();
     m_depthBuffer.cleanup();
@@ -2084,7 +2123,7 @@ void Renderer::cleanup()
     m_skyboxPipeline.cleanup();
     m_environmentCubemap.cleanup();
     m_envBaker.cleanup();
-    
+
     if (m_cleaned) return;
     m_cleaned = true;
 
@@ -2169,7 +2208,7 @@ void Renderer::cleanup()
     m_skinnedShadowPipeline.cleanup();
     m_shadowRenderPass.cleanup();
     m_shadowMap.cleanup();
-    
+
     m_voxelizeShadowDataBuffer.reset();
 
     m_lightBuffer.cleanup();

@@ -12,7 +12,7 @@ public:
     ASH::Sampler* getSampler() const { return m_sampler.get(); }
     ASH::Format getFormat() const { return m_format; }
     uint32_t getSize() const { return m_size; }
-    
+
 private:
     std::unique_ptr<ASH::Texture> m_texture;
     std::unique_ptr<ASH::Sampler> m_sampler;

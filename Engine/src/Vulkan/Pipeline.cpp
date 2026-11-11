@@ -116,7 +116,7 @@ ASH::DescriptorSetLayoutDesc buildLayoutDesc(LayoutType layoutType)
         addBinding(2, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         addBinding(3, ASH::DescriptorType::UniformBuffer, ASH::ShaderStage::Fragment);
         break;
-    
+
     case LayoutType::Decal:
         addBinding(0, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);
         addBinding(1, ASH::DescriptorType::CombinedImageSampler, ASH::ShaderStage::Fragment);

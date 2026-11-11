@@ -265,7 +265,7 @@ std::vector<std::shared_ptr<Animation>> SkeletalGltfLoader::parseAnimations(cons
                     jointChannel.scaleKeys.push_back({ times[i], scale });
                 }
             }
-            
+
             animation->duration = std::max(animation->duration, times.empty() ? 0.0f : times.back());
         }
 

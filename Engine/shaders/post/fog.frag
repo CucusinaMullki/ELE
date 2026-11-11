@@ -12,7 +12,7 @@ layout(binding = 1) uniform Camera {
 
 layout(binding = 2) uniform sampler2DShadow shadowMap;
 
-struct Light { vec4 position; vec4 color; };
+#include "light.glsl"
 layout(binding = 3) uniform LightUBO {
     Light lights[16];
     ivec4 count;
@@ -74,7 +74,7 @@ void main()
         outColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
-    
+
     vec4 ndc = vec4(fragUV * 2.0 - 1.0, sceneDepth, 1.0);
     vec4 worldPosH = cam.invViewProj * ndc;
     vec3 scenePos = worldPosH.xyz / worldPosH.w;

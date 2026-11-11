@@ -1,4 +1,3 @@
-// RTSkinPass.cpp
 #include "RT/RTSkinPass.h"
 #include "Vulkan/ShaderLoader.h"
 #include "Vulkan/SkinnedVertex.h"

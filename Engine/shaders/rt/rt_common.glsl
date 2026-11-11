@@ -10,7 +10,7 @@ layout(set = 0, binding = 2) uniform CameraUBO {
     vec4 iblParams;
 } cam;
 
-struct Light { vec4 position; vec4 color; };
+#include "light.glsl"
 layout(set = 0, binding = 3) uniform LightUBO {
     Light lights[16];
     ivec4 count;

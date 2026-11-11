@@ -148,7 +148,7 @@ private:
                     lastLoggedTime = m_currentTime;
                 }
             }
-            
+
             if (joint.parentIndex >= 0)
                 m_globalTransforms[i] = m_globalTransforms[joint.parentIndex] * localTransform;
             else

@@ -14,8 +14,8 @@ class AIController : public IComponent
 {
 public:
     AIController(PhysicsSystem& physics) : m_physics(physics) {}
-    
-    void onAttach(GameObject& owner) override 
+
+    void onAttach(GameObject& owner) override
     {
         m_owner = &owner;
         m_character = owner.getComponent<CharacterComponent>();
@@ -43,7 +43,7 @@ public:
         logTimer += deltaTime;
         if (logTimer >= 1.0f)
         {
-            LOG("enemy pos: " << m_owner->transform.position.x << "," 
+            LOG("enemy pos: " << m_owner->transform.position.x << ","
                 << m_owner->transform.position.y << "," << m_owner->transform.position.z);
             logTimer = 0.0f;
         }

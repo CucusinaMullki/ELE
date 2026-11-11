@@ -20,6 +20,33 @@ public:
         s_allCharacters.erase(std::remove(s_allCharacters.begin(), s_allCharacters.end(), this), s_allCharacters.end());
     }
 
+    const char* typeName() const override { return "Character"; }
+
+    void visit(PropertyVisitor& v) override
+    {
+        v.field("radius", m_radius);
+        v.field("height", m_height);
+        v.field("mass", m_mass);
+    }
+
+    float getRadius() const { return m_radius; }
+    float getHeight() const { return m_height; }
+
+    void onPropertiesChanged() override
+    {
+        if (!m_owner) return;
+        m_character = m_physics.createCharacterVirtual(m_owner->transform.position, m_radius, m_height, m_mass);
+        teleport(m_owner->transform.position);
+    }
+
+    void teleport(glm::vec3 p)
+    {
+        m_character->SetPosition(JPH::RVec3(p.x, p.y, p.z));
+        m_previousPosition = m_currentPosition = p;
+        m_owner->transform.position = p;
+        m_verticalVelocity = 0.0f;
+    }
+
     void onAttach(GameObject& owner) override
     {
         m_owner = &owner;
@@ -51,7 +78,7 @@ public:
         m_currentPosition = rawPosition();
 
         resolveCharacterOverlap();
-    
+
         std::vector<JPH::BodyID> overlapping = m_physics.queryOverlappingBodies(rawPosition(), m_radius);
 
         std::vector<JPH::BodyID> currentTriggers;

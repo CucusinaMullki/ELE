@@ -80,9 +80,23 @@ add_library(ELE STATIC
     src/RT/RTMaster.cpp
     src/RT/RTPass.cpp
     src/RT/RTProbeUpdate.cpp
+    src/Scene/PropertyIO.cpp
+    src/Scene/PropertyIO.cpp
+    src/Scene/ComponentRegistry.cpp
+    src/Scene/SceneSerializer.cpp
+    src/Scene/EngineComponents.cpp
+    src/Physics/PhysicsDebugDraw.cpp
     src/Scene/ProbeSystem.cpp
     src/Scene/Animation.cpp
+    src/Scripting/Script.cpp
+    src/Core/LevelWriter.cpp
 )
+
+if(MSVC)
+    set_source_files_properties(src/Physics/PhysicsDebugDraw.cpp PROPERTIES COMPILE_OPTIONS "/GR-")
+else()
+    set_source_files_properties(src/Physics/PhysicsDebugDraw.cpp PROPERTIES COMPILE_OPTIONS "-fno-rtti")
+endif()
 
 target_sources(ELE PRIVATE
     ${imgui_SOURCE_DIR}/imgui.cpp

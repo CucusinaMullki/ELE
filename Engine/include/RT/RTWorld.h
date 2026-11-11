@@ -44,9 +44,10 @@ public:
     void recordAll(ASH::CommandBuffer* cmd, uint32_t frame);
     void recordDenoise(ASH::CommandBuffer* cmd, uint32_t frame, const float* view, const float* proj);
     void resize(uint32_t w, uint32_t h);
+    void setAllDynamic(bool on) { if (m_allDynamic != on) { m_allDynamic = on; m_dirty = true; } }
 
     bool addMesh(const void* key, const std::vector<Vertex>& vertices,
-                 const std::vector<uint32_t>& indices, const std::vector<Submesh>& submeshes);
+        const std::vector<uint32_t>& indices, const std::vector<Submesh>& submeshes);
     void updateDynamic(const ::Scene& scene, ASH::CommandBuffer* cmd, uint32_t frame);
     void updateSkinned(const ::Scene& scene, ASH::CommandBuffer* cmd, uint32_t frame);
     bool sync(const ::Scene& scene);
@@ -78,6 +79,7 @@ private:
     Context m_ctx;
     std::unique_ptr<Master> m_master;
     SkinPass m_skin;
+    bool m_allDynamic = false;
 
     VkAccelerationStructureKHR m_tlas = VK_NULL_HANDLE;
     std::unique_ptr<ASH::Buffer> m_tlasStorage;

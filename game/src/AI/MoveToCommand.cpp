@@ -14,7 +14,7 @@ bool MoveToCommand::execute(AIController& ai, float deltaTime)
 
     if (m_currentWaypoint >= m_path.size())
         return true;
-    
+
     glm::vec3 currentPos = ai.getOwnerPosition();
     glm::vec3 waypoint = m_path[m_currentWaypoint];
     glm::vec3 toWaypoint = waypoint - currentPos;

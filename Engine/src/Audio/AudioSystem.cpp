@@ -2,6 +2,21 @@
 #include "Core/Log.h"
 #include "Core/Path.h"
 
+void AudioSystem::unloadSound(const std::string& name)
+{
+    auto it = m_sounds.find(name);
+    if (it == m_sounds.end()) return;
+    ma_sound_uninit(it->second.get());
+    m_sounds.erase(it);
+}
+
+void AudioSystem::setLooping(const std::string& name, bool loop)
+{
+    auto it = m_sounds.find(name);
+    if (it != m_sounds.end())
+        ma_sound_set_looping(it->second.get(), loop ? MA_TRUE : MA_FALSE);
+}
+
 void AudioSystem::initialize()
 {
 #ifdef _WIN32
@@ -51,7 +66,7 @@ bool AudioSystem::loadSound(const std::string& name, const std::string& path)
     if (!m_ready) return false;
     if (m_sounds.find(name) != m_sounds.end())
         return true;
-    
+
     std::string fullPath = (Paths::assetDir() / "assets" / path).string();
 
     auto sound = std::make_unique<ma_sound>();

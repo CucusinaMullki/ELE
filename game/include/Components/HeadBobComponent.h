@@ -47,8 +47,8 @@ private:
         float t = 1.0f - exp(-speed * deltaTime);
         return glm::mix(current, target, t);
     }
-    
-    static glm::vec3 expInterpTo(glm::vec3 current, glm::vec3 target, float deltaTime, float speed)   // ДОБАВИТЬ
+
+    static glm::vec3 expInterpTo(glm::vec3 current, glm::vec3 target, float deltaTime, float speed)
     {
         return glm::vec3(
             expInterpTo(current.x, target.x, deltaTime, speed),

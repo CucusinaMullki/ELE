@@ -27,6 +27,6 @@ void main()
     vec2 uv = uvOf(vb, i0) * bc.x + uvOf(vb, i1) * bc.y + uvOf(vb, i2) * bc.z;
 
     float a = textureLod(albedoTex[nonuniformEXT(e.materialIndex)], uv, 0.0).a;
-    
+
     if (a < 0.5) ignoreIntersectionEXT;
 }

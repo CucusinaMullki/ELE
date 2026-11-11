@@ -1,4 +1,3 @@
-// Общая генерация направлений лучей зонда: используется и probe.rgen, и probe_update.comp.
 #ifndef PROBE_DIRS_GLSL
 #define PROBE_DIRS_GLSL
 

@@ -26,12 +26,12 @@ public:
     void update(float deltaTime) override
     {
         if (!m_input) return;
-    
+
         if (m_input->isFireJustPressed())
         {
             glm::vec3 origin = m_camera->getCamera().getPosition();
             glm::vec3 dir = m_camera->getCamera().getFront();
-        
+
             RaycastHit hit = m_physics.raycast(origin, dir, 3.0f);
             if (hit.hit)
             {
@@ -102,23 +102,23 @@ public:
         if (m_input->isInteractJustPressed())
         {
             LOG("Interact pressed!");
-        
+
             glm::vec3 origin = m_camera->getCamera().getPosition();
             glm::vec3 dir = m_camera->getCamera().getFront();
             RaycastHit hit = m_physics.raycast(origin, dir, m_interactRange);
-        
+
             LOG("Raycast hit: " << hit.hit << ", distance: " << hit.distance);
-        
+
             if (hit.hit)
             {
                 GameObject* target = m_physics.getOwner(hit.bodyId);
                 LOG("target found: " << (target != nullptr) << ", name: '" << (target ? target->name : "null") << "'");
-            
+
                 if (target)
                 {
                     auto* interactable = target->getComponent<InteractableComponent>();
                     LOG("interactable found: " << (interactable != nullptr));
-                
+
                     if (interactable && interactable->onInteract)
                         interactable->onInteract();
                 }

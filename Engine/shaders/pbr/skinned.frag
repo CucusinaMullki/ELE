@@ -93,10 +93,7 @@ vec4 sampleProbes(vec3 worldPos, vec3 n)
     return wsum > 1e-4 ? vec4(sum / wsum * PROBE_STRENGTH, fade) : vec4(0.0);
 }
 
-struct Light {
-    vec4 position;
-    vec4 color;
-};
+#include "light.glsl"
 
 layout(binding = 5) uniform LightUBO {
     Light lights[16];
@@ -259,7 +256,7 @@ const int   RT_REFL_TAPS = 12;
 const float RT_REFL_BLUR_PX = 28.0;
 const int   RT_AO_RADIUS_PX = 2;
 const float RT_AO_STRENGTH = 1.0;
-const float RT_GI_STRENGTH = 1.0;
+const float RT_GI_STRENGTH = 0.5;
 const float RT_GI_BASE_KEEP = 0.25;
 const int RT_GI_RADIUS = 2;
 const int RT_GI_STEP = 2;
@@ -364,10 +361,11 @@ void main()
     float ao = texture(aoMap, fragTexCoord).r;
 
     bool rtShadows = textureSize(rtShadowMask, 0).x > 1;
-    float rtDirVis = 1.0;
+    vec4 rtMask = vec4(1.0);
     if (rtShadows)
-        rtDirVis = texelFetch(rtShadowMask,
-            min(ivec2(gl_FragCoord.xy), textureSize(rtShadowMask, 0) - 1), 0).r;
+        rtMask = texelFetch(rtShadowMask,
+            min(ivec2(gl_FragCoord.xy), textureSize(rtShadowMask, 0) - 1), 0);
+    float rtDirVis = rtMask.r;
 
     bool rtRefl = textureSize(rtReflection, 0).x > 1;
 
@@ -375,13 +373,6 @@ void main()
     N = N * 2.0 - 1.0;
     N = normalize(fragTBN * N);
 
-//  Debug start
-//    vec3 geoN = normalize(fragTBN[2]);
-//    vec3 debugL = normalize(-vec3(0.0, -1.0, 0.0));
-//    float debugVis = calculateShadow(fragLightSpacePos, geoN, debugL, gl_FragCoord.xy);
-//    outColor = vec4(vec3(debugVis), 1.0);
-//    return;
-//  Debug end
 
     vec3 V = normalize(cam.camPos.xyz - fragWorldPos);
     vec3 R = reflect(-V, N);
@@ -393,19 +384,13 @@ void main()
     {
         Light light = lightData.lights[i];
         vec3 L, radiance;
+        float lightDist;
+        if (!evalLight(light, fragWorldPos, R, L, radiance, lightDist))
+            continue;
 
-        if (light.position.w < 0.5) {
-            L = normalize(-light.position.xyz);
-            radiance = light.color.rgb * light.color.a;
-        }
-        else
+        const int lt = lightType(light);
+        if (lt != LIGHT_DIRECTIONAL)
         {
-            vec3 toLight = light.position.xyz - fragWorldPos;
-            float dist2 = max(dot(toLight, toLight), 0.01);
-            L = normalize(toLight);
-            float atten = 1.0 / dist2;
-            radiance = light.color.rgb * light.color.a * atten;
-
             int shadowSlot = -1;
             if (i == lightData.count.y) shadowSlot = 0;
             else if (i == lightData.count.z) shadowSlot = 1;
@@ -413,8 +398,13 @@ void main()
 
             if (shadowSlot >= 0)
             {
-                float pShadow = calculatePointShadow(fragWorldPos, light.position.xyz, N, gl_FragCoord.xy, shadowSlot);
-                radiance *= (1.0 - pShadow);
+                if (rtShadows)
+                    radiance *= rtMask[shadowSlot + 1];
+                else if (lt != LIGHT_RECT)
+                {
+                    float pShadow = calculatePointShadow(fragWorldPos, light.position.xyz, N, gl_FragCoord.xy, shadowSlot);
+                    radiance *= (1.0 - pShadow);
+                }
             }
         }
 
@@ -444,7 +434,7 @@ void main()
             Lo += (kD * albedo / PI + specular) * radiance * NdotL * visibility;
         }
     }
-    
+
     bool rtOk = rtSameSurface();
     float rtAoV = rtOk ? mix(1.0, sampleRtAo(rtPx(), textureSize(rtAoTex, 0)), RT_AO_STRENGTH) : 1.0;
 
@@ -456,7 +446,7 @@ void main()
         vec3 probeAmbient = pr.rgb * albedo * (1.0 - metallic);
         indirectDiffuse = mix(baseAmbient, probeAmbient + baseAmbient * IBL_WITH_PROBES, pr.a);
     }
-    
+
     if (rtOk && textureSize(rtGiTex, 0).x > 1)
     {
         vec3 giD = sampleNrdGi(rtPx(), textureSize(rtGiTex, 0))
