@@ -88,7 +88,7 @@ add_subdirectory(tools/emodel_optimizer)
 add_subdirectory(tools/texconv)
 
 set(ELE_TEXTURE_DIRS "${CMAKE_BINARY_DIR}/game/Levels" CACHE STRING
-    "Папки/файлы с PNG/JPG, которые конвертируются в KTX2 при сборке")
+    "Folders/files in PNG/JPG format that are converted to KTX2 during the build process")
 
 add_custom_target(ConvertTextures ALL
     COMMAND ele_texconv ${ELE_TEXTURE_DIRS}
