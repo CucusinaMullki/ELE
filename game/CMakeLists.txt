@@ -5,7 +5,6 @@ add_executable(game
     src/AI/PatrolCommand.cpp
 )
 
-# Скрипты из game/scripts — в саму игру (в редакторе они же грузятся как .so)
 file(GLOB GAME_SCRIPT_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/*.cpp)
 target_sources(game PRIVATE ${GAME_SCRIPT_SOURCES})
 target_include_directories(game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/scripts)

@@ -121,7 +121,6 @@ target_include_directories(ELE PUBLIC
     ${imgui_SOURCE_DIR}/backends
 )
 
-# NVIDIA Readl-Time Denoiser
 option(ELE_USE_NRD "Build with NVIDIA Real-Time Denoiser" ON)
 if (ELE_USE_NRD)
     include(FetchContent)

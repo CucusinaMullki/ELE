@@ -28,7 +28,7 @@ static bool classify(const std::string& stem, Kind& kind)
     return false;
 }
 
-struct Image { int w = 0, h = 0; std::vector<uint8_t> px; };   // RGBA8
+struct Image { int w = 0, h = 0; std::vector<uint8_t> px; };
 
 static float g_srgbToLin[256];
 
